@@ -17,6 +17,14 @@ document.addEventListener("DOMContentLoaded", () => {
     initCurrencyConverter();
 });
 
+// Helper for formatting numeric cost values safely
+function formatCost(val) {
+    if (val === undefined || val === null) return "0.00";
+    if (typeof val === "number") return val.toFixed(2);
+    const num = parseFloat(val);
+    return isNaN(num) ? "0.00" : num.toFixed(2);
+}
+
 // Tab Switch Logic
 function initTabs() {
     const tabBtns = document.querySelectorAll(".tab-btn");
@@ -53,40 +61,39 @@ function initCurrencyConverter() {
     const currencySelect = document.getElementById("conv-from");
     const resultDiv = document.getElementById("conv-result");
     const applyBtn = document.getElementById("apply-budget-btn");
-    const budgetInput = document.getElementById("budget");
 
-    if (!amountInput || !currencySelect || !resultDiv || !applyBtn || !budgetInput) return;
+    if (!amountInput || !currencySelect || !resultDiv || !applyBtn) return;
 
     function updateConversion() {
-        const amount = parseFloat(amountInput.value) || 0;
-        const currency = currencySelect.value;
-        const rate = EXCHANGE_RATES[currency] || 1;
-        const converted = amount * rate;
-        resultDiv.textContent = `₹${converted.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        return Math.round(converted);
+        const amt = parseFloat(amountInput.value);
+        const cur = currencySelect.value;
+        if (isNaN(amt) || amt <= 0) {
+            resultDiv.textContent = "₹0.00";
+            return;
+        }
+        const rate = EXCHANGE_RATES[cur] || 1.0;
+        const inr = amt * rate;
+        resultDiv.textContent = `₹${inr.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
 
-    // Attach listeners
     amountInput.addEventListener("input", updateConversion);
     currencySelect.addEventListener("change", updateConversion);
 
-    // Apply button click
     applyBtn.addEventListener("click", () => {
-        const convertedVal = updateConversion();
-        if (convertedVal > 0) {
-            budgetInput.value = convertedVal;
-            // Visual feedback on budget input
-            budgetInput.style.borderColor = "var(--accent)";
-            budgetInput.style.backgroundColor = "rgba(124, 58, 237, 0.08)";
-            setTimeout(() => {
-                budgetInput.style.borderColor = "";
-                budgetInput.style.backgroundColor = "";
-            }, 800);
+        const amt = parseFloat(amountInput.value);
+        const cur = currencySelect.value;
+        if (!isNaN(amt) && amt > 0) {
+            const rate = EXCHANGE_RATES[cur] || 1.0;
+            const inr = Math.round(amt * rate);
+            const budgetInput = document.getElementById("budget");
+            if (budgetInput) {
+                budgetInput.value = inr;
+                alert(`Applied ₹${inr.toLocaleString("en-IN")} to your budget!`);
+            }
         }
     });
 
-    // Run initial conversion
-    updateConversion();
+    updateConversion(); // Initial run
 }
 
 // Map Initialization (Strictly Light Mode Map)
@@ -100,7 +107,7 @@ function initializeLeafletMap(lat, lon, bbox) {
         map = null;
     }
     const mapContainer = document.getElementById("map");
-    // Clear placeholder
+    if (!mapContainer) return;
     mapContainer.innerHTML = "";
 
     // Create Leaflet instance
@@ -125,7 +132,7 @@ function initializeLeafletMap(lat, lon, bbox) {
         const [minLat, maxLat, minLon, maxLon] = bbox;
         const bounds = [[minLat, minLon], [maxLat, maxLon]];
         L.rectangle(bounds, {
-            color: "#7C3AED", // Purple boundary to match accent
+            color: "#7C3AED",
             weight: 2,
             fillColor: "#7C3AED",
             fillOpacity: 0.03
@@ -150,6 +157,8 @@ function setupForm() {
     const planData = document.getElementById("plan-data");
     const planPlaceholder = planTab ? planTab.querySelector(".plan-placeholder") : null;
 
+    if (!form || !loader || !searchBtn) return;
+
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
         
@@ -157,6 +166,10 @@ function setupForm() {
         const people = parseInt(document.getElementById("people").value);
         const days = parseInt(document.getElementById("days").value);
         const budget = parseFloat(document.getElementById("budget").value);
+        
+        const includeStay = document.getElementById("filter-stay").checked;
+        const includeAttractions = document.getElementById("filter-attractions").checked;
+        const includeTransport = document.getElementById("filter-transport").checked;
         
         if (!city || !people || !days || !budget) return;
 
@@ -183,9 +196,12 @@ function setupForm() {
             initializeLeafletMap(searchData.geocoding.lat, searchData.geocoding.lon, searchData.geocoding.bbox);
 
             // Populate Candidates stats
-            document.getElementById("hotel-count").textContent = searchData.venue_counts.hotels;
-            document.getElementById("rest-count").textContent = searchData.venue_counts.restaurants;
-            document.getElementById("attr-count").textContent = searchData.venue_counts.attractions;
+            const hotelCountEl = document.getElementById("hotel-count");
+            if (hotelCountEl) hotelCountEl.textContent = searchData.venue_counts.hotels;
+            const restCountEl = document.getElementById("rest-count");
+            if (restCountEl) restCountEl.textContent = searchData.venue_counts.restaurants;
+            const attrCountEl = document.getElementById("attr-count");
+            if (attrCountEl) attrCountEl.textContent = searchData.venue_counts.attractions;
 
             populateList("sample-hotels", searchData.sample_venues.hotels, "No hotels found");
             populateList("sample-restaurants", searchData.sample_venues.restaurants, "No restaurants found");
@@ -200,7 +216,12 @@ function setupForm() {
             const planResponse = await fetch("/api/plan", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ city, budget, days, people })
+                body: JSON.stringify({ 
+                    city, budget, days, people,
+                    include_stay: includeStay,
+                    include_transport: includeTransport,
+                    include_attractions: includeAttractions
+                })
             });
 
             if (!planResponse.ok) {
@@ -221,48 +242,65 @@ function setupForm() {
                 
                 // Populate Plan Summary
                 const totalCostEl = document.getElementById("plan-total-cost");
-                if (totalCostEl) totalCostEl.textContent = `₹${plan.total_cost.toFixed(2)}`;
+                if (totalCostEl) totalCostEl.textContent = `₹${formatCost(plan.total_cost)}`;
                 const personCostEl = document.getElementById("plan-person-cost");
-                if (personCostEl) personCostEl.textContent = `₹${plan.cost_per_person.toFixed(2)}`;
+                if (personCostEl) personCostEl.textContent = `₹${formatCost(plan.cost_per_person)}`;
                 
                 const statusBadge = document.getElementById("plan-status");
                 if (statusBadge) {
                     statusBadge.textContent = "Within Budget";
-                    statusBadge.className = "plan-status-badge"; // Reset class
+                    statusBadge.className = "plan-status-badge";
                 }
                 
-                // Populate Hotel
+                // Populate Hotel / Stay
+                const hotelCardContainer = document.getElementById("opt-hotel-card-container");
                 const hotelDetail = document.getElementById("opt-hotel-detail");
-                if (hotelDetail) {
-                    const starsText = plan.hotel.stars ? ` ⭐ ${plan.hotel.stars} Star` : "";
-                    const hotelType = plan.hotel.sub_type ? plan.hotel.sub_type.toUpperCase() : "HOTEL";
-                    hotelDetail.innerHTML = `
-                        <div class="hotel-details-block">
-                            <div class="hotel-name">${plan.hotel.name}</div>
-                            <div class="hotel-meta">${hotelType} ${starsText}</div>
-                            <div class="hotel-cost">Est. Total: ₹${plan.hotel.cost.toFixed(2)}</div>
-                        </div>
-                    `;
+                if (plan.hotel && plan.hotel.id !== "virtual_depot") {
+                    if (hotelCardContainer) hotelCardContainer.classList.remove("hidden");
+                    if (hotelDetail) {
+                        const starsText = plan.hotel.stars ? ` ⭐ ${plan.hotel.stars} Star` : "";
+                        const hotelType = plan.hotel.sub_type ? plan.hotel.sub_type.toUpperCase() : "HOTEL";
+                        hotelDetail.innerHTML = `
+                            <div class="hotel-details-block">
+                                <div class="hotel-name">${plan.hotel.name}</div>
+                                <div class="hotel-meta">${hotelType} ${starsText}</div>
+                                <div class="hotel-cost">Est. Total: ₹${formatCost(plan.hotel.cost)}</div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    if (hotelCardContainer) hotelCardContainer.classList.add("hidden");
                 }
 
-                // Render Day-by-Day Route Planner timeline
-                renderItineraryTimeline(plan.itinerary);
+                // Render Food & Nightlife Recommendations
+                renderFoodAndNightlife(plan.restaurants, plan.bars);
 
-                // Draw routes and markers on Leaflet map
-                plotItineraryOnMap(plan.itinerary, plan.hotel);
+                // Render Clustered Exploration Zones timeline
+                renderExplorationZones(plan.zones);
+
+                // Draw zones, pins and connection lines on Leaflet map
+                plotZonesOnMap(plan.zones, plan.hotel, plan.restaurants, plan.bars);
 
                 // Populate Backup Plan
                 const backupSection = document.getElementById("backup-plan-section");
-                if (plan.backup) {
-                    document.getElementById("backup-cost-badge").textContent = `₹${plan.backup.total_cost.toFixed(2)}`;
-                    document.getElementById("backup-hotel-name").textContent = plan.backup.hotel.name;
-                    backupSection.classList.remove("hidden");
-                } else {
-                    backupSection.classList.add("hidden");
+                if (backupSection) {
+                    if (plan.backup) {
+                        const backupCostBadge = document.getElementById("backup-cost-badge");
+                        if (backupCostBadge) backupCostBadge.textContent = `₹${formatCost(plan.backup.total_cost)}`;
+                        const backupHotelName = document.getElementById("backup-hotel-name");
+                        if (backupHotelName) {
+                            backupHotelName.textContent = plan.backup.hotel && plan.backup.hotel.id !== "virtual_depot" 
+                                ? plan.backup.hotel.name 
+                                : "No accommodation (local trip)";
+                        }
+                        backupSection.classList.remove("hidden");
+                    } else {
+                        backupSection.classList.add("hidden");
+                    }
                 }
 
-                planPlaceholder.classList.add("hidden");
-                planData.classList.remove("hidden");
+                if (planPlaceholder) planPlaceholder.classList.add("hidden");
+                if (planData) planData.classList.remove("hidden");
             }
 
             // Automatically focus the "Budget Plan" tab
@@ -283,6 +321,7 @@ function setupForm() {
 
 function populateList(elementId, items, emptyMessage) {
     const list = document.getElementById(elementId);
+    if (!list) return;
     list.innerHTML = "";
     
     if (!items || items.length === 0) {
@@ -301,141 +340,258 @@ function populateList(elementId, items, emptyMessage) {
     });
 }
 
-// Render Day-by-Day Timeline HTML
-function renderItineraryTimeline(itinerary) {
-    const container = document.getElementById("opt-days-container");
+// Render Food and Nightlife lists (Restaurants & Bars)
+function renderFoodAndNightlife(restaurants, bars) {
+    const restList = document.getElementById("opt-restaurants-list");
+    if (restList) {
+        restList.innerHTML = "";
+        if (!restaurants || restaurants.length === 0) {
+            restList.innerHTML = "<li style='font-style: italic;'>None selected</li>";
+        } else {
+            // Group duplicate counts (since we cycle/duplicate due to scarcity)
+            const counts = {};
+            restaurants.forEach(r => {
+                const name = r.name;
+                counts[name] = counts[name] ? { ...r, qty: counts[name].qty + 1 } : { ...r, qty: 1 };
+            });
+            
+            Object.values(counts).forEach(r => {
+                const li = document.createElement("li");
+                const qtyText = r.qty > 1 ? ` <span class="badge-qty" style="color: var(--accent); font-weight: bold; margin-left: 4px;">x${r.qty}</span>` : "";
+                li.innerHTML = `
+                    <span class="opt-item-name">${r.name}${qtyText}</span>
+                    <span class="opt-item-cost">₹${formatCost(r.cost * r.qty)}</span>
+                `;
+                restList.appendChild(li);
+            });
+        }
+    }
+
+    const barsContainer = document.getElementById("opt-bars-container");
+    const barsList = document.getElementById("opt-bars-list");
+    if (barsList) {
+        barsList.innerHTML = "";
+        if (!bars || bars.length === 0) {
+            if (barsContainer) barsContainer.classList.add("hidden");
+        } else {
+            if (barsContainer) barsContainer.classList.remove("hidden");
+            bars.forEach(b => {
+                const li = document.createElement("li");
+                li.innerHTML = `
+                    <span class="opt-item-name">${b.name}</span>
+                    <span class="opt-item-cost">${b.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(b.cost)}</span>
+                `;
+                barsList.appendChild(li);
+            });
+        }
+    }
+}
+
+// Render Exploration Zones timeline HTML
+function renderExplorationZones(zones) {
+    const container = document.getElementById("opt-zones-container");
     if (!container) return;
     container.innerHTML = "";
 
-    if (!itinerary || itinerary.length === 0) {
-        container.innerHTML = "<p style='font-style: italic; padding: 1rem;'>No itinerary steps generated.</p>";
+    const zonesSection = document.getElementById("opt-zones-section");
+    if (!zones || zones.length === 0) {
+        if (zonesSection) zonesSection.classList.add("hidden");
         return;
     }
+    if (zonesSection) zonesSection.classList.remove("hidden");
 
-    itinerary.forEach(day => {
-        const dayBlock = document.createElement("div");
-        dayBlock.className = "day-block";
+    zones.forEach(zone => {
+        const zoneBlock = document.createElement("div");
+        zoneBlock.className = "zone-block";
 
-        // Day Header
+        // Zone Header
         const header = document.createElement("div");
-        header.className = "day-header";
+        header.className = "zone-header";
         header.innerHTML = `
-            <h4>Day ${day.day}</h4>
-            <span class="day-dist-badge">🚘 Route: ${day.total_distance_km} km</span>
+            <h4>🗺️ ${zone.name}</h4>
+            <span class="zone-count-badge">${zone.attractions_count} Attractions</span>
         `;
-        dayBlock.appendChild(header);
+        zoneBlock.appendChild(header);
 
-        // Steps List
-        const stepsList = document.createElement("div");
-        stepsList.className = "route-steps-list";
+        // Zone Content
+        const content = document.createElement("div");
+        content.className = "zone-content";
 
-        day.route.forEach((step, idx) => {
-            const isDepot = (idx === 0 || idx === day.route.length - 1);
-            const stepItem = document.createElement("div");
-            stepItem.className = "route-step-item";
-
-            const isFree = step.cost === 0;
-            const costText = isDepot ? "" : (isFree ? '<span class="free-badge">Free</span>' : `₹${step.cost.toFixed(2)}`);
-            const typeLabel = isDepot ? "Base Hotel" : (step.sub_type ? step.sub_type.toUpperCase() : "VENUE");
-
-            stepItem.innerHTML = `
-                <div class="step-number-circle ${isDepot ? 'depot' : ''}">${idx + 1}</div>
-                <div class="step-details">
-                    <div>
-                        <span class="step-name">${step.name}</span>
-                        <span class="step-type-tag">${typeLabel}</span>
-                    </div>
-                    <span class="step-cost">${costText}</span>
-                </div>
+        // Popular Places Group
+        if (zone.popular_places && zone.popular_places.length > 0) {
+            const group = document.createElement("div");
+            group.className = "sub-zone-group popular";
+            group.innerHTML = `
+                <h5>🏛️ Popular Sights</h5>
+                <ul class="zone-list">
+                    ${zone.popular_places.map(item => `
+                        <li class="zone-item">
+                            <span class="zone-item-name">${item.name}</span>
+                            <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
+                        </li>
+                    `).join('')}
+                </ul>
             `;
-            stepsList.appendChild(stepItem);
-        });
+            content.appendChild(group);
+        }
 
-        dayBlock.appendChild(stepsList);
-        container.appendChild(dayBlock);
+        // Underrated Gems Group
+        if (zone.underrated_gems && zone.underrated_gems.length > 0) {
+            const group = document.createElement("div");
+            group.className = "sub-zone-group underrated";
+            group.innerHTML = `
+                <h5>💎 Underrated Gems</h5>
+                <ul class="zone-list">
+                    ${zone.underrated_gems.map(item => `
+                        <li class="zone-item">
+                            <span class="zone-item-name">${item.name}</span>
+                            <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
+                        </li>
+                    `).join('')}
+                </ul>
+            `;
+            content.appendChild(group);
+        }
+
+        zoneBlock.appendChild(content);
+        container.appendChild(zoneBlock);
     });
 }
 
-// Plot Day-wise Paths and Pins on the Map
-function plotItineraryOnMap(itinerary, hotel) {
-    // 1. Clear old dynamic layers
+// Plot Zones, Restaurants, and Pins on the Leaflet Map
+function plotZonesOnMap(zones, hotel, restaurants, bars) {
     mapLayers.forEach(layer => {
         try {
             map.removeLayer(layer);
         } catch (e) {
-            console.error("Error removing layer:", e);
+            console.error(e);
         }
     });
     mapLayers = [];
 
     if (!map) return;
 
-    // 2. Add Base Hotel Marker
-    const hotelMarker = L.marker([hotel.lat, hotel.lon]).addTo(map);
-    hotelMarker.bindPopup(`
-        <div style="font-family: var(--font-sans); text-align: center;">
-            <span style="font-size: 1.2rem;">🏨</span><br>
-            <b style="color: var(--accent);">${hotel.name}</b><br>
-            <i>Base Accommodation</i>
-        </div>
-    `);
-    mapLayers.push(hotelMarker);
+    const allLatLngs = [];
 
-    const DAY_COLORS = ["#7C3AED", "#EF4444", "#3B82F6", "#10B981", "#F59E0B", "#EC4899", "#14B8A6"];
-    const allLatLngs = [[hotel.lat, hotel.lon]];
+    // 1. Plot hotel/depot if stay is included
+    if (hotel && hotel.id !== "virtual_depot") {
+        const hotelMarker = L.marker([hotel.lat, hotel.lon]).addTo(map);
+        hotelMarker.bindPopup(`
+            <div style="text-align: center;">
+                <span style="font-size: 1.2rem;">🏨</span><br>
+                <b style="color: var(--accent);">${hotel.name}</b><br>
+                <i>Stay Location</i>
+            </div>
+        `);
+        mapLayers.push(hotelMarker);
+        allLatLngs.push([hotel.lat, hotel.lon]);
+    }
 
-    // 3. Draw day routes and markers
-    itinerary.forEach((day, dayIdx) => {
-        const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
-        const routeCoords = [];
+    // 2. Plot Restaurants (Orange Pins)
+    if (restaurants) {
+        restaurants.forEach(r => {
+            const marker = L.circleMarker([r.lat, r.lon], {
+                radius: 7,
+                fillColor: "#EA580C", // Orange
+                color: "#FFFFFF",
+                weight: 1.5,
+                opacity: 1,
+                fillOpacity: 0.85
+            }).addTo(map);
+            marker.bindPopup(`<b>🍽️ Restaurant: ${r.name}</b><br>Est. Cost: ₹${formatCost(r.cost)}`);
+            mapLayers.push(marker);
+            allLatLngs.push([r.lat, r.lon]);
+        });
+    }
 
-        day.route.forEach((step, stepIdx) => {
-            const lat = step.lat;
-            const lon = step.lon;
-            routeCoords.push([lat, lon]);
-            allLatLngs.push([lat, lon]);
+    // 3. Plot Nightlife Bars (Purple Pins)
+    if (bars) {
+        bars.forEach(b => {
+            const marker = L.circleMarker([b.lat, b.lon], {
+                radius: 7,
+                fillColor: "#9333EA", // Purple
+                color: "#FFFFFF",
+                weight: 1.5,
+                opacity: 1,
+                fillOpacity: 0.85
+            }).addTo(map);
+            marker.bindPopup(`<b>🍻 Nightlife: ${b.name}</b><br>Cost: ${b.cost === 0 ? 'Free' : '₹' + formatCost(b.cost)}`);
+            mapLayers.push(marker);
+            allLatLngs.push([b.lat, b.lon]);
+        });
+    }
 
-            // Add pins for non-hotel stops (start/end of route is hotel)
-            const isHotelStop = (stepIdx === 0 || stepIdx === day.route.length - 1);
-            if (!isHotelStop) {
-                const marker = L.circleMarker([lat, lon], {
-                    radius: 8,
-                    fillColor: color,
-                    color: "#FFFFFF",
+    // 4. Plot Zones with different colors and connection lines
+    const ZONE_COLORS = ["#2563EB", "#059669", "#DC2626", "#D97706", "#DB2777"];
+    
+    if (zones) {
+        zones.forEach((zone, zoneIdx) => {
+            const color = ZONE_COLORS[zoneIdx % ZONE_COLORS.length];
+            const zoneCoords = [];
+
+            // Plot Popular places (Red dots)
+            if (zone.popular_places) {
+                zone.popular_places.forEach(item => {
+                    const marker = L.circleMarker([item.lat, item.lon], {
+                        radius: 8,
+                        fillColor: "#DC2626", // Red for Popular
+                        color: "#FFFFFF",
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.9
+                    }).addTo(map);
+                    
+                    const costText = item.cost === 0 ? "Free" : `₹${formatCost(item.cost)}`;
+                    marker.bindPopup(`
+                        <b>🏛️ ${item.name}</b><br>
+                        <span style="color: #DC2626; font-weight: bold;">POPULAR SIGHT</span><br>
+                        <span>Zone: ${zone.name}</span><br>
+                        <span>Cost: ${costText}</span>
+                    `);
+                    mapLayers.push(marker);
+                    zoneCoords.push([item.lat, item.lon]);
+                    allLatLngs.push([item.lat, item.lon]);
+                });
+            }
+
+            // Plot Underrated gems (Green dots)
+            if (zone.underrated_gems) {
+                zone.underrated_gems.forEach(item => {
+                    const marker = L.circleMarker([item.lat, item.lon], {
+                        radius: 8,
+                        fillColor: "#059669", // Green for Underrated Gem
+                        color: "#FFFFFF",
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.9
+                    }).addTo(map);
+                    
+                    const costText = item.cost === 0 ? "Free" : `₹${formatCost(item.cost)}`;
+                    marker.bindPopup(`
+                        <b>💎 ${item.name}</b><br>
+                        <span style="color: #059669; font-weight: bold;">UNDERRATED GEM</span><br>
+                        <span>Zone: ${zone.name}</span><br>
+                        <span>Cost: ${costText}</span>
+                    `);
+                    mapLayers.push(marker);
+                    zoneCoords.push([item.lat, item.lon]);
+                    allLatLngs.push([item.lat, item.lon]);
+                });
+            }
+
+            // Draw zone boundary connecting lines to show proximity grouping
+            if (zoneCoords.length > 1) {
+                const polyline = L.polyline(zoneCoords, {
+                    color: color,
                     weight: 2,
-                    opacity: 1,
-                    fillOpacity: 0.9
+                    opacity: 0.5,
+                    dashArray: "4, 4"
                 }).addTo(map);
-
-                const costText = step.cost === 0 ? "Free" : `₹${step.cost.toFixed(2)}`;
-                const stepTypeLabel = step.sub_type ? step.sub_type.toUpperCase() : "VENUE";
-                marker.bindPopup(`
-                    <div style="font-family: var(--font-sans); font-size: 0.85rem;">
-                        <b style="color: ${color}; font-size: 0.95rem;">Day ${day.day} - Stop ${stepIdx + 1}</b><br>
-                        <b style="color: var(--text-primary);">${step.name}</b><br>
-                        <span style="color: var(--text-secondary);">${stepTypeLabel}</span><br>
-                        <span style="color: var(--accent); font-weight: bold; margin-top: 4px; display: inline-block;">${costText}</span>
-                    </div>
-                `);
-                mapLayers.push(marker);
+                mapLayers.push(polyline);
             }
         });
+    }
 
-        // Draw dotted polyline
-        if (routeCoords.length > 1) {
-            const polyline = L.polyline(routeCoords, {
-                color: color,
-                weight: 3.5,
-                opacity: 0.8,
-                dashArray: "6, 8"
-            }).addTo(map);
-            
-            polyline.bindPopup(`<b>Day ${day.day} Route</b><br>${day.total_distance_km} km total`);
-            mapLayers.push(polyline);
-        }
-    });
-
-    // Fit map bounds to show all itinerary locations
     if (allLatLngs.length > 0) {
         map.fitBounds(allLatLngs, { padding: [50, 50] });
     }

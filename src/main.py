@@ -8,7 +8,7 @@ from src.geocoding import geocode_city
 from src.overpass import fetch_venues
 from src.optimizer import optimize_trip_budget
 from src.cache import get_cached_response
-from src.router import plan_day_wise_itinerary
+from src.router import cluster_attractions_by_location
 
 app = FastAPI(title="TripSplit - Group Trip Budget Optimizer")
 
@@ -33,6 +33,9 @@ class PlanRequest(BaseModel):
     budget: float
     days: int
     people: int
+    include_stay: bool = True
+    include_transport: bool = True
+    include_attractions: bool = True
 
 @app.get("/")
 def read_root():
@@ -80,21 +83,30 @@ def plan_trip(req: PlanRequest):
     if not req.city.strip():
         raise HTTPException(status_code=400, detail="City name cannot be empty")
         
+    # Always geocode to get city center coordinates (lat, lon)
+    geo_data = geocode_city(req.city)
+    if not geo_data:
+        raise HTTPException(status_code=404, detail=f"Could not geocode city '{req.city}'")
+
     # Load cached venues
     cache_key = f"overpass_{req.city.lower().strip().replace(' ', '_')}"
     venues = get_cached_response(cache_key)
     
     if not venues:
-        # If cache is missing, geocode and fetch again
-        geo_data = geocode_city(req.city)
-        if not geo_data:
-            raise HTTPException(status_code=404, detail=f"Could not geocode city '{req.city}'")
+        # If cache is missing, fetch from Overpass
         venues = fetch_venues(req.city, geo_data["bbox"], lat=geo_data["lat"], lon=geo_data["lon"])
         
     if not venues or (not venues["hotels"] and not venues["restaurants"]):
          raise HTTPException(status_code=404, detail="No venues found near the destination.")
          
-    result = optimize_trip_budget(venues, req.days, req.people, req.budget)
+    result = optimize_trip_budget(
+        venues, req.days, req.people, req.budget,
+        include_stay=req.include_stay,
+        include_transport=req.include_transport,
+        include_attractions=req.include_attractions,
+        lat=geo_data["lat"],
+        lon=geo_data["lon"]
+    )
     
     if result["status"] == "exceeded" or result["status"] == "failed":
         return {
@@ -102,27 +114,28 @@ def plan_trip(req: PlanRequest):
             "message": result.get("message", "Budget is too low to create a valid itinerary.")
         }
         
-    # Generate day-wise TSP routing for the selected items
-    day_itinerary = plan_day_wise_itinerary(
-        result["hotel"],
-        result["restaurants"],
-        result["attractions"],
-        req.days
-    )
-
-    # Do the same for the backup plan if it exists
+    # Split attractions list to display nightlife (bars/pubs) separately from sightseeing
+    selected_attractions = result.get("attractions", [])
+    selected_bars = [a for a in selected_attractions if a.get("sub_type") == "bar"]
+    selected_sightseeing = [a for a in selected_attractions if a.get("sub_type") != "bar"]
+    
+    # Cluster the sightseeing attractions geographically (k zones = duration of days)
+    exploration_zones = cluster_attractions_by_location(selected_sightseeing, k=req.days)
+    
+    # Backup plan
     backup_plan = None
     if result.get("backup"):
-        backup_itinerary = plan_day_wise_itinerary(
-            result["backup"]["hotel"],
-            result["backup"]["restaurants"],
-            result["backup"]["attractions"],
-            req.days
-        )
+        b_attractions = result["backup"].get("attractions", [])
+        b_bars = [a for a in b_attractions if a.get("sub_type") == "bar"]
+        b_sightseeing = [a for a in b_attractions if a.get("sub_type") != "bar"]
+        b_zones = cluster_attractions_by_location(b_sightseeing, k=req.days)
+        
         backup_plan = {
             "hotel": result["backup"]["hotel"],
             "total_cost": result["backup"]["total_cost"],
-            "itinerary": backup_itinerary
+            "restaurants": result["backup"].get("restaurants", []),
+            "bars": b_bars,
+            "zones": b_zones
         }
         
     return {
@@ -132,7 +145,9 @@ def plan_trip(req: PlanRequest):
             "total_cost": result["total_cost"],
             "utility": result["utility"],
             "cost_per_person": result["total_cost"] / req.people,
-            "itinerary": day_itinerary,
+            "restaurants": result.get("restaurants", []),
+            "bars": selected_bars,
+            "zones": exploration_zones,
             "backup": backup_plan
         }
     }

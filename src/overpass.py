@@ -42,17 +42,19 @@ def fetch_venues(
     query = f"""
     [out:json][timeout:30];
     (
-      // Hotels
-      node["tourism"~"hotel|hostel|guest_house|motel"]({min_lat},{min_lon},{max_lat},{max_lon});
-      way["tourism"~"hotel|hostel|guest_house|motel"]({min_lat},{min_lon},{max_lat},{max_lon});
+      // Stays: Hotels, Hostels, Guest Houses, Motels, Apartments, Chalets, Campsites, Alpine Huts
+      node["tourism"~"hotel|hostel|guest_house|motel|apartment|chalet|camp_site|alpine_hut"]({min_lat},{min_lon},{max_lat},{max_lon});
+      way["tourism"~"hotel|hostel|guest_house|motel|apartment|chalet|camp_site|alpine_hut"]({min_lat},{min_lon},{max_lat},{max_lon});
       
       // Restaurants & Cafes
       node["amenity"~"restaurant|cafe|fast_food"]({min_lat},{min_lon},{max_lat},{max_lon});
       way["amenity"~"restaurant|cafe|fast_food"]({min_lat},{min_lon},{max_lat},{max_lon});
       
-      // Attractions
-      node["tourism"~"museum|gallery|zoo"]({min_lat},{min_lon},{max_lat},{max_lon});
-      way["tourism"~"museum|gallery|zoo"]({min_lat},{min_lon},{max_lat},{max_lon});
+      // Attractions: Museums, Monuments, Parks, Bars, Beaches, Viewpoints, and general attractions
+      node["tourism"~"museum|gallery|zoo|attraction|viewpoint"]({min_lat},{min_lon},{max_lat},{max_lon});
+      way["tourism"~"museum|gallery|zoo|attraction|viewpoint"]({min_lat},{min_lon},{max_lat},{max_lon});
+      node["natural"~"beach"]({min_lat},{min_lon},{max_lat},{max_lon});
+      way["natural"~"beach"]({min_lat},{min_lon},{max_lat},{max_lon});
       node["historic"~"monument|castle"]({min_lat},{min_lon},{max_lat},{max_lon});
       way["historic"~"monument|castle"]({min_lat},{min_lon},{max_lat},{max_lon});
       node["leisure"~"park|garden"]({min_lat},{min_lon},{max_lat},{max_lon});
@@ -80,6 +82,12 @@ def fetch_venues(
             if not name:
                 continue
 
+            # Exclude utility/administrative/public infrastructure names
+            name_lower = name.lower()
+            exclude_words = ["police", "hospital", "clinic", "post office", "toilet", "restroom", "atm", "bank", "trash", "dustbin", "waste bin", "garbage"]
+            if any(word in name_lower for word in exclude_words):
+                continue
+
             # Determine coordinates (center if way/relation, lat/lon if node)
             lat = el.get("lat") or el.get("center", {}).get("lat")
             lon = el.get("lon") or el.get("center", {}).get("lon")
@@ -95,7 +103,7 @@ def fetch_venues(
             }
 
             # Classify based on OSM tags
-            is_hotel = "tourism" in tags and tags["tourism"] in ["hotel", "hostel", "guest_house", "motel"]
+            is_hotel = "tourism" in tags and tags["tourism"] in ["hotel", "hostel", "guest_house", "motel", "apartment", "chalet", "camp_site", "alpine_hut"]
             is_food = "amenity" in tags and tags["amenity"] in ["restaurant", "cafe", "fast_food"]
             
             if is_hotel:
@@ -115,6 +123,10 @@ def fetch_venues(
                     sub_type = "museum"
                 elif "historic" in tags:
                     sub_type = "museum" # Group historic landmarks as museum-like
+                elif "natural" in tags and tags["natural"] == "beach":
+                    sub_type = "beach"
+                elif "tourism" in tags and tags["tourism"] == "viewpoint":
+                    sub_type = "viewpoint"
                 elif "leisure" in tags and tags["leisure"] in ["park", "garden"]:
                     sub_type = "park"
                 elif "amenity" in tags and tags["amenity"] in ["bar", "pub", "nightclub"]:
