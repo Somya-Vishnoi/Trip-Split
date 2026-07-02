@@ -37,7 +37,11 @@ function initTabs() {
 
             // Invalidate Leaflet size if switching to map tab
             if (tabId === "map-tab" && map) {
-                setTimeout(() => map.invalidateSize(), 100);
+                setTimeout(() => {
+                    if (map) {
+                        map.invalidateSize();
+                    }
+                }, 200);
             }
         });
     });
@@ -95,11 +99,18 @@ function initializeLeafletMap(lat, lon, bbox) {
     map = L.map("map").setView([lat, lon], 12);
 
     // Load CartoDB Positron Light Tiles (Fits premium light UI)
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">CartoDB</a> contributors',
         subdomains: 'abcd',
         maxZoom: 20
     }).addTo(map);
+
+    // Force Leaflet to recalculate bounds immediately
+    setTimeout(() => {
+        if (map) {
+            map.invalidateSize();
+        }
+    }, 150);
 
     // Draw the bounding box
     if (bbox && bbox.length === 4) {
