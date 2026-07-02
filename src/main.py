@@ -45,7 +45,7 @@ def search_city(req: SearchRequest):
         raise HTTPException(status_code=404, detail=f"Could not geocode city '{req.city}'")
         
     # Fetch venues
-    venues = fetch_venues(req.city, geo_data["bbox"])
+    venues = fetch_venues(req.city, geo_data["bbox"], lat=geo_data["lat"], lon=geo_data["lon"])
     
     return {
         "geocoding": {
@@ -80,7 +80,7 @@ def plan_trip(req: PlanRequest):
         geo_data = geocode_city(req.city)
         if not geo_data:
             raise HTTPException(status_code=404, detail=f"Could not geocode city '{req.city}'")
-        venues = fetch_venues(req.city, geo_data["bbox"])
+        venues = fetch_venues(req.city, geo_data["bbox"], lat=geo_data["lat"], lon=geo_data["lon"])
         
     if not venues or (not venues["hotels"] and not venues["restaurants"]):
          raise HTTPException(status_code=404, detail="No venues found near the destination.")

@@ -3,10 +3,15 @@ from typing import Dict, List, Any, Tuple
 from src.config import OVERPASS_API_URL
 from src.cache import get_cached_response, set_cached_response
 
-def fetch_venues(city_name: str, bbox: Tuple[float, float, float, float]) -> Dict[str, List[Dict[str, Any]]]:
+def fetch_venues(
+    city_name: str, 
+    bbox: Tuple[float, float, float, float], 
+    lat: float = None, 
+    lon: float = None
+) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Fetches hotels, restaurants, and attractions from Overpass API within the bounding box.
-    Limits the bounding box size to prevent timeouts.
+    Fetches hotels, restaurants, and attractions from Overpass API.
+    Centers the search around the actual city coordinate (lat, lon) with a capped radius to prevent timeouts.
     Returns:
         Dict containing categories: 'hotels', 'restaurants', 'attractions'
     """
@@ -15,18 +20,24 @@ def fetch_venues(city_name: str, bbox: Tuple[float, float, float, float]) -> Dic
     if cached:
         return cached
 
-    min_lat, max_lat, min_lon, max_lon = bbox
-
-    # Cap bounding box to 0.12 degrees (~12-13km) to prevent huge queries
-    lat_center = (min_lat + max_lat) / 2
-    lon_center = (min_lon + max_lon) / 2
-    
-    if (max_lat - min_lat) > 0.12:
-        min_lat = lat_center - 0.06
-        max_lat = lat_center + 0.06
-    if (max_lon - min_lon) > 0.12:
-        min_lon = lon_center - 0.06
-        max_lon = lon_center + 0.06
+    if lat is not None and lon is not None:
+        # Center around the actual geocoded city point (approx 8.8km x 8.8km area)
+        min_lat = lat - 0.04
+        max_lat = lat + 0.04
+        min_lon = lon - 0.04
+        max_lon = lon + 0.04
+    else:
+        # Fallback to bounding box center
+        min_lat, max_lat, min_lon, max_lon = bbox
+        lat_center = (min_lat + max_lat) / 2
+        lon_center = (min_lon + max_lon) / 2
+        
+        if (max_lat - min_lat) > 0.08:
+            min_lat = lat_center - 0.04
+            max_lat = lat_center + 0.04
+        if (max_lon - min_lon) > 0.08:
+            min_lon = lon_center - 0.04
+            max_lon = lon_center + 0.04
 
     query = f"""
     [out:json][timeout:30];
@@ -122,7 +133,9 @@ def fetch_venues(city_name: str, bbox: Tuple[float, float, float, float]) -> Dic
                     unique_list.append(item)
             response_data[cat] = unique_list
 
-        set_cached_response(cache_key, response_data)
+        # Only cache if we actually found venues
+        if len(response_data["hotels"]) > 0 or len(response_data["restaurants"]) > 0:
+            set_cached_response(cache_key, response_data)
         return response_data
 
     except Exception as e:
