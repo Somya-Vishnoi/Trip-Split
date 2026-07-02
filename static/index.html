@@ -20,10 +20,12 @@
         <!-- Header -->
         <header>
             <div class="logo">
-                <span class="logo-icon">✈️</span>
-                <h1>Trip<span>Split</span></h1>
+                <span class="logo-icon">🦉</span>
+                <h1>Trip<span>split</span></h1>
             </div>
-            <p class="subtitle">AI-Powered Group Trip Budget Optimizer & Router</p>
+            <div class="header-text">
+                <p class="subtitle">AI-Powered Group Trip Budget Optimizer & Router</p>
+            </div>
         </header>
 
         <!-- Main Dashboard Layout -->
@@ -34,7 +36,7 @@
                 <form id="search-form">
                     <div class="input-group">
                         <label for="destination">Where are you going?</label>
-                        <input type="text" id="destination" placeholder="e.g., Goa, Paris, Rome" required autocomplete="off">
+                        <input type="text" id="destination" placeholder="e.g., Goa, Manali, Rome" required autocomplete="off">
                     </div>
                     
                     <div class="row">
@@ -49,8 +51,8 @@
                     </div>
                     
                     <div class="input-group">
-                        <label for="budget">Total Budget ($)</label>
-                        <input type="number" id="budget" min="10" value="1000" required>
+                        <label for="budget">Total Budget (₹)</label>
+                        <input type="number" id="budget" min="100" value="50000" required>
                     </div>
 
                     <button type="submit" id="search-btn" class="btn-primary">
@@ -135,11 +137,11 @@
                                 <div class="price-summary">
                                     <div class="price-item">
                                         <span class="price-lbl">Total Cost</span>
-                                        <span class="price-val" id="plan-total-cost">$0</span>
+                                        <span class="price-val" id="plan-total-cost">₹0</span>
                                     </div>
                                     <div class="price-item">
                                         <span class="price-lbl">Per Person</span>
-                                        <span class="price-val" id="plan-person-cost">$0</span>
+                                        <span class="price-val" id="plan-person-cost">₹0</span>
                                     </div>
                                 </div>
                             </div>
@@ -164,7 +166,7 @@
                         <div id="backup-plan-section" class="backup-section hidden">
                             <div class="backup-header">
                                 <h4>💡 Backup Economy Option</h4>
-                                <span id="backup-cost-badge" class="cost-badge">$0</span>
+                                <span id="backup-cost-badge" class="cost-badge">₹0</span>
                             </div>
                             <p class="backup-desc">We created a lower-cost backup plan (recommending <span id="backup-hotel-name"></span>) to keep you safe in case actual costs exceed expectation.</p>
                         </div>

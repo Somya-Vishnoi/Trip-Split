@@ -147,8 +147,8 @@ function setupForm() {
                 const plan = planResult.plan;
                 
                 // Populate Plan Summary
-                document.getElementById("plan-total-cost").textContent = `$${plan.total_cost.toFixed(2)}`;
-                document.getElementById("plan-person-cost").textContent = `$${plan.cost_per_person.toFixed(2)}`;
+                document.getElementById("plan-total-cost").textContent = `₹${plan.total_cost.toFixed(2)}`;
+                document.getElementById("plan-person-cost").textContent = `₹${plan.cost_per_person.toFixed(2)}`;
                 
                 const statusBadge = document.getElementById("plan-status");
                 statusBadge.textContent = "Within Budget";
@@ -161,7 +161,7 @@ function setupForm() {
                     <div class="hotel-details-block">
                         <div class="hotel-name">${plan.hotel.name}</div>
                         <div class="hotel-meta">${plan.hotel.sub_type.toUpperCase()} ${starsText}</div>
-                        <div class="hotel-cost">Est. Total: $${plan.hotel.cost.toFixed(2)}</div>
+                        <div class="hotel-cost">Est. Total: ₹${plan.hotel.cost.toFixed(2)}</div>
                     </div>
                 `;
 
@@ -174,7 +174,7 @@ function setupForm() {
                 // Populate Backup Plan
                 const backupSection = document.getElementById("backup-plan-section");
                 if (plan.backup) {
-                    document.getElementById("backup-cost-badge").textContent = `$${plan.backup.total_cost.toFixed(2)}`;
+                    document.getElementById("backup-cost-badge").textContent = `₹${plan.backup.total_cost.toFixed(2)}`;
                     document.getElementById("backup-hotel-name").textContent = plan.backup.hotel.name;
                     backupSection.classList.remove("hidden");
                 } else {
@@ -249,7 +249,7 @@ function populateOptList(elementId, items, isAttraction = false) {
         } else {
             const costSpan = document.createElement("span");
             costSpan.className = "opt-item-cost";
-            costSpan.textContent = `$${item.cost.toFixed(2)}`;
+            costSpan.textContent = `₹${item.cost.toFixed(2)}`;
             li.appendChild(costSpan);
         }
 

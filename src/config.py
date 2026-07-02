@@ -20,18 +20,18 @@ CACHE_TTL_SECONDS = 6 * 60 * 60  # 6 hours
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Optimization Heuristics
-# Default assumed costs per person per visit/night (in USD)
+# Default assumed costs per person per visit/night (in INR - ₹)
 DEFAULT_COSTS = {
-    "hotel_budget": 30.0,
-    "hotel_mid": 80.0,
-    "hotel_luxury": 200.0,
-    "restaurant_budget": 8.0,
-    "restaurant_mid": 20.0,
-    "restaurant_luxury": 50.0,
-    "attraction_museum": 15.0,
+    "hotel_budget": 1200.0,
+    "hotel_mid": 3500.0,
+    "hotel_luxury": 10000.0,
+    "restaurant_budget": 250.0,
+    "restaurant_mid": 750.0,
+    "restaurant_luxury": 2000.0,
+    "attraction_museum": 400.0,
     "attraction_park": 0.0,
-    "attraction_bar": 15.0,
-    "attraction_other": 10.0,
+    "attraction_bar": 1000.0,
+    "attraction_other": 300.0,
 }
 
 # Default utility/value scores (out of 100)

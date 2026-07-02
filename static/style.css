@@ -1,31 +1,32 @@
 /* 
-   TripSplit - Professional Travel Guide & Editorial Theme
-   Inspired by TripAdvisor & Classic Literary Travel Guides
+   TripSplit - Professional TripAdvisor-inspired Light Theme
+   Strictly Light Mode, clean travel guide aesthetic
 */
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-    --bg-main: #0B0C10;         /* Deep matte charcoal */
-    --surface: #12141C;         /* Editorial dark grey card */
-    --surface-light: #1A1D27;   /* Slightly lighter grey for input/hover */
+    --bg-main: #F2F4F7;         /* Light grey page background */
+    --surface: #FFFFFF;         /* Pure white cards */
+    --surface-light: #F9FAFB;   /* Very light grey for inputs and hover list items */
     
-    --border: #2C303E;          /* Clean structural borders */
-    --border-accent: #C5A880;   /* Muted brass/gold accent */
+    --border: #E5E7EB;          /* Light grey borders */
+    --border-accent: #00AA6C;   /* TripAdvisor Green for highlights */
     
-    --text-primary: #F4F3EF;    /* Editorial warm white / cream */
-    --text-secondary: #A0A5B5;  /* Readable grey */
-    --text-muted: #6B7280;      /* Muted text */
+    --text-primary: #0F172A;    /* Slate-900 for high-contrast primary text */
+    --text-secondary: #475569;  /* Slate-600 for subtext */
+    --text-muted: #94A3B8;      /* Slate-400 for placeholders */
     
-    --accent: #E11D48;          /* Vibrant guide red (like Michelin or TripAdvisor orange/red) */
-    --accent-gold: #C5A880;     /* Muted book brass */
-    --accent-green: #10B981;    /* Positive budget indicator */
+    --accent: #00AA6C;          /* Signature TripAdvisor Green */
+    --accent-hover: #008755;    /* Darker green for hover state */
+    --accent-gold: #F2B203;     /* TripAdvisor ratings gold */
+    --accent-red: #D93B3B;      /* Red alert for warnings/backup */
     
-    --font-serif: 'Playfair Display', Georgia, serif;
-    --font-sans: 'Plus Jakarta Sans', sans-serif;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     
-    --border-radius: 8px;       /* Crisp, sharp card edges (more professional than round modern pill shapes) */
-    --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    --border-radius: 12px;
+    --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -38,8 +39,8 @@ body {
     background-color: var(--bg-main);
     color: var(--text-primary);
     font-family: var(--font-sans);
-    line-height: 1.6;
-    padding-bottom: 4rem;
+    line-height: 1.5;
+    padding-bottom: 5rem;
 }
 
 .container {
@@ -48,74 +49,92 @@ body {
     padding: 2.5rem 1.5rem;
 }
 
-/* Header (Book / Magazine Cover Inspired) */
+/* Header - Clean Light Travel Agency Banner */
 header {
-    border-bottom: 2px double var(--border-accent);
-    padding-bottom: 2rem;
-    margin-bottom: 3rem;
-    text-align: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius);
+    padding: 1.75rem 2rem;
+    margin-bottom: 2rem;
+    box-shadow: var(--box-shadow);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
 }
 
 .logo {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    font-family: var(--font-serif);
-    font-size: 3rem;
-    font-weight: 700;
-    letter-spacing: -0.5px;
+    gap: 0.6rem;
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: var(--text-primary);
 }
 
 .logo span {
-    color: var(--accent-gold);
-    font-style: italic;
+    color: var(--accent);
 }
 
 .logo-icon {
-    font-size: 2.5rem;
+    font-size: 2.2rem;
+}
+
+.header-text {
+    text-align: right;
 }
 
 .subtitle {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-size: 1.15rem;
+    font-size: 0.95rem;
+    font-weight: 500;
     color: var(--text-secondary);
-    margin-top: 0.5rem;
 }
 
-/* Main Dashboard Grid */
+@media (max-width: 768px) {
+    header {
+        flex-direction: column;
+        text-align: center;
+    }
+    .header-text {
+        text-align: center;
+    }
+}
+
+/* Dashboard Grid */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: 340px 1fr;
-    gap: 2.5rem;
+    grid-template-columns: 360px 1fr;
+    gap: 2rem;
     align-items: start;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 968px) {
     .dashboard-grid {
         grid-template-columns: 1fr;
     }
 }
 
-/* Column Panel Layouts */
+/* White Shadow Cards */
 .card {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--border-radius);
     padding: 2rem;
+    box-shadow: var(--box-shadow);
 }
 
 .input-panel h2 {
-    font-family: var(--font-serif);
-    font-size: 1.6rem;
+    font-size: 1.35rem;
+    font-weight: 750;
     margin-bottom: 1.5rem;
-    color: var(--accent-gold);
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 0.5rem;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--bg-main);
+    padding-bottom: 0.75rem;
 }
 
-/* Forms & Guide Styling */
+/* Input Fields styling */
 .input-group {
     margin-bottom: 1.25rem;
     display: flex;
@@ -124,29 +143,29 @@ header {
 }
 
 label {
-    font-family: var(--font-sans);
     font-size: 0.75rem;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.8px;
 }
 
 input {
-    background: var(--bg-main);
-    border: 1px solid var(--border);
+    background: #FFFFFF;
+    border: 1.5px solid var(--border);
     color: var(--text-primary);
-    padding: 0.75rem 1rem;
-    border-radius: 4px;
+    padding: 0.8rem 1rem;
+    border-radius: 8px;
     font-family: var(--font-sans);
     font-size: 0.95rem;
+    font-weight: 500;
     transition: var(--transition);
     outline: none;
 }
 
 input:focus {
-    border-color: var(--accent-gold);
-    box-shadow: 0 0 0 2px rgba(197, 168, 128, 0.15);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0, 170, 108, 0.15);
 }
 
 .row {
@@ -158,45 +177,56 @@ input:focus {
     flex: 1;
 }
 
-/* Buttons (Sharp & Editorial) */
+/* TripAdvisor Signature Green Button */
 .btn-primary {
     width: 100%;
-    padding: 0.9rem;
-    background: var(--accent-gold);
-    border: 1px solid var(--accent-gold);
-    border-radius: 4px;
-    color: var(--bg-main);
+    padding: 0.95rem;
+    background: var(--accent);
+    border: none;
+    border-radius: 50px; /* Fully rounded pillow button */
+    color: #FFFFFF;
     font-family: var(--font-sans);
-    font-size: 0.95rem;
+    font-size: 1rem;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
     cursor: pointer;
     transition: var(--transition);
     margin-top: 1rem;
+    box-shadow: 0 4px 12px rgba(0, 170, 108, 0.2);
 }
 
 .btn-primary:hover {
-    background: transparent;
-    color: var(--accent-gold);
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 170, 108, 0.3);
 }
 
-/* Spinner and loading states */
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.btn-primary:disabled {
+    background: var(--text-muted);
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+/* Loader styling */
 .loader-container {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1rem;
-    margin-top: 2rem;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
     text-align: center;
 }
 
 .spinner {
     width: 32px;
     height: 32px;
-    border: 3px solid rgba(255, 255, 255, 0.05);
-    border-top: 3px solid var(--accent-gold);
+    border: 3px solid var(--border);
+    border-top: 3px solid var(--accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
 }
@@ -210,9 +240,9 @@ input:focus {
     display: none !important;
 }
 
-/* Output Layout & Tab Navigation */
+/* Output Layout & TripAdvisor Tabs */
 .output-panel {
-    min-height: 600px;
+    min-height: 580px;
     display: flex;
     flex-direction: column;
 }
@@ -220,32 +250,33 @@ input:focus {
 .tab-header {
     display: flex;
     gap: 0.5rem;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 2px solid var(--border);
     margin-bottom: 1.5rem;
-    padding-bottom: 0.5rem;
+    padding-bottom: 0px;
 }
 
 .tab-btn {
     background: none;
     border: none;
     color: var(--text-secondary);
-    font-family: var(--font-serif);
-    font-size: 1.15rem;
+    font-family: var(--font-sans);
+    font-size: 1rem;
     font-weight: 700;
-    padding: 0.5rem 1.25rem;
+    padding: 0.75rem 1.25rem;
     cursor: pointer;
     transition: var(--transition);
-    border-radius: 4px;
+    position: relative;
+    top: 2px; /* overlaps the border */
+    border-bottom: 3px solid transparent;
 }
 
 .tab-btn:hover {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.03);
 }
 
 .tab-btn.active {
-    color: var(--accent-gold);
-    background: rgba(197, 168, 128, 0.08);
+    color: var(--text-primary);
+    border-bottom: 3px solid var(--accent);
 }
 
 .tab-content {
@@ -258,12 +289,12 @@ input:focus {
     flex-direction: column;
 }
 
-/* Leaflet Map Styling */
+/* Map UI */
 #map {
     width: 100%;
     height: 100%;
     min-height: 480px;
-    border-radius: 4px;
+    border-radius: 8px;
     border: 1px solid var(--border);
     overflow: hidden;
     position: relative;
@@ -279,15 +310,14 @@ input:focus {
     height: 100%;
     padding: 3rem;
     color: var(--text-secondary);
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-size: 1.1rem;
-    background: rgba(255, 255, 255, 0.01);
-    border-radius: 4px;
-    border: 1px dashed var(--border);
+    font-size: 1.05rem;
+    font-weight: 500;
+    background: var(--surface-light);
+    border-radius: 8px;
+    border: 2px dashed var(--border);
 }
 
-/* Statistics Grid */
+/* Stats Cards */
 .stats-row {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -298,24 +328,28 @@ input:focus {
 .stat-card {
     background: var(--surface-light);
     border: 1px solid var(--border);
-    border-top: 3px solid var(--accent-gold);
-    border-radius: 4px;
+    border-radius: 8px;
     padding: 1.25rem;
     text-align: center;
     transition: var(--transition);
 }
 
+.stat-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
 .stat-val {
     display: block;
-    font-family: var(--font-serif);
     font-size: 2.2rem;
-    font-weight: 700;
+    font-weight: 800;
     color: var(--text-primary);
 }
 
 .stat-lbl {
     font-size: 0.75rem;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -323,12 +357,12 @@ input:focus {
     display: block;
 }
 
-/* Lists and Details Grid */
+/* Lists and Lists items */
 .sample-lists h3, .plan-summary-card h3, .opt-card h3 {
-    font-family: var(--font-serif);
-    font-size: 1.3rem;
+    font-size: 1.25rem;
+    font-weight: 800;
     color: var(--text-primary);
-    margin-bottom: 1rem;
+    margin-bottom: 1.25rem;
 }
 
 .sample-grid {
@@ -344,10 +378,10 @@ input:focus {
 }
 
 .sample-grid h4 {
-    font-family: var(--font-serif);
-    font-size: 1.05rem;
-    color: var(--accent-gold);
-    border-bottom: 1px solid var(--border);
+    font-size: 1rem;
+    font-weight: 750;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--bg-main);
     padding-bottom: 0.5rem;
     margin-bottom: 0.75rem;
 }
@@ -361,11 +395,12 @@ input:focus {
 
 .sample-grid li, .opt-list li {
     font-size: 0.85rem;
+    font-weight: 500;
     color: var(--text-secondary);
-    padding: 0.6rem 0.8rem;
+    padding: 0.65rem 0.85rem;
     background: var(--surface-light);
-    border-left: 3px solid var(--border);
-    border-radius: 2px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -373,12 +408,13 @@ input:focus {
 }
 
 .sample-grid li:hover {
-    border-left-color: var(--accent-gold);
+    border-color: var(--accent);
+    background: #FFFFFF;
     color: var(--text-primary);
 }
 
 /* ========================================================
-   Budget Plan Layout (Editorial / Travel Guidebook Style)
+   Budget Plan Layout (TripAdvisor style Itinerary Elements)
    ======================================================== */
 .plan-summary-card {
     background: var(--surface-light);
@@ -397,24 +433,24 @@ input:focus {
 }
 
 .summary-meta h3 {
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.4rem;
 }
 
 .plan-status-badge {
     display: inline-block;
-    padding: 0.25rem 0.6rem;
+    padding: 0.3rem 0.75rem;
     font-size: 0.75rem;
-    font-weight: 700;
+    font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    border-radius: 3px;
-    background: rgba(16, 185, 129, 0.15);
-    color: var(--accent-green);
+    border-radius: 20px;
+    background: rgba(0, 170, 108, 0.12);
+    color: var(--accent);
 }
 
 .plan-status-badge.exceeded {
-    background: rgba(225, 29, 72, 0.15);
-    color: var(--accent);
+    background: rgba(217, 59, 59, 0.12);
+    color: var(--accent-red);
 }
 
 .price-summary {
@@ -429,19 +465,19 @@ input:focus {
 .price-lbl {
     display: block;
     font-size: 0.7rem;
-    font-weight: 600;
+    font-weight: 750;
     text-transform: uppercase;
     color: var(--text-secondary);
+    letter-spacing: 0.5px;
 }
 
 .price-val {
-    font-family: var(--font-serif);
     font-size: 1.6rem;
-    font-weight: 700;
-    color: var(--accent-gold);
+    font-weight: 800;
+    color: var(--accent);
 }
 
-/* Optimized Venues Grid */
+/* Optimized Grid items */
 .optimized-venues-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -465,10 +501,10 @@ input:focus {
 }
 
 .opt-card h3 {
-    border-bottom: 1px solid var(--border);
+    border-bottom: 2px solid var(--bg-main);
     padding-bottom: 0.5rem;
-    font-size: 1.15rem;
-    color: var(--accent-gold);
+    font-size: 1.1rem;
+    color: var(--text-primary);
 }
 
 /* Hotel Details */
@@ -479,61 +515,61 @@ input:focus {
 }
 
 .hotel-name {
-    font-family: var(--font-serif);
-    font-size: 1.2rem;
-    font-weight: 700;
+    font-size: 1.15rem;
+    font-weight: 800;
     color: var(--text-primary);
 }
 
 .hotel-meta {
     font-size: 0.85rem;
+    font-weight: 600;
     color: var(--text-secondary);
 }
 
 .hotel-cost {
-    font-family: var(--font-serif);
-    font-size: 1.3rem;
-    color: var(--accent-gold);
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--accent);
     margin-top: 0.5rem;
 }
 
-/* List details */
+/* Option List item format */
 .opt-list li {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-left: 3px solid var(--accent-gold);
     white-space: normal;
+    font-weight: 600;
 }
 
 .opt-item-name {
-    font-weight: 500;
+    color: var(--text-primary);
 }
 
 .opt-item-cost {
-    font-family: var(--font-serif);
-    color: var(--accent-gold);
+    color: var(--accent);
+    font-weight: 700;
     font-size: 0.85rem;
     margin-left: 0.5rem;
     flex-shrink: 0;
 }
 
-/* Free attraction badge */
+/* Green Free Badge */
 .free-badge {
-    background: rgba(16, 185, 129, 0.15);
-    color: var(--accent-green);
+    background: rgba(0, 170, 108, 0.12);
+    color: var(--accent);
     font-size: 0.7rem;
-    font-weight: 700;
-    padding: 0.1rem 0.4rem;
-    border-radius: 2px;
+    font-weight: 800;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
     text-transform: uppercase;
     margin-left: 0.5rem;
 }
 
-/* Backup Itinerary Block (Gritty Travel Warnings Style) */
+/* Backup warning styling */
 .backup-section {
-    background: var(--surface-light);
-    border: 1px solid var(--border);
+    background: #FFFBEB; /* Soft warning yellow/orange background */
+    border: 1px solid #FDE68A;
     border-left: 4px solid var(--accent-gold);
     border-radius: var(--border-radius);
     padding: 1.25rem;
@@ -548,19 +584,19 @@ input:focus {
 }
 
 .backup-header h4 {
-    font-family: var(--font-serif);
-    font-size: 1.1rem;
-    color: var(--text-primary);
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #92400E;
 }
 
 .cost-badge {
-    font-family: var(--font-serif);
-    font-weight: 700;
+    font-weight: 800;
     font-size: 1rem;
-    color: var(--accent-gold);
+    color: var(--accent);
 }
 
 .backup-desc {
     font-size: 0.85rem;
-    color: var(--text-secondary);
+    font-weight: 500;
+    color: #B45309;
 }
