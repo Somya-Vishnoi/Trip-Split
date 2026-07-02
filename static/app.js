@@ -144,11 +144,11 @@ function setupForm() {
     // Elements to show/hide
     const venuesTab = document.getElementById("venues-tab");
     const venuesData = document.getElementById("venues-data");
-    const placeholder = venuesTab.querySelector(".summary-placeholder");
+    const placeholder = venuesTab ? venuesTab.querySelector(".summary-placeholder") : null;
 
     const planTab = document.getElementById("plan-tab");
     const planData = document.getElementById("plan-data");
-    const planPlaceholder = planTab.querySelector(".plan-placeholder");
+    const planPlaceholder = planTab ? planTab.querySelector(".plan-placeholder") : null;
 
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -191,8 +191,8 @@ function setupForm() {
             populateList("sample-restaurants", searchData.sample_venues.restaurants, "No restaurants found");
             populateList("sample-attractions", searchData.sample_venues.attractions, "No attractions found");
 
-            placeholder.classList.add("hidden");
-            venuesData.classList.remove("hidden");
+            if (placeholder) placeholder.classList.add("hidden");
+            if (venuesData) venuesData.classList.remove("hidden");
 
             // STEP 2: Optimize Budget Plan
             loaderText.textContent = "Running multi-stage Knapsack DP Optimizer...";
@@ -211,30 +211,39 @@ function setupForm() {
 
             if (!planResult.success) {
                 // Show budget exceeded warning
-                planPlaceholder.innerHTML = `<p style="color: var(--accent); font-weight: bold;">⚠️ Optimization Failed: ${planResult.message}</p>`;
-                planPlaceholder.classList.remove("hidden");
-                planData.classList.add("hidden");
+                if (planPlaceholder) {
+                    planPlaceholder.innerHTML = `<p style="color: var(--accent); font-weight: bold;">⚠️ Optimization Failed: ${planResult.message}</p>`;
+                    planPlaceholder.classList.remove("hidden");
+                }
+                if (planData) planData.classList.add("hidden");
             } else {
                 const plan = planResult.plan;
                 
                 // Populate Plan Summary
-                document.getElementById("plan-total-cost").textContent = `₹${plan.total_cost.toFixed(2)}`;
-                document.getElementById("plan-person-cost").textContent = `₹${plan.cost_per_person.toFixed(2)}`;
+                const totalCostEl = document.getElementById("plan-total-cost");
+                if (totalCostEl) totalCostEl.textContent = `₹${plan.total_cost.toFixed(2)}`;
+                const personCostEl = document.getElementById("plan-person-cost");
+                if (personCostEl) personCostEl.textContent = `₹${plan.cost_per_person.toFixed(2)}`;
                 
                 const statusBadge = document.getElementById("plan-status");
-                statusBadge.textContent = "Within Budget";
-                statusBadge.className = "plan-status-badge"; // Reset class
+                if (statusBadge) {
+                    statusBadge.textContent = "Within Budget";
+                    statusBadge.className = "plan-status-badge"; // Reset class
+                }
                 
                 // Populate Hotel
                 const hotelDetail = document.getElementById("opt-hotel-detail");
-                const starsText = plan.hotel.stars ? ` ⭐ ${plan.hotel.stars} Star` : "";
-                hotelDetail.innerHTML = `
-                    <div class="hotel-details-block">
-                        <div class="hotel-name">${plan.hotel.name}</div>
-                        <div class="hotel-meta">${plan.hotel.sub_type.toUpperCase()} ${starsText}</div>
-                        <div class="hotel-cost">Est. Total: ₹${plan.hotel.cost.toFixed(2)}</div>
-                    </div>
-                `;
+                if (hotelDetail) {
+                    const starsText = plan.hotel.stars ? ` ⭐ ${plan.hotel.stars} Star` : "";
+                    const hotelType = plan.hotel.sub_type ? plan.hotel.sub_type.toUpperCase() : "HOTEL";
+                    hotelDetail.innerHTML = `
+                        <div class="hotel-details-block">
+                            <div class="hotel-name">${plan.hotel.name}</div>
+                            <div class="hotel-meta">${hotelType} ${starsText}</div>
+                            <div class="hotel-cost">Est. Total: ₹${plan.hotel.cost.toFixed(2)}</div>
+                        </div>
+                    `;
+                }
 
                 // Render Day-by-Day Route Planner timeline
                 renderItineraryTimeline(plan.itinerary);
@@ -295,6 +304,7 @@ function populateList(elementId, items, emptyMessage) {
 // Render Day-by-Day Timeline HTML
 function renderItineraryTimeline(itinerary) {
     const container = document.getElementById("opt-days-container");
+    if (!container) return;
     container.innerHTML = "";
 
     if (!itinerary || itinerary.length === 0) {
@@ -398,11 +408,12 @@ function plotItineraryOnMap(itinerary, hotel) {
                 }).addTo(map);
 
                 const costText = step.cost === 0 ? "Free" : `₹${step.cost.toFixed(2)}`;
+                const stepTypeLabel = step.sub_type ? step.sub_type.toUpperCase() : "VENUE";
                 marker.bindPopup(`
                     <div style="font-family: var(--font-sans); font-size: 0.85rem;">
                         <b style="color: ${color}; font-size: 0.95rem;">Day ${day.day} - Stop ${stepIdx + 1}</b><br>
                         <b style="color: var(--text-primary);">${step.name}</b><br>
-                        <span style="color: var(--text-secondary);">${step.sub_type.toUpperCase()}</span><br>
+                        <span style="color: var(--text-secondary);">${stepTypeLabel}</span><br>
                         <span style="color: var(--accent); font-weight: bold; margin-top: 4px; display: inline-block;">${costText}</span>
                     </div>
                 `);

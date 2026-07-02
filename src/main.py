@@ -12,6 +12,15 @@ from src.router import plan_day_wise_itinerary
 
 app = FastAPI(title="TripSplit - Group Trip Budget Optimizer")
 
+@app.middleware("http")
+async def disable_caching_middleware(request, call_next):
+    response = await call_next(request)
+    # Prevent caching of static assets during development
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
 # Serve static files
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 STATIC_DIR.mkdir(exist_ok=True)
