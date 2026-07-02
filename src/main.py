@@ -9,6 +9,7 @@ from src.overpass import fetch_venues
 from src.optimizer import optimize_trip_budget
 from src.cache import get_cached_response
 from src.router import cluster_attractions_by_location
+from src.gemini import enrich_trip_plan
 
 app = FastAPI(title="TripSplit - Group Trip Budget Optimizer")
 
@@ -149,9 +150,12 @@ def plan_trip(req: PlanRequest):
     )
     
     if result["status"] == "exceeded" or result["status"] == "failed":
+        msg = result.get("message", "Budget is too low to create a valid itinerary.")
+        if travel_cost > 0:
+            msg += f" (Note: roundtrip intercity travel cost is ₹{travel_cost:,.2f}. Try switching from Flight to Train, or increase your budget!)"
         return {
             "success": False,
-            "message": result.get("message", "Budget is too low to create a valid itinerary.")
+            "message": msg
         }
         
     # Split attractions list to display nightlife (bars/pubs) separately from sightseeing
@@ -178,23 +182,33 @@ def plan_trip(req: PlanRequest):
             "zones": b_zones
         }
         
+    plan = {
+        "hotel": result["hotel"],
+        "total_cost": result["total_cost"] + travel_cost,
+        "local_trip_cost": result["total_cost"],
+        "travel_cost": travel_cost,
+        "travel_mode": req.travel_mode if travel_cost > 0 else None,
+        "origin_city": req.origin_city if travel_cost > 0 else None,
+        "distance_km": distance_km if travel_cost > 0 else 0.0,
+        "utility": result["utility"],
+        "cost_per_person": (result["total_cost"] + travel_cost) / req.people,
+        "restaurants": result.get("restaurants", []),
+        "bars": selected_bars,
+        "zones": exploration_zones,
+        "backup": backup_plan
+    }
+
+    # Enrich with Gemini
+    try:
+        plan = enrich_trip_plan(plan, req.city)
+        if plan.get("backup"):
+            plan["backup"] = enrich_trip_plan(plan["backup"], req.city)
+    except Exception as e:
+        print(f"[Enrichment Warning] Failed to run Gemini enrichment: {e}")
+
     return {
         "success": True,
-        "plan": {
-            "hotel": result["hotel"],
-            "total_cost": result["total_cost"] + travel_cost,
-            "local_trip_cost": result["total_cost"],
-            "travel_cost": travel_cost,
-            "travel_mode": req.travel_mode if travel_cost > 0 else None,
-            "origin_city": req.origin_city if travel_cost > 0 else None,
-            "distance_km": distance_km if travel_cost > 0 else 0.0,
-            "utility": result["utility"],
-            "cost_per_person": (result["total_cost"] + travel_cost) / req.people,
-            "restaurants": result.get("restaurants", []),
-            "bars": selected_bars,
-            "zones": exploration_zones,
-            "backup": backup_plan
-        }
+        "plan": plan
     }
 
 # Mount static files

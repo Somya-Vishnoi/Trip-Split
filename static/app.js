@@ -303,11 +303,24 @@ function setupForm() {
                     if (hotelDetail) {
                         const starsText = plan.hotel.stars ? ` (${plan.hotel.stars} Star)` : "";
                         const hotelType = plan.hotel.sub_type ? plan.hotel.sub_type.toUpperCase() : "HOTEL";
+                        
+                        let enrichHtml = "";
+                        if (plan.hotel.enrichment) {
+                            enrichHtml = `
+                                <div class="enrich-desc" style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.5rem; line-height: 1.4;">${plan.hotel.enrichment.description}</div>
+                                <div class="enrich-meta" style="font-size: 0.78rem; margin-top: 0.35rem;">
+                                    <span style="background: #F3E8FF; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 700; color: #7E22CE;">Vibe: ${plan.hotel.enrichment.vibe}</span>
+                                </div>
+                                <div class="enrich-tip" style="font-size: 0.78rem; color: #4B5563; font-style: italic; margin-top: 0.35rem;">Tip: ${plan.hotel.enrichment.extra_tips}</div>
+                            `;
+                        }
+
                         hotelDetail.innerHTML = `
                             <div class="hotel-details-block">
                                 <div class="hotel-name">${plan.hotel.name}</div>
                                 <div class="hotel-meta">${hotelType} ${starsText}</div>
                                 <div class="hotel-cost">Est. Total: ₹${formatCost(plan.hotel.cost)}</div>
+                                ${enrichHtml}
                             </div>
                         `;
                     }
@@ -400,10 +413,28 @@ function renderFoodAndNightlife(restaurants, bars) {
             
             Object.values(counts).forEach(r => {
                 const li = document.createElement("li");
+                li.style.flexDirection = "column";
+                li.style.alignItems = "flex-start";
+                li.style.gap = "0.25rem";
+                
                 const qtyText = r.qty > 1 ? ` <span class="badge-qty" style="color: var(--accent); font-weight: bold; margin-left: 4px;">x${r.qty}</span>` : "";
+                
+                let enrichHtml = "";
+                if (r.enrichment) {
+                    enrichHtml = `
+                        <div class="enrich-desc" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.3;">${r.enrichment.description}</div>
+                        <div class="enrich-meta" style="font-size: 0.75rem; color: #4B5563; font-style: italic; margin-top: 0.1rem;">
+                            Vibe: ${r.enrichment.vibe} | Try: ${r.enrichment.extra_tips}
+                        </div>
+                    `;
+                }
+                
                 li.innerHTML = `
-                    <span class="opt-item-name">${r.name}${qtyText}</span>
-                    <span class="opt-item-cost">₹${formatCost(r.cost * r.qty)}</span>
+                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                        <span class="opt-item-name">${r.name}${qtyText}</span>
+                        <span class="opt-item-cost">₹${formatCost(r.cost * r.qty)}</span>
+                    </div>
+                    ${enrichHtml}
                 `;
                 restList.appendChild(li);
             });
@@ -420,9 +451,26 @@ function renderFoodAndNightlife(restaurants, bars) {
             if (barsContainer) barsContainer.classList.remove("hidden");
             bars.forEach(b => {
                 const li = document.createElement("li");
+                li.style.flexDirection = "column";
+                li.style.alignItems = "flex-start";
+                li.style.gap = "0.25rem";
+                
+                let enrichHtml = "";
+                if (b.enrichment) {
+                    enrichHtml = `
+                        <div class="enrich-desc" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.3;">${b.enrichment.description}</div>
+                        <div class="enrich-meta" style="font-size: 0.75rem; color: #4B5563; font-style: italic; margin-top: 0.1rem;">
+                            Vibe: ${b.enrichment.vibe} | Recommendation: ${b.enrichment.extra_tips}
+                        </div>
+                    `;
+                }
+                
                 li.innerHTML = `
-                    <span class="opt-item-name">${b.name}</span>
-                    <span class="opt-item-cost">${b.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(b.cost)}</span>
+                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                        <span class="opt-item-name">${b.name}</span>
+                        <span class="opt-item-cost">${b.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(b.cost)}</span>
+                    </div>
+                    ${enrichHtml}
                 `;
                 barsList.appendChild(li);
             });
@@ -467,12 +515,26 @@ function renderExplorationZones(zones) {
             group.innerHTML = `
                 <h5>Popular Sights</h5>
                 <ul class="zone-list">
-                    ${zone.popular_places.map(item => `
-                        <li class="zone-item">
-                            <span class="zone-item-name">${item.name}</span>
-                            <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
-                        </li>
-                    `).join('')}
+                    ${zone.popular_places.map(item => {
+                        let enrichHtml = "";
+                        if (item.enrichment) {
+                            enrichHtml = `
+                                <div class="enrich-desc" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; width: 100%; line-height: 1.3;">${item.enrichment.description}</div>
+                                <div class="enrich-meta" style="font-size: 0.75rem; color: #4B5563; margin-top: 0.15rem;">
+                                    Vibe: ${item.enrichment.vibe} | Tips: ${item.enrichment.extra_tips}
+                                </div>
+                            `;
+                        }
+                        return `
+                            <li class="zone-item" style="flex-direction: column; align-items: flex-start; gap: 0.25rem;">
+                                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                                    <span class="zone-item-name">${item.name}</span>
+                                    <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
+                                </div>
+                                ${enrichHtml}
+                            </li>
+                        `;
+                    }).join('')}
                 </ul>
             `;
             content.appendChild(group);
@@ -485,12 +547,26 @@ function renderExplorationZones(zones) {
             group.innerHTML = `
                 <h5>Underrated Gems</h5>
                 <ul class="zone-list">
-                    ${zone.underrated_gems.map(item => `
-                        <li class="zone-item">
-                            <span class="zone-item-name">${item.name}</span>
-                            <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
-                        </li>
-                    `).join('')}
+                    ${zone.underrated_gems.map(item => {
+                        let enrichHtml = "";
+                        if (item.enrichment) {
+                            enrichHtml = `
+                                <div class="enrich-desc" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; width: 100%; line-height: 1.3;">${item.enrichment.description}</div>
+                                <div class="enrich-meta" style="font-size: 0.75rem; color: #4B5563; margin-top: 0.15rem;">
+                                    Vibe: ${item.enrichment.vibe} | Tips: ${item.enrichment.extra_tips}
+                                </div>
+                            `;
+                        }
+                        return `
+                            <li class="zone-item" style="flex-direction: column; align-items: flex-start; gap: 0.25rem;">
+                                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                                    <span class="zone-item-name">${item.name}</span>
+                                    <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
+                                </div>
+                                ${enrichHtml}
+                            </li>
+                        `;
+                    }).join('')}
                 </ul>
             `;
             content.appendChild(group);
