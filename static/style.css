@@ -54,20 +54,18 @@ header {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--border-radius);
-    padding: 1.75rem 2rem;
+    padding: 1.25rem 2rem;
     margin-bottom: 2rem;
     box-shadow: var(--box-shadow);
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
 }
 
 .logo {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: 0.8rem;
     font-size: 2.2rem;
     font-weight: 800;
     letter-spacing: -1px;
@@ -78,18 +76,10 @@ header {
     color: var(--accent);
 }
 
-.logo-icon {
-    font-size: 2.2rem;
-}
-
-.header-text {
-    text-align: right;
-}
-
-.subtitle {
-    font-size: 0.95rem;
-    font-weight: 500;
-    color: var(--text-secondary);
+.logo-icon-svg {
+    stroke: var(--accent);
+    fill: rgba(124, 58, 237, 0.05);
+    flex-shrink: 0;
 }
 
 @media (max-width: 768px) {
