@@ -26,6 +26,8 @@ async def disable_caching_middleware(request, call_next):
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 STATIC_DIR.mkdir(exist_ok=True)
 
+from typing import Optional
+
 class SearchRequest(BaseModel):
     city: str
 
@@ -38,8 +40,8 @@ class PlanRequest(BaseModel):
     include_transport: bool = True
     include_attractions: bool = True
     add_travel: bool = False
-    origin_city: str = None
-    travel_mode: str = "flight"
+    origin_city: Optional[str] = None
+    travel_mode: Optional[str] = "flight"
 
 @app.get("/")
 def read_root():
