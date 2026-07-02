@@ -58,19 +58,40 @@
                         <div class="filter-toggles">
                             <label class="checkbox-container">
                                 <input type="checkbox" id="filter-stay" checked>
-                                <span class="checkmark"></span>
-                                🏨 Include Accommodation / Stay
+                                Include Accommodation
                             </label>
                             <label class="checkbox-container">
                                 <input type="checkbox" id="filter-attractions" checked>
-                                <span class="checkmark"></span>
-                                🏛️ Include Sightseeing (Ghumi Ghumi)
+                                Include Sightseeing (Ghumi Ghumi)
                             </label>
                             <label class="checkbox-container">
                                 <input type="checkbox" id="filter-transport" checked>
-                                <span class="checkmark"></span>
-                                🚘 Include Local Transport (₹500/day)
+                                Include Local Transport (₹500/day)
                             </label>
+                        </div>
+
+                        <!-- Intercity Travel Mode Options -->
+                        <div class="filter-toggles" style="margin-top: 0.75rem;">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="add-intercity-travel">
+                                Include Roundtrip Intercity Travel
+                            </label>
+                            
+                            <div id="intercity-fields" class="hidden" style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.75rem; width: 100%;">
+                                <div class="input-group" style="margin-bottom: 0;">
+                                    <label for="origin-city" style="font-size: 0.8rem; font-weight: bold; margin-bottom: 0.25rem;">Starting From (Origin)</label>
+                                    <input type="text" id="origin-city" placeholder="e.g. Jaipur" style="padding: 0.4rem; font-size: 0.85rem;">
+                                </div>
+                                <div class="input-group" style="margin-bottom: 0;">
+                                    <label for="intercity-mode" style="font-size: 0.8rem; font-weight: bold; margin-bottom: 0.25rem;">Mode of Transport</label>
+                                    <select id="intercity-mode" class="custom-select" style="padding: 0.4rem; font-size: 0.85rem;">
+                                        <option value="flight">Flight (Economy)</option>
+                                        <option value="train_3ac">Train (3AC)</option>
+                                        <option value="train_sleeper">Train (Sleeper)</option>
+                                        <option value="bus">Intercity Bus</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
 
                         <button type="submit" id="search-btn" class="btn-primary">
@@ -180,6 +201,9 @@
                                 <div class="summary-meta">
                                     <h3>Optimal Budget Allocation</h3>
                                     <span id="plan-status" class="plan-status-badge">Within Budget</span>
+                                    <div id="travel-breakdown-container" class="hidden" style="margin-top: 0.75rem; font-size: 0.82rem; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 0.5rem; width: 100%;">
+                                        <div id="travel-breakdown-details"></div>
+                                    </div>
                                 </div>
                                 <div class="price-summary">
                                     <div class="price-item">
@@ -197,7 +221,7 @@
                         <div class="optimized-layout-grid">
                             <!-- Left: Accommodation Card -->
                             <div class="opt-card opt-hotel-card" id="opt-hotel-card-container">
-                                <h3>🏨 Accommodation</h3>
+                                <h3>Accommodation</h3>
                                 <div id="opt-hotel-detail" class="opt-detail"></div>
                             </div>
                             
@@ -207,11 +231,11 @@
                                 <div class="plan-sub-section">
                                     <div class="food-nightlife-container">
                                         <div class="food-block">
-                                            <h4>🍽️ Selected Restaurants</h4>
+                                            <h4>Selected Restaurants</h4>
                                             <ul id="opt-restaurants-list" class="opt-list"></ul>
                                         </div>
                                         <div class="nightlife-block" id="opt-bars-container">
-                                            <h4>🍻 Selected Bars & Clubs</h4>
+                                            <h4>Selected Bars & Clubs</h4>
                                             <ul id="opt-bars-list" class="opt-list"></ul>
                                         </div>
                                     </div>
@@ -219,7 +243,7 @@
                                 
                                 <!-- Exploration Zones (Attractions Clustered by Location) -->
                                 <div class="plan-sub-section" id="opt-zones-section" style="margin-top: 1.75rem;">
-                                    <h3>🗺️ Exploration Zones (Clustered by Location)</h3>
+                                    <h3>Exploration Zones (Clustered by Location)</h3>
                                     <div id="opt-zones-container" class="zones-timeline"></div>
                                 </div>
                             </div>
@@ -228,7 +252,7 @@
                         <!-- Backup Plan Section -->
                         <div id="backup-plan-section" class="backup-section hidden">
                             <div class="backup-header">
-                                <h4>💡 Backup Economy Option</h4>
+                                <h4>Backup Economy Option</h4>
                                 <span id="backup-cost-badge" class="cost-badge">₹0</span>
                             </div>
                             <p class="backup-desc">We created a lower-cost backup plan (recommending <span id="backup-hotel-name"></span>) to keep you safe in case actual costs exceed expectation.</p>

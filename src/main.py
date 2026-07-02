@@ -36,6 +36,9 @@ class PlanRequest(BaseModel):
     include_stay: bool = True
     include_transport: bool = True
     include_attractions: bool = True
+    add_travel: bool = False
+    origin_city: str = None
+    travel_mode: str = "flight"
 
 @app.get("/")
 def read_root():
@@ -87,6 +90,43 @@ def plan_trip(req: PlanRequest):
     geo_data = geocode_city(req.city)
     if not geo_data:
         raise HTTPException(status_code=404, detail=f"Could not geocode city '{req.city}'")
+
+    # Calculate intercity travel cost if requested
+    travel_cost = 0.0
+    distance_km = 0.0
+    if req.add_travel and req.origin_city:
+        origin_geo = geocode_city(req.origin_city)
+        if not origin_geo:
+            raise HTTPException(status_code=400, detail=f"Could not geocode origin city '{req.origin_city}'")
+        
+        # Calculate distance
+        from src.router import haversine_distance
+        distance_km = haversine_distance(
+            origin_geo["lat"], origin_geo["lon"],
+            geo_data["lat"], geo_data["lon"]
+        )
+        
+        # Heuristic pricing per person (round-trip)
+        mode = req.travel_mode or "flight"
+        if mode == "flight":
+            # Flights are generally for distances > 300km, otherwise baseline ₹5000 roundtrip
+            rate = 3.5 if distance_km > 300 else 10.0
+            per_person_roundtrip = (2500.0 + rate * distance_km) * 2
+        elif mode == "train_3ac":
+            per_person_roundtrip = (350.0 + 1.1 * distance_km) * 2
+        elif mode == "train_sleeper":
+            per_person_roundtrip = (150.0 + 0.45 * distance_km) * 2
+        else: # bus
+            per_person_roundtrip = (100.0 + 1.4 * distance_km) * 2
+            
+        travel_cost = per_person_roundtrip * req.people
+        req.budget -= travel_cost
+        
+        if req.budget < 0:
+            return {
+                "success": False,
+                "message": f"Roundtrip travel cost (₹{travel_cost:,.2f}) exceeds your total budget."
+            }
 
     # Load cached venues
     cache_key = f"overpass_{req.city.lower().strip().replace(' ', '_')}"
@@ -142,9 +182,14 @@ def plan_trip(req: PlanRequest):
         "success": True,
         "plan": {
             "hotel": result["hotel"],
-            "total_cost": result["total_cost"],
+            "total_cost": result["total_cost"] + travel_cost,
+            "local_trip_cost": result["total_cost"],
+            "travel_cost": travel_cost,
+            "travel_mode": req.travel_mode if travel_cost > 0 else None,
+            "origin_city": req.origin_city if travel_cost > 0 else None,
+            "distance_km": distance_km if travel_cost > 0 else 0.0,
             "utility": result["utility"],
-            "cost_per_person": result["total_cost"] / req.people,
+            "cost_per_person": (result["total_cost"] + travel_cost) / req.people,
             "restaurants": result.get("restaurants", []),
             "bars": selected_bars,
             "zones": exploration_zones,

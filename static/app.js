@@ -15,6 +15,19 @@ document.addEventListener("DOMContentLoaded", () => {
     initTabs();
     setupForm();
     initCurrencyConverter();
+    
+    // Toggle Intercity Travel Fields
+    const travelCheckbox = document.getElementById("add-intercity-travel");
+    const travelFields = document.getElementById("intercity-fields");
+    if (travelCheckbox && travelFields) {
+        travelCheckbox.addEventListener("change", () => {
+            if (travelCheckbox.checked) {
+                travelFields.classList.remove("hidden");
+            } else {
+                travelFields.classList.add("hidden");
+            }
+        });
+    }
 });
 
 // Helper for formatting numeric cost values safely
@@ -170,6 +183,10 @@ function setupForm() {
         const includeStay = document.getElementById("filter-stay").checked;
         const includeAttractions = document.getElementById("filter-attractions").checked;
         const includeTransport = document.getElementById("filter-transport").checked;
+
+        const addTravel = document.getElementById("add-intercity-travel").checked;
+        const originCity = document.getElementById("origin-city").value.trim();
+        const travelMode = document.getElementById("intercity-mode").value;
         
         if (!city || !people || !days || !budget) return;
 
@@ -220,7 +237,10 @@ function setupForm() {
                     city, budget, days, people,
                     include_stay: includeStay,
                     include_transport: includeTransport,
-                    include_attractions: includeAttractions
+                    include_attractions: includeAttractions,
+                    add_travel: addTravel,
+                    origin_city: addTravel ? originCity : null,
+                    travel_mode: addTravel ? travelMode : null
                 })
             });
 
@@ -251,6 +271,29 @@ function setupForm() {
                     statusBadge.textContent = "Within Budget";
                     statusBadge.className = "plan-status-badge";
                 }
+
+                // Render Travel Breakdown details if active
+                const travelContainer = document.getElementById("travel-breakdown-container");
+                const travelDetails = document.getElementById("travel-breakdown-details");
+                if (plan.travel_cost && plan.travel_cost > 0) {
+                    if (travelContainer) travelContainer.classList.remove("hidden");
+                    if (travelDetails) {
+                        const modeName = plan.travel_mode === "flight" ? "Flight" : 
+                                         plan.travel_mode === "train_3ac" ? "Train (3AC)" : 
+                                         plan.travel_mode === "train_sleeper" ? "Train (Sleeper)" : "Bus";
+                        const destName = plan.hotel && plan.hotel.id !== "virtual_depot" ? plan.hotel.name : "City Center";
+                        travelDetails.innerHTML = `
+                            <div style="margin-bottom: 0.25rem;"><strong>Roundtrip Travel:</strong> ${plan.origin_city} ➔ ${destName}</div>
+                            <div>Distance: ${plan.distance_km.toFixed(1)} km | Mode: ${modeName}</div>
+                            <div style="margin-top: 0.35rem; font-size: 0.85rem; border-top: 1.5px dashed var(--border); padding-top: 0.35rem;">
+                                Travel: <strong>₹${formatCost(plan.travel_cost)}</strong> | 
+                                Local Trip: <strong>₹${formatCost(plan.local_trip_cost)}</strong>
+                            </div>
+                        `;
+                    }
+                } else {
+                    if (travelContainer) travelContainer.classList.add("hidden");
+                }
                 
                 // Populate Hotel / Stay
                 const hotelCardContainer = document.getElementById("opt-hotel-card-container");
@@ -258,7 +301,7 @@ function setupForm() {
                 if (plan.hotel && plan.hotel.id !== "virtual_depot") {
                     if (hotelCardContainer) hotelCardContainer.classList.remove("hidden");
                     if (hotelDetail) {
-                        const starsText = plan.hotel.stars ? ` ⭐ ${plan.hotel.stars} Star` : "";
+                        const starsText = plan.hotel.stars ? ` (${plan.hotel.stars} Star)` : "";
                         const hotelType = plan.hotel.sub_type ? plan.hotel.sub_type.toUpperCase() : "HOTEL";
                         hotelDetail.innerHTML = `
                             <div class="hotel-details-block">
@@ -408,7 +451,7 @@ function renderExplorationZones(zones) {
         const header = document.createElement("div");
         header.className = "zone-header";
         header.innerHTML = `
-            <h4>🗺️ ${zone.name}</h4>
+            <h4>${zone.name}</h4>
             <span class="zone-count-badge">${zone.attractions_count} Attractions</span>
         `;
         zoneBlock.appendChild(header);
@@ -422,7 +465,7 @@ function renderExplorationZones(zones) {
             const group = document.createElement("div");
             group.className = "sub-zone-group popular";
             group.innerHTML = `
-                <h5>🏛️ Popular Sights</h5>
+                <h5>Popular Sights</h5>
                 <ul class="zone-list">
                     ${zone.popular_places.map(item => `
                         <li class="zone-item">
@@ -440,7 +483,7 @@ function renderExplorationZones(zones) {
             const group = document.createElement("div");
             group.className = "sub-zone-group underrated";
             group.innerHTML = `
-                <h5>💎 Underrated Gems</h5>
+                <h5>Underrated Gems</h5>
                 <ul class="zone-list">
                     ${zone.underrated_gems.map(item => `
                         <li class="zone-item">

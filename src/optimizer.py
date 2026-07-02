@@ -120,7 +120,22 @@ def run_budget_knapsack(
     N_r = 2 * days
     N_a = 2 * days if include_attractions else 0
 
-    # 2. Assign costs and utilities
+    # 2. Filter out utility/administrative/public infrastructure names (no police stations, hospital gardens, divisional offices, etc.)
+    def is_valid_venue(venue):
+        name_lower = venue.get("name", "").lower()
+        exclude_words = [
+            "police", "hospital", "clinic", "post office", "toilet", "restroom", "atm", "bank", 
+            "trash", "dustbin", "waste bin", "garbage", "office of", "department of", "ministry of", 
+            "fire station", "court", "station house", "police post", "distillery", "commissioner",
+            "divisional office", "forest officer"
+        ]
+        return not any(word in name_lower for word in exclude_words)
+
+    hotels = [h for h in hotels if is_valid_venue(h)]
+    restaurants = [r for r in restaurants if is_valid_venue(r)]
+    attractions = [a for a in attractions if is_valid_venue(a)]
+
+    # 3. Assign costs and utilities
     for h in hotels:
         c_night, u = assign_heuristics(h, "hotels", people)
         h["cost"] = c_night * days if include_stay else 0.0

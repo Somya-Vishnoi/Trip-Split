@@ -10,14 +10,20 @@ def geocode_city(city_name: str) -> Optional[Dict[str, Any]]:
     Returns:
         Dict with keys: 'lat', 'lon', 'bbox' (minlat, maxlat, minlon, maxlon) or None if not found.
     """
-    cache_key = f"geocode_{city_name.lower().strip().replace(' ', '_')}"
+    query_name = city_name.lower().strip()
+    if query_name in ["puducherry", "pondicherry"]:
+        query_name_processed = "puducherry city"
+    else:
+        query_name_processed = city_name
+
+    cache_key = f"geocode_{query_name.replace(' ', '_')}"
     cached = get_cached_response(cache_key)
     if cached:
         return cached
 
     url = "https://nominatim.openstreetmap.org/search"
     params = {
-        "q": city_name,
+        "q": query_name_processed,
         "format": "json",
         "limit": 1
     }

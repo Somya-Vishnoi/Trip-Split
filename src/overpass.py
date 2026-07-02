@@ -21,11 +21,11 @@ def fetch_venues(
         return cached
 
     if lat is not None and lon is not None:
-        # Center around the actual geocoded city point (approx 8.8km x 8.8km area)
-        min_lat = lat - 0.04
-        max_lat = lat + 0.04
-        min_lon = lon - 0.04
-        max_lon = lon + 0.04
+        # Center around the actual geocoded city point (approx 22km x 22km area)
+        min_lat = lat - 0.10
+        max_lat = lat + 0.10
+        min_lon = lon - 0.10
+        max_lon = lon + 0.10
     else:
         # Fallback to bounding box center
         min_lat, max_lat, min_lon, max_lon = bbox
