@@ -6,6 +6,8 @@ from pathlib import Path
 
 from src.geocoding import geocode_city
 from src.overpass import fetch_venues
+from src.optimizer import optimize_trip_budget
+from src.cache import get_cached_response
 
 app = FastAPI(title="TripSplit - Group Trip Budget Optimizer")
 
@@ -15,6 +17,12 @@ STATIC_DIR.mkdir(exist_ok=True)
 
 class SearchRequest(BaseModel):
     city: str
+
+class PlanRequest(BaseModel):
+    city: str
+    budget: float
+    days: int
+    people: int
 
 @app.get("/")
 def read_root():
@@ -54,6 +62,46 @@ def search_city(req: SearchRequest):
             "hotels": [h["name"] for h in venues["hotels"][:5]],
             "restaurants": [r["name"] for r in venues["restaurants"][:5]],
             "attractions": [a["name"] for a in venues["attractions"][:5]]
+        }
+    }
+
+@app.post("/api/plan")
+def plan_trip(req: PlanRequest):
+    if not req.city.strip():
+        raise HTTPException(status_code=400, detail="City name cannot be empty")
+        
+    # Load cached venues
+    cache_key = f"overpass_{req.city.lower().strip().replace(' ', '_')}"
+    venues = get_cached_response(cache_key)
+    
+    if not venues:
+        # If cache is missing, geocode and fetch again
+        geo_data = geocode_city(req.city)
+        if not geo_data:
+            raise HTTPException(status_code=404, detail=f"Could not geocode city '{req.city}'")
+        venues = fetch_venues(req.city, geo_data["bbox"])
+        
+    if not venues or (not venues["hotels"] and not venues["restaurants"]):
+         raise HTTPException(status_code=404, detail="No venues found near the destination.")
+         
+    result = optimize_trip_budget(venues, req.days, req.people, req.budget)
+    
+    if result["status"] == "exceeded" or result["status"] == "failed":
+        return {
+            "success": False,
+            "message": result.get("message", "Budget is too low to create a valid itinerary.")
+        }
+        
+    return {
+        "success": True,
+        "plan": {
+            "hotel": result["hotel"],
+            "restaurants": result["restaurants"],
+            "attractions": result["attractions"],
+            "total_cost": result["total_cost"],
+            "utility": result["utility"],
+            "cost_per_person": result["total_cost"] / req.people,
+            "backup": result.get("backup")
         }
     }
 

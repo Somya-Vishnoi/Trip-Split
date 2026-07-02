@@ -54,73 +54,141 @@ function initializeLeafletMap(lat, lon, bbox) {
         const [minLat, maxLat, minLon, maxLon] = bbox;
         const bounds = [[minLat, minLon], [maxLat, maxLon]];
         L.rectangle(bounds, {
-            color: "#8b5cf6",
+            color: "#C5A880", // Brass gold to match theme
             weight: 2,
-            fillColor: "#8b5cf6",
+            fillColor: "#C5A880",
             fillOpacity: 0.05
         }).addTo(map);
         map.fitBounds(bounds);
     }
 }
 
-// Form Submission & Search
+// Form Submission & Orchestration
 function setupForm() {
     const form = document.getElementById("search-form");
     const loader = document.getElementById("loader");
+    const loaderText = document.getElementById("loader-text");
     const searchBtn = document.getElementById("search-btn");
     
+    // Elements to show/hide
     const venuesTab = document.getElementById("venues-tab");
     const venuesData = document.getElementById("venues-data");
     const placeholder = venuesTab.querySelector(".summary-placeholder");
 
+    const planTab = document.getElementById("plan-tab");
+    const planData = document.getElementById("plan-data");
+    const planPlaceholder = planTab.querySelector(".plan-placeholder");
+
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
         
-        const city = document.getElementById("destination").value.strip ? 
-                     document.getElementById("destination").value.strip() : 
-                     document.getElementById("destination").value.trim();
+        const city = document.getElementById("destination").value.trim();
+        const people = parseInt(document.getElementById("people").value);
+        const days = parseInt(document.getElementById("days").value);
+        const budget = parseFloat(document.getElementById("budget").value);
         
-        if (!city) return;
+        if (!city || !people || !days || !budget) return;
 
         // UI Feedback
         loader.classList.remove("hidden");
+        loaderText.textContent = "Geocoding & fetching venues from OpenStreetMap...";
         searchBtn.disabled = true;
 
         try {
-            const response = await fetch("/api/search", {
+            // STEP 1: Search & Fetch Candidates
+            const searchResponse = await fetch("/api/search", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ city })
             });
 
-            if (!response.ok) {
-                throw new Error(await response.text() || "Failed to fetch data");
+            if (!searchResponse.ok) {
+                throw new Error(await searchResponse.text() || "Failed to search city.");
             }
 
-            const data = await response.json();
+            const searchData = await searchResponse.json();
             
-            // 1. Initialize Map
-            initializeLeafletMap(data.geocoding.lat, data.geocoding.lon, data.geocoding.bbox);
+            // Render Map
+            initializeLeafletMap(searchData.geocoding.lat, searchData.geocoding.lon, searchData.geocoding.bbox);
 
-            // 2. Populate stats & sample venues
-            document.getElementById("hotel-count").textContent = data.venue_counts.hotels;
-            document.getElementById("rest-count").textContent = data.venue_counts.restaurants;
-            document.getElementById("attr-count").textContent = data.venue_counts.attractions;
+            // Populate Candidates stats
+            document.getElementById("hotel-count").textContent = searchData.venue_counts.hotels;
+            document.getElementById("rest-count").textContent = searchData.venue_counts.restaurants;
+            document.getElementById("attr-count").textContent = searchData.venue_counts.attractions;
 
-            populateList("sample-hotels", data.sample_venues.hotels, "No hotels found");
-            populateList("sample-restaurants", data.sample_venues.restaurants, "No restaurants found");
-            populateList("sample-attractions", data.sample_venues.attractions, "No attractions found");
+            populateList("sample-hotels", searchData.sample_venues.hotels, "No hotels found");
+            populateList("sample-restaurants", searchData.sample_venues.restaurants, "No restaurants found");
+            populateList("sample-attractions", searchData.sample_venues.attractions, "No attractions found");
 
-            // Switch view
             placeholder.classList.add("hidden");
             venuesData.classList.remove("hidden");
 
-            // Programmatically open Candidate Venues tab to show statistics
-            const venuesTabBtn = document.querySelector('[data-tab="venues-tab"]');
-            if (venuesTabBtn) {
-                venuesTabBtn.click();
+            // STEP 2: Optimize Budget Plan
+            loaderText.textContent = "Running multi-stage Knapsack DP Optimizer...";
+            
+            const planResponse = await fetch("/api/plan", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ city, budget, days, people })
+            });
+
+            if (!planResponse.ok) {
+                throw new Error(await planResponse.text() || "Failed to optimize budget plan.");
+            }
+
+            const planResult = await planResponse.json();
+
+            if (!planResult.success) {
+                // Show budget exceeded warning
+                planPlaceholder.innerHTML = `<p style="color: var(--accent); font-weight: bold;">⚠️ Optimization Failed: ${planResult.message}</p>`;
+                planPlaceholder.classList.remove("hidden");
+                planData.classList.add("hidden");
+            } else {
+                const plan = planResult.plan;
+                
+                // Populate Plan Summary
+                document.getElementById("plan-total-cost").textContent = `$${plan.total_cost.toFixed(2)}`;
+                document.getElementById("plan-person-cost").textContent = `$${plan.cost_per_person.toFixed(2)}`;
+                
+                const statusBadge = document.getElementById("plan-status");
+                statusBadge.textContent = "Within Budget";
+                statusBadge.className = "plan-status-badge"; // Reset class
+                
+                // Populate Hotel
+                const hotelDetail = document.getElementById("opt-hotel-detail");
+                const starsText = plan.hotel.stars ? ` ⭐ ${plan.hotel.stars} Star` : "";
+                hotelDetail.innerHTML = `
+                    <div class="hotel-details-block">
+                        <div class="hotel-name">${plan.hotel.name}</div>
+                        <div class="hotel-meta">${plan.hotel.sub_type.toUpperCase()} ${starsText}</div>
+                        <div class="hotel-cost">Est. Total: $${plan.hotel.cost.toFixed(2)}</div>
+                    </div>
+                `;
+
+                // Populate Restaurants list
+                populateOptList("opt-restaurants-list", plan.restaurants);
+
+                // Populate Attractions list
+                populateOptList("opt-attractions-list", plan.attractions, true);
+
+                // Populate Backup Plan
+                const backupSection = document.getElementById("backup-plan-section");
+                if (plan.backup) {
+                    document.getElementById("backup-cost-badge").textContent = `$${plan.backup.total_cost.toFixed(2)}`;
+                    document.getElementById("backup-hotel-name").textContent = plan.backup.hotel.name;
+                    backupSection.classList.remove("hidden");
+                } else {
+                    backupSection.classList.add("hidden");
+                }
+
+                planPlaceholder.classList.add("hidden");
+                planData.classList.remove("hidden");
+            }
+
+            // Automatically focus the "Budget Plan" tab
+            const planTabBtn = document.querySelector('[data-tab="plan-tab"]');
+            if (planTabBtn) {
+                planTabBtn.click();
             }
 
         } catch (error) {
@@ -149,6 +217,42 @@ function populateList(elementId, items, emptyMessage) {
         const li = document.createElement("li");
         li.textContent = name;
         li.title = name;
+        list.appendChild(li);
+    });
+}
+
+function populateOptList(elementId, items, isAttraction = false) {
+    const list = document.getElementById(elementId);
+    list.innerHTML = "";
+
+    if (!items || items.length === 0) {
+        const li = document.createElement("li");
+        li.textContent = "None selected";
+        li.style.fontStyle = "italic";
+        list.appendChild(li);
+        return;
+    }
+
+    items.forEach(item => {
+        const li = document.createElement("li");
+        
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "opt-item-name";
+        nameSpan.textContent = item.name;
+        li.appendChild(nameSpan);
+
+        if (isAttraction && item.cost === 0) {
+            const freeSpan = document.createElement("span");
+            freeSpan.className = "free-badge";
+            freeSpan.textContent = "Free";
+            li.appendChild(freeSpan);
+        } else {
+            const costSpan = document.createElement("span");
+            costSpan.className = "opt-item-cost";
+            costSpan.textContent = `$${item.cost.toFixed(2)}`;
+            li.appendChild(costSpan);
+        }
+
         list.appendChild(li);
     });
 }

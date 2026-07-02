@@ -70,6 +70,7 @@
                 <div class="tab-header">
                     <button class="tab-btn active" data-tab="map-tab">Interactive Map</button>
                     <button class="tab-btn" data-tab="venues-tab">Candidate Venues</button>
+                    <button class="tab-btn" data-tab="plan-tab">Budget Plan</button>
                 </div>
 
                 <div class="tab-content active" id="map-tab">
@@ -116,6 +117,56 @@
                                     <ul id="sample-attractions"></ul>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="plan-tab">
+                    <div class="plan-placeholder">
+                        <p>No plan generated yet. Submit the details on the left to run the optimizer.</p>
+                    </div>
+                    <div id="plan-data" class="hidden">
+                        <div class="plan-summary-card">
+                            <div class="plan-summary-row">
+                                <div class="summary-meta">
+                                    <h3>Optimal Budget Allocation</h3>
+                                    <span id="plan-status" class="plan-status-badge">Within Budget</span>
+                                </div>
+                                <div class="price-summary">
+                                    <div class="price-item">
+                                        <span class="price-lbl">Total Cost</span>
+                                        <span class="price-val" id="plan-total-cost">$0</span>
+                                    </div>
+                                    <div class="price-item">
+                                        <span class="price-lbl">Per Person</span>
+                                        <span class="price-val" id="plan-person-cost">$0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="optimized-venues-grid">
+                            <div class="opt-card opt-hotel-card">
+                                <h3>🏨 Selected Accommodation</h3>
+                                <div id="opt-hotel-detail" class="opt-detail"></div>
+                            </div>
+                            <div class="opt-card opt-food-card">
+                                <h3>🍽️ Selected Meals</h3>
+                                <ul id="opt-restaurants-list" class="opt-list"></ul>
+                            </div>
+                            <div class="opt-card opt-attractions-card">
+                                <h3>🏛️ Selected Attractions</h3>
+                                <ul id="opt-attractions-list" class="opt-list"></ul>
+                            </div>
+                        </div>
+
+                        <!-- Backup Plan Section -->
+                        <div id="backup-plan-section" class="backup-section hidden">
+                            <div class="backup-header">
+                                <h4>💡 Backup Economy Option</h4>
+                                <span id="backup-cost-badge" class="cost-badge">$0</span>
+                            </div>
+                            <p class="backup-desc">We created a lower-cost backup plan (recommending <span id="backup-hotel-name"></span>) to keep you safe in case actual costs exceed expectation.</p>
                         </div>
                     </div>
                 </div>

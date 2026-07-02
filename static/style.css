@@ -1,19 +1,31 @@
-/* CSS Variables & Theme Setup */
+/* 
+   TripSplit - Professional Travel Guide & Editorial Theme
+   Inspired by TripAdvisor & Classic Literary Travel Guides
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
 :root {
-    --bg-dark: #070913;
-    --card-bg: rgba(16, 20, 38, 0.65);
-    --border-color: rgba(255, 255, 255, 0.07);
-    --text-main: #f3f4f6;
-    --text-muted: #9ca3af;
-    --primary: #8b5cf6;
-    --primary-glow: rgba(139, 92, 246, 0.4);
-    --secondary: #06b6d4;
-    --secondary-glow: rgba(6, 182, 212, 0.4);
-    --accent-green: #10b981;
-    --font-display: 'Outfit', sans-serif;
+    --bg-main: #0B0C10;         /* Deep matte charcoal */
+    --surface: #12141C;         /* Editorial dark grey card */
+    --surface-light: #1A1D27;   /* Slightly lighter grey for input/hover */
+    
+    --border: #2C303E;          /* Clean structural borders */
+    --border-accent: #C5A880;   /* Muted brass/gold accent */
+    
+    --text-primary: #F4F3EF;    /* Editorial warm white / cream */
+    --text-secondary: #A0A5B5;  /* Readable grey */
+    --text-muted: #6B7280;      /* Muted text */
+    
+    --accent: #E11D48;          /* Vibrant guide red (like Michelin or TripAdvisor orange/red) */
+    --accent-gold: #C5A880;     /* Muted book brass */
+    --accent-green: #10B981;    /* Positive budget indicator */
+    
+    --font-serif: 'Playfair Display', Georgia, serif;
     --font-sans: 'Plus Jakarta Sans', sans-serif;
-    --border-radius: 16px;
-    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    --border-radius: 8px;       /* Crisp, sharp card edges (more professional than round modern pill shapes) */
+    --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {
@@ -23,115 +35,87 @@
 }
 
 body {
-    background-color: var(--bg-dark);
-    color: var(--text-main);
+    background-color: var(--bg-main);
+    color: var(--text-primary);
     font-family: var(--font-sans);
-    min-height: 100vh;
-    overflow-x: hidden;
-    position: relative;
-}
-
-/* Radiant Ambient Background Glows */
-.glow-bg {
-    position: absolute;
-    top: -10%;
-    left: -10%;
-    width: 60%;
-    height: 60%;
-    background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
-    z-index: -2;
-    filter: blur(80px);
-    pointer-events: none;
-}
-
-body::after {
-    content: '';
-    position: absolute;
-    bottom: -10%;
-    right: -10%;
-    width: 50%;
-    height: 50%;
-    background: radial-gradient(circle, var(--secondary-glow) 0%, transparent 70%);
-    z-index: -2;
-    filter: blur(80px);
-    pointer-events: none;
+    line-height: 1.6;
+    padding-bottom: 4rem;
 }
 
 .container {
-    max-width: 1440px;
+    max-width: 1200px;
     margin: 0 auto;
-    padding: 2rem;
+    padding: 2.5rem 1.5rem;
 }
 
-/* Header */
+/* Header (Book / Magazine Cover Inspired) */
 header {
-    text-align: center;
+    border-bottom: 2px double var(--border-accent);
+    padding-bottom: 2rem;
     margin-bottom: 3rem;
+    text-align: center;
 }
 
 .logo {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.75rem;
-    font-family: var(--font-display);
-    font-size: 2.5rem;
-    font-weight: 800;
+    gap: 0.5rem;
+    font-family: var(--font-serif);
+    font-size: 3rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
 }
 
 .logo span {
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--accent-gold);
+    font-style: italic;
 }
 
 .logo-icon {
-    font-size: 2.2rem;
+    font-size: 2.5rem;
 }
 
 .subtitle {
-    font-size: 1rem;
-    color: var(--text-muted);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 1.15rem;
+    color: var(--text-secondary);
     margin-top: 0.5rem;
-    letter-spacing: 0.5px;
 }
 
-/* Grid Layout */
+/* Main Dashboard Grid */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: 380px 1fr;
-    gap: 2rem;
+    grid-template-columns: 340px 1fr;
+    gap: 2.5rem;
     align-items: start;
 }
 
-@media (max-width: 968px) {
+@media (max-width: 1024px) {
     .dashboard-grid {
         grid-template-columns: 1fr;
     }
 }
 
-/* Glassmorphic Cards */
+/* Column Panel Layouts */
 .card {
-    background: var(--card-bg);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid var(--border-color);
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: var(--border-radius);
     padding: 2rem;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
-.card h2 {
-    font-family: var(--font-display);
-    font-size: 1.5rem;
+.input-panel h2 {
+    font-family: var(--font-serif);
+    font-size: 1.6rem;
     margin-bottom: 1.5rem;
-    font-weight: 600;
-    color: #fff;
-    border-left: 4px solid var(--primary);
-    padding-left: 0.75rem;
+    color: var(--accent-gold);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
 }
 
-/* Inputs & Forms */
+/* Forms & Guide Styling */
 .input-group {
     margin-bottom: 1.25rem;
     display: flex;
@@ -140,29 +124,29 @@ header {
 }
 
 label {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
 }
 
 input {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--border-color);
-    color: #fff;
-    padding: 0.85rem 1rem;
-    border-radius: 10px;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
     font-family: var(--font-sans);
-    font-size: 1rem;
+    font-size: 0.95rem;
     transition: var(--transition);
     outline: none;
 }
 
 input:focus {
-    border-color: var(--primary);
-    background: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 0 10px rgba(139, 92, 246, 0.2);
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 0 2px rgba(197, 168, 128, 0.15);
 }
 
 .row {
@@ -174,39 +158,30 @@ input:focus {
     flex: 1;
 }
 
-/* Buttons */
+/* Buttons (Sharp & Editorial) */
 .btn-primary {
     width: 100%;
-    padding: 1rem;
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    border: none;
-    border-radius: 10px;
-    color: #fff;
-    font-family: var(--font-display);
-    font-size: 1.1rem;
-    font-weight: 600;
+    padding: 0.9rem;
+    background: var(--accent-gold);
+    border: 1px solid var(--accent-gold);
+    border-radius: 4px;
+    color: var(--bg-main);
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
     cursor: pointer;
-    position: relative;
-    overflow: hidden;
     transition: var(--transition);
     margin-top: 1rem;
 }
 
-.btn-primary span {
-    position: relative;
-    z-index: 2;
-}
-
 .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4);
+    background: transparent;
+    color: var(--accent-gold);
 }
 
-.btn-primary:active {
-    transform: translateY(0);
-}
-
-/* Loaders & Spinners */
+/* Spinner and loading states */
 .loader-container {
     display: flex;
     flex-direction: column;
@@ -218,12 +193,12 @@ input:focus {
 }
 
 .spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid rgba(255, 255, 255, 0.1);
-    border-top: 4px solid var(--primary);
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(255, 255, 255, 0.05);
+    border-top: 3px solid var(--accent-gold);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
@@ -235,17 +210,17 @@ input:focus {
     display: none !important;
 }
 
-/* Output Section / Tabs */
+/* Output Layout & Tab Navigation */
 .output-panel {
+    min-height: 600px;
     display: flex;
     flex-direction: column;
-    min-height: 550px;
 }
 
 .tab-header {
     display: flex;
-    gap: 1rem;
-    border-bottom: 1px solid var(--border-color);
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border);
     margin-bottom: 1.5rem;
     padding-bottom: 0.5rem;
 }
@@ -253,33 +228,24 @@ input:focus {
 .tab-btn {
     background: none;
     border: none;
-    color: var(--text-muted);
-    font-family: var(--font-display);
-    font-size: 1.1rem;
-    font-weight: 600;
-    padding: 0.5rem 1rem;
+    color: var(--text-secondary);
+    font-family: var(--font-serif);
+    font-size: 1.15rem;
+    font-weight: 700;
+    padding: 0.5rem 1.25rem;
     cursor: pointer;
     transition: var(--transition);
-    position: relative;
+    border-radius: 4px;
 }
 
 .tab-btn:hover {
-    color: #fff;
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .tab-btn.active {
-    color: var(--secondary);
-}
-
-.tab-btn.active::after {
-    content: '';
-    position: absolute;
-    bottom: -9px;
-    left: 0;
-    width: 100%;
-    height: 3px;
-    background: var(--secondary);
-    border-radius: 3px 3px 0 0;
+    color: var(--accent-gold);
+    background: rgba(197, 168, 128, 0.08);
 }
 
 .tab-content {
@@ -292,76 +258,77 @@ input:focus {
     flex-direction: column;
 }
 
-/* Map UI */
+/* Leaflet Map Styling */
 #map {
     width: 100%;
     height: 100%;
-    min-height: 450px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-color);
+    min-height: 480px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
     overflow: hidden;
     position: relative;
     z-index: 1;
 }
 
-.map-placeholder {
+.map-placeholder, .summary-placeholder, .plan-placeholder {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
     height: 100%;
-    padding: 2rem;
-    color: var(--text-muted);
+    padding: 3rem;
+    color: var(--text-secondary);
+    font-family: var(--font-serif);
+    font-style: italic;
     font-size: 1.1rem;
+    background: rgba(255, 255, 255, 0.01);
+    border-radius: 4px;
+    border: 1px dashed var(--border);
 }
 
-/* Stats Dashboard Component */
+/* Statistics Grid */
 .stats-row {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 1.5rem;
-    margin-bottom: 2rem;
+    margin-bottom: 2.5rem;
 }
 
 .stat-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 1.5rem;
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent-gold);
+    border-radius: 4px;
+    padding: 1.25rem;
     text-align: center;
     transition: var(--transition);
 }
 
-.stat-card:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: var(--primary);
-    transform: translateY(-3px);
-}
-
 .stat-val {
     display: block;
-    font-family: var(--font-display);
+    font-family: var(--font-serif);
     font-size: 2.2rem;
-    font-weight: 800;
-    background: linear-gradient(135deg, #fff, var(--text-muted));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    font-weight: 700;
+    color: var(--text-primary);
 }
 
 .stat-lbl {
-    font-size: 0.8rem;
-    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-top: 0.25rem;
     display: block;
 }
 
-/* Sample lists */
-.sample-lists h3 {
-    margin-bottom: 1.5rem;
-    font-family: var(--font-display);
+/* Lists and Details Grid */
+.sample-lists h3, .plan-summary-card h3, .opt-card h3 {
+    font-family: var(--font-serif);
+    font-size: 1.3rem;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
 }
 
 .sample-grid {
@@ -377,26 +344,28 @@ input:focus {
 }
 
 .sample-grid h4 {
+    font-family: var(--font-serif);
+    font-size: 1.05rem;
+    color: var(--accent-gold);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
     margin-bottom: 0.75rem;
-    font-size: 0.95rem;
-    color: #fff;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 0.25rem;
 }
 
-.sample-grid ul {
+.sample-grid ul, .opt-list {
     list-style: none;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
 }
 
-.sample-grid li {
+.sample-grid li, .opt-list li {
     font-size: 0.85rem;
-    color: var(--text-muted);
-    padding: 0.5rem;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 6px;
+    color: var(--text-secondary);
+    padding: 0.6rem 0.8rem;
+    background: var(--surface-light);
+    border-left: 3px solid var(--border);
+    border-radius: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -404,15 +373,194 @@ input:focus {
 }
 
 .sample-grid li:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: #fff;
+    border-left-color: var(--accent-gold);
+    color: var(--text-primary);
 }
 
-.summary-placeholder {
+/* ========================================================
+   Budget Plan Layout (Editorial / Travel Guidebook Style)
+   ======================================================== */
+.plan-summary-card {
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.plan-summary-row {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: var(--text-muted);
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.summary-meta h3 {
+    margin-bottom: 0.25rem;
+}
+
+.plan-status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 3px;
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent-green);
+}
+
+.plan-status-badge.exceeded {
+    background: rgba(225, 29, 72, 0.15);
+    color: var(--accent);
+}
+
+.price-summary {
+    display: flex;
+    gap: 2rem;
+}
+
+.price-item {
+    text-align: right;
+}
+
+.price-lbl {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.price-val {
+    font-family: var(--font-serif);
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--accent-gold);
+}
+
+/* Optimized Venues Grid */
+.optimized-venues-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+@media (max-width: 850px) {
+    .optimized-venues-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.opt-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.opt-card h3 {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+    font-size: 1.15rem;
+    color: var(--accent-gold);
+}
+
+/* Hotel Details */
+.hotel-details-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.hotel-name {
+    font-family: var(--font-serif);
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.hotel-meta {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.hotel-cost {
+    font-family: var(--font-serif);
+    font-size: 1.3rem;
+    color: var(--accent-gold);
+    margin-top: 0.5rem;
+}
+
+/* List details */
+.opt-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 3px solid var(--accent-gold);
+    white-space: normal;
+}
+
+.opt-item-name {
+    font-weight: 500;
+}
+
+.opt-item-cost {
+    font-family: var(--font-serif);
+    color: var(--accent-gold);
+    font-size: 0.85rem;
+    margin-left: 0.5rem;
+    flex-shrink: 0;
+}
+
+/* Free attraction badge */
+.free-badge {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent-green);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.1rem 0.4rem;
+    border-radius: 2px;
+    text-transform: uppercase;
+    margin-left: 0.5rem;
+}
+
+/* Backup Itinerary Block (Gritty Travel Warnings Style) */
+.backup-section {
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent-gold);
+    border-radius: var(--border-radius);
+    padding: 1.25rem;
+    margin-top: 1.5rem;
+}
+
+.backup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.backup-header h4 {
+    font-family: var(--font-serif);
     font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.cost-badge {
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--accent-gold);
+}
+
+.backup-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
 }
