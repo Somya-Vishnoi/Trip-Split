@@ -87,128 +87,195 @@ def plan_trip(req: PlanRequest):
     if not req.city.strip():
         raise HTTPException(status_code=400, detail="City name cannot be empty")
         
-    # Always geocode to get city center coordinates (lat, lon)
-    geo_data = geocode_city(req.city)
-    if not geo_data:
-        raise HTTPException(status_code=404, detail=f"Could not geocode city '{req.city}'")
-
-    # Calculate intercity travel cost if requested
-    travel_cost = 0.0
-    distance_km = 0.0
+    cities = [c.strip() for c in req.city.split(",") if c.strip()]
+    N = len(cities)
+    
+    # 1. Geocode all destinations
+    cities_geo = []
+    for c in cities:
+        geo = geocode_city(c)
+        if not geo:
+            raise HTTPException(status_code=404, detail=f"Could not geocode city '{c}'")
+        cities_geo.append((c, geo["lat"], geo["lon"], geo["bbox"]))
+        
+    # 2. Geocode origin if travel is included
+    origin_geo = None
     if req.add_travel and req.origin_city:
         origin_geo = geocode_city(req.origin_city)
         if not origin_geo:
             raise HTTPException(status_code=400, detail=f"Could not geocode origin city '{req.origin_city}'")
-        
-        # Calculate distance
-        from src.router import haversine_distance
-        distance_km = haversine_distance(
-            origin_geo["lat"], origin_geo["lon"],
-            geo_data["lat"], geo_data["lon"]
-        )
-        
-        # Heuristic pricing per person (round-trip)
-        mode = req.travel_mode or "flight"
-        if mode == "flight":
-            # Flights are generally for distances > 300km, otherwise baseline ₹5000 roundtrip
-            rate = 3.5 if distance_km > 300 else 10.0
-            per_person_roundtrip = (2500.0 + rate * distance_km) * 2
-        elif mode == "train_3ac":
-            per_person_roundtrip = (350.0 + 1.1 * distance_km) * 2
-        elif mode == "train_sleeper":
-            per_person_roundtrip = (150.0 + 0.45 * distance_km) * 2
-        else: # bus
-            per_person_roundtrip = (100.0 + 1.4 * distance_km) * 2
-            
-        travel_cost = per_person_roundtrip * req.people
-        req.budget -= travel_cost
-        
-        if req.budget < 0:
-            return {
-                "success": False,
-                "message": f"Roundtrip travel cost (₹{travel_cost:,.2f}) exceeds your total budget."
-            }
 
-    # Load cached venues
-    cache_key = f"overpass_{req.city.lower().strip().replace(' ', '_')}"
-    venues = get_cached_response(cache_key)
+    # 3. Sort route using Greedy TSP to minimize travel distance
+    from src.router import haversine_distance
+    sorted_cities = []
     
-    if not venues:
-        # If cache is missing, fetch from Overpass
-        venues = fetch_venues(req.city, geo_data["bbox"], lat=geo_data["lat"], lon=geo_data["lon"])
+    if origin_geo:
+        current_lat, current_lon = origin_geo["lat"], origin_geo["lon"]
+        unvisited = list(cities_geo)
+        while unvisited:
+            nearest_idx = 0
+            nearest_dist = float('inf')
+            for idx, (_, lat, lon, _) in enumerate(unvisited):
+                d = haversine_distance(current_lat, current_lon, lat, lon)
+                if d < nearest_dist:
+                    nearest_dist = d
+                    nearest_idx = idx
+            visited = unvisited.pop(nearest_idx)
+            sorted_cities.append(visited)
+            current_lat, current_lon = visited[1], visited[2]
+    else:
+        start_city = cities_geo[0]
+        sorted_cities = [start_city]
+        current_lat, current_lon = start_city[1], start_city[2]
+        unvisited = cities_geo[1:]
+        while unvisited:
+            nearest_idx = 0
+            nearest_dist = float('inf')
+            for idx, (_, lat, lon, _) in enumerate(unvisited):
+                d = haversine_distance(current_lat, current_lon, lat, lon)
+                if d < nearest_dist:
+                    nearest_dist = d
+                    nearest_idx = idx
+            visited = unvisited.pop(nearest_idx)
+            sorted_cities.append(visited)
+            current_lat, current_lon = visited[1], visited[2]
+
+    # 4. Compute Intercity legs and travel costs
+    legs = []
+    total_travel_cost = 0.0
+    total_distance_km = 0.0
+    
+    mode = req.travel_mode or "flight"
+    
+    def get_leg_cost(dist, mode):
+        if mode == "flight":
+            if dist < 250:
+                return 150.0 + 1.2 * dist
+            return 1500.0 + 3.0 * dist
+        elif mode == "train_3ac":
+            return 200.0 + 1.0 * dist
+        elif mode == "train_sleeper":
+            return 80.0 + 0.45 * dist
+        else: # bus
+            return 60.0 + 1.3 * dist
+
+    if origin_geo:
+        # Leg 1: Origin -> Stop 1
+        d1 = haversine_distance(origin_geo["lat"], origin_geo["lon"], sorted_cities[0][1], sorted_cities[0][2])
+        c1 = get_leg_cost(d1, mode) * req.people
+        legs.append({"from": req.origin_city, "to": sorted_cities[0][0], "distance": d1, "cost": c1})
+        total_travel_cost += c1
+        total_distance_km += d1
         
-    if not venues or (not venues["hotels"] and not venues["restaurants"]):
-         raise HTTPException(status_code=404, detail="No venues found near the destination.")
-         
-    result = optimize_trip_budget(
-        venues, req.days, req.people, req.budget,
-        include_stay=req.include_stay,
-        include_transport=req.include_transport,
-        include_attractions=req.include_attractions,
-        lat=geo_data["lat"],
-        lon=geo_data["lon"]
-    )
-    
-    if result["status"] == "exceeded" or result["status"] == "failed":
-        msg = result.get("message", "Budget is too low to create a valid itinerary.")
-        if travel_cost > 0:
-            msg += f" (Note: roundtrip intercity travel cost is ₹{travel_cost:,.2f}. Try switching from Flight to Train, or increase your budget!)"
+        # Intermediate Legs: Stop i -> Stop i+1
+        for i in range(len(sorted_cities) - 1):
+            d = haversine_distance(sorted_cities[i][1], sorted_cities[i][2], sorted_cities[i+1][1], sorted_cities[i+1][2])
+            c = get_leg_cost(d, mode) * req.people
+            legs.append({"from": sorted_cities[i][0], "to": sorted_cities[i+1][0], "distance": d, "cost": c})
+            total_travel_cost += c
+            total_distance_km += d
+            
+        # Last Leg: Stop N -> Origin
+        dn = haversine_distance(sorted_cities[-1][1], sorted_cities[-1][2], origin_geo["lat"], origin_geo["lon"])
+        cn = get_leg_cost(dn, mode) * req.people
+        legs.append({"from": sorted_cities[-1][0], "to": req.origin_city, "distance": dn, "cost": cn})
+        total_travel_cost += cn
+        total_distance_km += dn
+    else:
+        for i in range(len(sorted_cities) - 1):
+            d = haversine_distance(sorted_cities[i][1], sorted_cities[i][2], sorted_cities[i+1][1], sorted_cities[i+1][2])
+            legs.append({"from": sorted_cities[i][0], "to": sorted_cities[i+1][0], "distance": d, "cost": 0.0})
+            total_distance_km += d
+
+    # 5. Deduct travel cost and check budget viability
+    remaining_budget = req.budget - total_travel_cost
+    if remaining_budget < 0:
         return {
             "success": False,
-            "message": msg
+            "message": f"Roundtrip travel cost (₹{total_travel_cost:,.2f}) exceeds your total budget of ₹{req.budget:,.2f}. Try switching transport mode or increasing budget!"
         }
-        
-    # Split attractions list to display nightlife (bars/pubs) separately from sightseeing
-    selected_attractions = result.get("attractions", [])
-    selected_bars = [a for a in selected_attractions if a.get("sub_type") == "bar"]
-    selected_sightseeing = [a for a in selected_attractions if a.get("sub_type") != "bar"]
+
+    # 6. Allocate days and budget per city stop
+    days_per_city = req.days // N
+    days_alloc = [days_per_city + (1 if i < (req.days % N) else 0) for i in range(N)]
+    budget_per_city = remaining_budget / N
+
+    # 7. Optimize each city stop
+    stops_plans = []
+    total_local_cost = 0.0
+    total_utility = 0.0
     
-    # Cluster the sightseeing attractions geographically (k zones = duration of days)
-    exploration_zones = cluster_attractions_by_location(selected_sightseeing, k=req.days)
-    
-    # Backup plan
-    backup_plan = None
-    if result.get("backup"):
-        b_attractions = result["backup"].get("attractions", [])
-        b_bars = [a for a in b_attractions if a.get("sub_type") == "bar"]
-        b_sightseeing = [a for a in b_attractions if a.get("sub_type") != "bar"]
-        b_zones = cluster_attractions_by_location(b_sightseeing, k=req.days)
+    for i, (city_name, lat, lon, bbox) in enumerate(sorted_cities):
+        cache_key = f"overpass_{city_name.lower().strip().replace(' ', '_')}"
+        venues = get_cached_response(cache_key)
+        if not venues:
+            venues = fetch_venues(city_name, bbox, lat=lat, lon=lon)
+            
+        if not venues or (not venues["hotels"] and not venues["restaurants"]):
+             return {
+                 "success": False,
+                 "message": f"No venues found in candidate search for '{city_name}'."
+             }
+             
+        res = optimize_trip_budget(
+            venues, days_alloc[i], req.people, budget_per_city,
+            include_stay=req.include_stay,
+            include_transport=req.include_transport,
+            include_attractions=req.include_attractions,
+            lat=lat, lon=lon
+        )
         
-        backup_plan = {
-            "hotel": result["backup"]["hotel"],
-            "total_cost": result["backup"]["total_cost"],
-            "restaurants": result["backup"].get("restaurants", []),
-            "bars": b_bars,
-            "zones": b_zones
+        if res["status"] == "exceeded" or res["status"] == "failed":
+            error_detail = res.get("message", "Insufficient budget.")
+            return {
+                "success": False,
+                "message": f"Optimization failed for stop '{city_name}': {error_detail} (Try increasing your budget or reducing duration/stops!)"
+            }
+            
+        s_attractions = res.get("attractions", [])
+        s_bars = [a for a in s_attractions if a.get("sub_type") == "bar"]
+        s_sightseeing = [a for a in s_attractions if a.get("sub_type") != "bar"]
+        s_zones = cluster_attractions_by_location(s_sightseeing, k=days_alloc[i])
+        
+        stop_plan = {
+            "city": city_name,
+            "days": days_alloc[i],
+            "hotel": res["hotel"],
+            "restaurants": res.get("restaurants", []),
+            "bars": s_bars,
+            "zones": s_zones,
+            "local_cost": res["total_cost"]
         }
-        
-    plan = {
-        "hotel": result["hotel"],
-        "total_cost": result["total_cost"] + travel_cost,
-        "local_trip_cost": result["total_cost"],
-        "travel_cost": travel_cost,
-        "travel_mode": req.travel_mode if travel_cost > 0 else None,
-        "origin_city": req.origin_city if travel_cost > 0 else None,
-        "distance_km": distance_km if travel_cost > 0 else 0.0,
-        "utility": result["utility"],
-        "cost_per_person": (result["total_cost"] + travel_cost) / req.people,
-        "restaurants": result.get("restaurants", []),
-        "bars": selected_bars,
-        "zones": exploration_zones,
-        "backup": backup_plan
+        stops_plans.append(stop_plan)
+        total_local_cost += res["total_cost"]
+        total_utility += res["utility"]
+
+    # 8. Build full multi-city trip plan
+    full_plan = {
+        "multi_city": True,
+        "stops": stops_plans,
+        "legs": legs,
+        "total_cost": total_local_cost + total_travel_cost,
+        "local_trip_cost": total_local_cost,
+        "travel_cost": total_travel_cost,
+        "travel_mode": req.travel_mode if total_travel_cost > 0 else None,
+        "origin_city": req.origin_city if total_travel_cost > 0 else None,
+        "distance_km": total_distance_km,
+        "utility": total_utility,
+        "cost_per_person": (total_local_cost + total_travel_cost) / req.people,
+        "backup": None
     }
 
-    # Enrich with Gemini
+    # 9. Run Gemini enrichment on all stops
     try:
-        plan = enrich_trip_plan(plan, req.city)
-        if plan.get("backup"):
-            plan["backup"] = enrich_trip_plan(plan["backup"], req.city)
+        for stop in full_plan["stops"]:
+            enrich_trip_plan(stop, stop["city"])
     except Exception as e:
-        print(f"[Enrichment Warning] Failed to run Gemini enrichment: {e}")
+        print(f"[Enrichment Warning] Failed to run Gemini enrichment on multi-city plan: {e}")
 
     return {
         "success": True,
-        "plan": plan
+        "plan": full_plan
     }
 
 # Mount static files

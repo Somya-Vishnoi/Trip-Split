@@ -13,10 +13,12 @@ def geocode_city(city_name: str) -> Optional[Dict[str, Any]]:
     query_name = city_name.lower().strip()
     if query_name in ["puducherry", "pondicherry"]:
         query_name_processed = "puducherry city"
+    elif query_name == "mumbai":
+        query_name_processed = "mumbai city district"
     else:
         query_name_processed = city_name
 
-    cache_key = f"geocode_{query_name.replace(' ', '_')}"
+    cache_key = f"geocode_{query_name_processed.replace(' ', '_')}"
     cached = get_cached_response(cache_key)
     if cached:
         return cached

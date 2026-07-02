@@ -68,6 +68,9 @@ def assign_heuristics(venue: Dict[str, Any], category: str, people: int) -> Tupl
 
     # 3. Attractions (Ghumi Ghumi)
     else:
+        tags = venue.get("tags", {})
+        has_web_presence = "wikipedia" in tags or "wikidata" in tags or "website" in tags or "contact:website" in tags
+        
         if sub_type == "museum":
             cost_per_visit = DEFAULT_COSTS["attraction_museum"] * people
             utility = DEFAULT_UTILITY["attraction_museum"]
@@ -81,13 +84,19 @@ def assign_heuristics(venue: Dict[str, Any], category: str, people: int) -> Tupl
             utility = 75.0
         elif sub_type == "park":
             cost_per_visit = DEFAULT_COSTS["attraction_park"] * people
-            utility = DEFAULT_UTILITY["attraction_park"]
+            # Lower utility for generic neighborhood parks
+            utility = DEFAULT_UTILITY["attraction_park"] if has_web_presence else 15.0
         elif sub_type == "bar":
             cost_per_visit = DEFAULT_COSTS["attraction_bar"] * people
             utility = DEFAULT_UTILITY["attraction_bar"]
         else:
             cost_per_visit = DEFAULT_COSTS["attraction_other"] * people
             utility = DEFAULT_UTILITY["attraction_other"]
+
+        # Boost major landmarks globally (wikipedia/website presence or explicitly tagged historic/attraction landmarks)
+        is_landmark = tags.get("tourism") == "attraction" or tags.get("historic") is not None
+        if has_web_presence or is_landmark:
+            utility += 120.0
             
         return cost_per_visit, utility
 
@@ -127,7 +136,8 @@ def run_budget_knapsack(
             "police", "hospital", "clinic", "post office", "toilet", "restroom", "atm", "bank", 
             "trash", "dustbin", "waste bin", "garbage", "office of", "department of", "ministry of", 
             "fire station", "court", "station house", "police post", "distillery", "commissioner",
-            "divisional office", "forest officer"
+            "divisional office", "forest officer", "sbi", "hdfc", "icici", "state bank", "axis bank",
+            "corporate office", "office", "business park", "headquarters"
         ]
         return not any(word in name_lower for word in exclude_words)
 

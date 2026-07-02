@@ -15,17 +15,19 @@ def fetch_venues(
     Returns:
         Dict containing categories: 'hotels', 'restaurants', 'attractions'
     """
-    cache_key = f"overpass_{city_name.lower().strip().replace(' ', '_')}"
+    lat_str = f"{lat:.3f}" if lat is not None else ""
+    lon_str = f"{lon:.3f}" if lon is not None else ""
+    cache_key = f"overpass_{city_name.lower().strip().replace(' ', '_')}_{lat_str}_{lon_str}"
     cached = get_cached_response(cache_key)
     if cached:
         return cached
 
     if lat is not None and lon is not None:
-        # Center around the actual geocoded city point (approx 22km x 22km area)
-        min_lat = lat - 0.10
-        max_lat = lat + 0.10
-        min_lon = lon - 0.10
-        max_lon = lon + 0.10
+        # Center around the actual geocoded city point (approx 15km x 15km area)
+        min_lat = lat - 0.07
+        max_lat = lat + 0.07
+        min_lon = lon - 0.07
+        max_lon = lon + 0.07
     else:
         # Fallback to bounding box center
         min_lat, max_lat, min_lon, max_lon = bbox
