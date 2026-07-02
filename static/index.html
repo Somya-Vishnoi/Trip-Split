@@ -14,13 +14,11 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="glow-bg"></div>
-    
     <div class="container">
         <!-- Header -->
         <header>
             <div class="logo">
-                <span class="logo-icon">🦉</span>
+                <span class="logo-icon">🧭</span>
                 <h1>Trip<span>split</span></h1>
             </div>
             <div class="header-text">
@@ -30,42 +28,72 @@
 
         <!-- Main Dashboard Layout -->
         <div class="dashboard-grid">
-            <!-- Left Panel: Inputs -->
-            <section class="card input-panel">
-                <h2>Plan New Adventure</h2>
-                <form id="search-form">
-                    <div class="input-group">
-                        <label for="destination">Where are you going?</label>
-                        <input type="text" id="destination" placeholder="e.g., Goa, Manali, Rome" required autocomplete="off">
-                    </div>
-                    
-                    <div class="row">
-                        <div class="input-group col">
-                            <label for="people">Group Size</label>
-                            <input type="number" id="people" min="1" value="4" required>
+            <!-- Left Column: Inputs & Utilities -->
+            <div class="left-col">
+                <section class="card input-panel">
+                    <h2>Plan New Adventure</h2>
+                    <form id="search-form">
+                        <div class="input-group">
+                            <label for="destination">Where are you going?</label>
+                            <input type="text" id="destination" placeholder="e.g., Goa, Manali, Rome" required autocomplete="off">
                         </div>
-                        <div class="input-group col">
-                            <label for="days">Duration (Days)</label>
-                            <input type="number" id="days" min="1" max="14" value="4" required>
+                        
+                        <div class="row">
+                            <div class="input-group col">
+                                <label for="people">Group Size</label>
+                                <input type="number" id="people" min="1" value="4" required>
+                            </div>
+                            <div class="input-group col">
+                                <label for="days">Duration (Days)</label>
+                                <input type="number" id="days" min="1" max="14" value="4" required>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <div class="input-group">
-                        <label for="budget">Total Budget (₹)</label>
-                        <input type="number" id="budget" min="100" value="50000" required>
-                    </div>
+                        
+                        <div class="input-group">
+                            <label for="budget">Total Budget (₹)</label>
+                            <input type="number" id="budget" min="100" value="50000" required>
+                        </div>
 
-                    <button type="submit" id="search-btn" class="btn-primary">
-                        <span>Initialize Venues</span>
-                        <div class="btn-glow"></div>
-                    </button>
-                </form>
+                        <button type="submit" id="search-btn" class="btn-primary">
+                            <span>Initialize Venues</span>
+                        </button>
+                    </form>
 
-                <div id="loader" class="loader-container hidden">
-                    <div class="spinner"></div>
-                    <p id="loader-text">Geocoding & fetching venues from OpenStreetMap...</p>
-                </div>
-            </section>
+                    <div id="loader" class="loader-container hidden">
+                        <div class="spinner"></div>
+                        <p id="loader-text">Geocoding & fetching venues from OpenStreetMap...</p>
+                    </div>
+                </section>
+
+                <section class="card converter-panel">
+                    <h2>Currency Converter</h2>
+                    <div class="converter-box">
+                        <div class="input-group">
+                            <label for="conv-amount">Foreign Amount</label>
+                            <input type="number" id="conv-amount" value="100" min="1">
+                        </div>
+                        <div class="row">
+                            <div class="input-group col">
+                                <label for="conv-from">From Currency</label>
+                                <select id="conv-from" class="custom-select">
+                                    <option value="USD">USD ($)</option>
+                                    <option value="EUR">EUR (€)</option>
+                                    <option value="GBP">GBP (£)</option>
+                                    <option value="AED">AED (Dh)</option>
+                                    <option value="SGD">SGD (S$)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="input-group" style="margin-top: 1rem;">
+                            <label>Converted to INR</label>
+                            <div class="conv-result-val" id="conv-result">₹8,300.00</div>
+                        </div>
+                        <button type="button" id="apply-budget-btn" class="btn-secondary">
+                            Apply to Total Budget
+                        </button>
+                    </div>
+                </section>
+            </div>
 
             <!-- Right Panel: Map & Summary -->
             <section class="card output-panel">

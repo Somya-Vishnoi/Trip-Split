@@ -1,26 +1,26 @@
 /* 
-   TripSplit - Professional TripAdvisor-inspired Light Theme
-   Strictly Light Mode, clean travel guide aesthetic
+   TripSplit - Professional Custom Light Theme
+   Strictly Light Mode, purple travel guide aesthetic
 */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-    --bg-main: #F2F4F7;         /* Light grey page background */
+    --bg-main: #F4F6F9;         /* Light grey page background */
     --surface: #FFFFFF;         /* Pure white cards */
     --surface-light: #F9FAFB;   /* Very light grey for inputs and hover list items */
     
     --border: #E5E7EB;          /* Light grey borders */
-    --border-accent: #00AA6C;   /* TripAdvisor Green for highlights */
+    --border-accent: #7C3AED;   /* Purple for highlights */
     
     --text-primary: #0F172A;    /* Slate-900 for high-contrast primary text */
     --text-secondary: #475569;  /* Slate-600 for subtext */
     --text-muted: #94A3B8;      /* Slate-400 for placeholders */
     
-    --accent: #00AA6C;          /* Signature TripAdvisor Green */
-    --accent-hover: #008755;    /* Darker green for hover state */
-    --accent-gold: #F2B203;     /* TripAdvisor ratings gold */
-    --accent-red: #D93B3B;      /* Red alert for warnings/backup */
+    --accent: #7C3AED;          /* Vibrant purple */
+    --accent-hover: #6D28D9;    /* Darker purple for hover state */
+    --accent-gold: #F59E0B;     /* Ratings gold / yellow */
+    --accent-red: #EF4444;      /* Red alert for warnings/backup */
     
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     
@@ -125,13 +125,17 @@ header {
     box-shadow: var(--box-shadow);
 }
 
-.input-panel h2 {
+.input-panel h2, .converter-panel h2 {
     font-size: 1.35rem;
     font-weight: 750;
     margin-bottom: 1.5rem;
     color: var(--text-primary);
     border-bottom: 2px solid var(--bg-main);
     padding-bottom: 0.75rem;
+}
+
+.converter-panel {
+    margin-top: 1.5rem;
 }
 
 /* Input Fields styling */
@@ -150,7 +154,7 @@ label {
     letter-spacing: 0.8px;
 }
 
-input {
+input, select.custom-select {
     background: #FFFFFF;
     border: 1.5px solid var(--border);
     color: var(--text-primary);
@@ -163,9 +167,9 @@ input {
     outline: none;
 }
 
-input:focus {
+input:focus, select.custom-select:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(0, 170, 108, 0.15);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
 }
 
 .row {
@@ -177,13 +181,13 @@ input:focus {
     flex: 1;
 }
 
-/* TripAdvisor Signature Green Button */
+/* Purple Action Buttons */
 .btn-primary {
     width: 100%;
     padding: 0.95rem;
     background: var(--accent);
     border: none;
-    border-radius: 50px; /* Fully rounded pillow button */
+    border-radius: 50px;
     color: #FFFFFF;
     font-family: var(--font-sans);
     font-size: 1rem;
@@ -191,13 +195,13 @@ input:focus {
     cursor: pointer;
     transition: var(--transition);
     margin-top: 1rem;
-    box-shadow: 0 4px 12px rgba(0, 170, 108, 0.2);
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);
 }
 
 .btn-primary:hover {
     background: var(--accent-hover);
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(0, 170, 108, 0.3);
+    box-shadow: 0 6px 16px rgba(124, 58, 237, 0.3);
 }
 
 .btn-primary:active {
@@ -209,6 +213,32 @@ input:focus {
     cursor: not-allowed;
     box-shadow: none;
     transform: none;
+}
+
+.btn-secondary {
+    width: 100%;
+    padding: 0.8rem;
+    background: transparent;
+    border: 1.5px solid var(--accent);
+    border-radius: 50px;
+    color: var(--accent);
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition);
+    margin-top: 0.75rem;
+}
+
+.btn-secondary:hover {
+    background: rgba(124, 58, 237, 0.05);
+}
+
+.conv-result-val {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--accent);
+    padding: 0.8rem 0;
 }
 
 /* Loader styling */
@@ -240,7 +270,7 @@ input:focus {
     display: none !important;
 }
 
-/* Output Layout & TripAdvisor Tabs */
+/* Output Layout & Tabs */
 .output-panel {
     min-height: 580px;
     display: flex;
@@ -266,7 +296,7 @@ input:focus {
     cursor: pointer;
     transition: var(--transition);
     position: relative;
-    top: 2px; /* overlaps the border */
+    top: 2px;
     border-bottom: 3px solid transparent;
 }
 
@@ -414,7 +444,7 @@ input:focus {
 }
 
 /* ========================================================
-   Budget Plan Layout (TripAdvisor style Itinerary Elements)
+   Budget Plan Layout
    ======================================================== */
 .plan-summary-card {
     background: var(--surface-light);
@@ -444,12 +474,12 @@ input:focus {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     border-radius: 20px;
-    background: rgba(0, 170, 108, 0.12);
+    background: rgba(124, 58, 237, 0.12);
     color: var(--accent);
 }
 
 .plan-status-badge.exceeded {
-    background: rgba(217, 59, 59, 0.12);
+    background: rgba(239, 68, 68, 0.12);
     color: var(--accent-red);
 }
 
@@ -556,8 +586,8 @@ input:focus {
 
 /* Green Free Badge */
 .free-badge {
-    background: rgba(0, 170, 108, 0.12);
-    color: var(--accent);
+    background: rgba(16, 185, 129, 0.12);
+    color: #10B981;
     font-size: 0.7rem;
     font-weight: 800;
     padding: 0.2rem 0.5rem;

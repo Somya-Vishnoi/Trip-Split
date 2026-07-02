@@ -2,9 +2,19 @@
 let map = null;
 let mapLayers = [];
 
+// Currency Exchange Rates to INR (₹)
+const EXCHANGE_RATES = {
+    USD: 83.5,
+    EUR: 90.0,
+    GBP: 106.0,
+    AED: 22.7,
+    SGD: 61.8
+};
+
 document.addEventListener("DOMContentLoaded", () => {
     initTabs();
     setupForm();
+    initCurrencyConverter();
 });
 
 // Tab Switch Logic
@@ -33,7 +43,49 @@ function initTabs() {
     });
 }
 
-// Map Initialization
+// Currency Converter Logic
+function initCurrencyConverter() {
+    const amountInput = document.getElementById("conv-amount");
+    const currencySelect = document.getElementById("conv-from");
+    const resultDiv = document.getElementById("conv-result");
+    const applyBtn = document.getElementById("apply-budget-btn");
+    const budgetInput = document.getElementById("budget");
+
+    if (!amountInput || !currencySelect || !resultDiv || !applyBtn || !budgetInput) return;
+
+    function updateConversion() {
+        const amount = parseFloat(amountInput.value) || 0;
+        const currency = currencySelect.value;
+        const rate = EXCHANGE_RATES[currency] || 1;
+        const converted = amount * rate;
+        resultDiv.textContent = `₹${converted.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        return Math.round(converted);
+    }
+
+    // Attach listeners
+    amountInput.addEventListener("input", updateConversion);
+    currencySelect.addEventListener("change", updateConversion);
+
+    // Apply button click
+    applyBtn.addEventListener("click", () => {
+        const convertedVal = updateConversion();
+        if (convertedVal > 0) {
+            budgetInput.value = convertedVal;
+            // Visual feedback on budget input
+            budgetInput.style.borderColor = "var(--accent)";
+            budgetInput.style.backgroundColor = "rgba(124, 58, 237, 0.08)";
+            setTimeout(() => {
+                budgetInput.style.borderColor = "";
+                budgetInput.style.backgroundColor = "";
+            }, 800);
+        }
+    });
+
+    // Run initial conversion
+    updateConversion();
+}
+
+// Map Initialization (Strictly Light Mode Map)
 function initializeLeafletMap(lat, lon, bbox) {
     const mapContainer = document.getElementById("map");
     // Clear placeholder
@@ -42,8 +94,8 @@ function initializeLeafletMap(lat, lon, bbox) {
     // Create Leaflet instance
     map = L.map("map").setView([lat, lon], 12);
 
-    // Load CartoDB Dark Matter Tiles (Fits premium dark UI)
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    // Load CartoDB Positron Light Tiles (Fits premium light UI)
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">CartoDB</a> contributors',
         subdomains: 'abcd',
         maxZoom: 20
@@ -54,10 +106,10 @@ function initializeLeafletMap(lat, lon, bbox) {
         const [minLat, maxLat, minLon, maxLon] = bbox;
         const bounds = [[minLat, minLon], [maxLat, maxLon]];
         L.rectangle(bounds, {
-            color: "#C5A880", // Brass gold to match theme
+            color: "#7C3AED", // Purple boundary to match accent
             weight: 2,
-            fillColor: "#C5A880",
-            fillOpacity: 0.05
+            fillColor: "#7C3AED",
+            fillOpacity: 0.03
         }).addTo(map);
         map.fitBounds(bounds);
     }
