@@ -91,6 +91,14 @@ function initCurrencyConverter() {
 
 // Map Initialization (Strictly Light Mode Map)
 function initializeLeafletMap(lat, lon, bbox) {
+    if (map) {
+        try {
+            map.remove();
+        } catch (e) {
+            console.error("Error removing map instance:", e);
+        }
+        map = null;
+    }
     const mapContainer = document.getElementById("map");
     // Clear placeholder
     mapContainer.innerHTML = "";
@@ -228,11 +236,11 @@ function setupForm() {
                     </div>
                 `;
 
-                // Populate Restaurants list
-                populateOptList("opt-restaurants-list", plan.restaurants);
+                // Render Day-by-Day Route Planner timeline
+                renderItineraryTimeline(plan.itinerary);
 
-                // Populate Attractions list
-                populateOptList("opt-attractions-list", plan.attractions, true);
+                // Draw routes and markers on Leaflet map
+                plotItineraryOnMap(plan.itinerary, plan.hotel);
 
                 // Populate Backup Plan
                 const backupSection = document.getElementById("backup-plan-section");
@@ -284,38 +292,140 @@ function populateList(elementId, items, emptyMessage) {
     });
 }
 
-function populateOptList(elementId, items, isAttraction = false) {
-    const list = document.getElementById(elementId);
-    list.innerHTML = "";
+// Render Day-by-Day Timeline HTML
+function renderItineraryTimeline(itinerary) {
+    const container = document.getElementById("opt-days-container");
+    container.innerHTML = "";
 
-    if (!items || items.length === 0) {
-        const li = document.createElement("li");
-        li.textContent = "None selected";
-        li.style.fontStyle = "italic";
-        list.appendChild(li);
+    if (!itinerary || itinerary.length === 0) {
+        container.innerHTML = "<p style='font-style: italic; padding: 1rem;'>No itinerary steps generated.</p>";
         return;
     }
 
-    items.forEach(item => {
-        const li = document.createElement("li");
-        
-        const nameSpan = document.createElement("span");
-        nameSpan.className = "opt-item-name";
-        nameSpan.textContent = item.name;
-        li.appendChild(nameSpan);
+    itinerary.forEach(day => {
+        const dayBlock = document.createElement("div");
+        dayBlock.className = "day-block";
 
-        if (isAttraction && item.cost === 0) {
-            const freeSpan = document.createElement("span");
-            freeSpan.className = "free-badge";
-            freeSpan.textContent = "Free";
-            li.appendChild(freeSpan);
-        } else {
-            const costSpan = document.createElement("span");
-            costSpan.className = "opt-item-cost";
-            costSpan.textContent = `₹${item.cost.toFixed(2)}`;
-            li.appendChild(costSpan);
-        }
+        // Day Header
+        const header = document.createElement("div");
+        header.className = "day-header";
+        header.innerHTML = `
+            <h4>Day ${day.day}</h4>
+            <span class="day-dist-badge">🚘 Route: ${day.total_distance_km} km</span>
+        `;
+        dayBlock.appendChild(header);
 
-        list.appendChild(li);
+        // Steps List
+        const stepsList = document.createElement("div");
+        stepsList.className = "route-steps-list";
+
+        day.route.forEach((step, idx) => {
+            const isDepot = (idx === 0 || idx === day.route.length - 1);
+            const stepItem = document.createElement("div");
+            stepItem.className = "route-step-item";
+
+            const isFree = step.cost === 0;
+            const costText = isDepot ? "" : (isFree ? '<span class="free-badge">Free</span>' : `₹${step.cost.toFixed(2)}`);
+            const typeLabel = isDepot ? "Base Hotel" : (step.sub_type ? step.sub_type.toUpperCase() : "VENUE");
+
+            stepItem.innerHTML = `
+                <div class="step-number-circle ${isDepot ? 'depot' : ''}">${idx + 1}</div>
+                <div class="step-details">
+                    <div>
+                        <span class="step-name">${step.name}</span>
+                        <span class="step-type-tag">${typeLabel}</span>
+                    </div>
+                    <span class="step-cost">${costText}</span>
+                </div>
+            `;
+            stepsList.appendChild(stepItem);
+        });
+
+        dayBlock.appendChild(stepsList);
+        container.appendChild(dayBlock);
     });
+}
+
+// Plot Day-wise Paths and Pins on the Map
+function plotItineraryOnMap(itinerary, hotel) {
+    // 1. Clear old dynamic layers
+    mapLayers.forEach(layer => {
+        try {
+            map.removeLayer(layer);
+        } catch (e) {
+            console.error("Error removing layer:", e);
+        }
+    });
+    mapLayers = [];
+
+    if (!map) return;
+
+    // 2. Add Base Hotel Marker
+    const hotelMarker = L.marker([hotel.lat, hotel.lon]).addTo(map);
+    hotelMarker.bindPopup(`
+        <div style="font-family: var(--font-sans); text-align: center;">
+            <span style="font-size: 1.2rem;">🏨</span><br>
+            <b style="color: var(--accent);">${hotel.name}</b><br>
+            <i>Base Accommodation</i>
+        </div>
+    `);
+    mapLayers.push(hotelMarker);
+
+    const DAY_COLORS = ["#7C3AED", "#EF4444", "#3B82F6", "#10B981", "#F59E0B", "#EC4899", "#14B8A6"];
+    const allLatLngs = [[hotel.lat, hotel.lon]];
+
+    // 3. Draw day routes and markers
+    itinerary.forEach((day, dayIdx) => {
+        const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
+        const routeCoords = [];
+
+        day.route.forEach((step, stepIdx) => {
+            const lat = step.lat;
+            const lon = step.lon;
+            routeCoords.push([lat, lon]);
+            allLatLngs.push([lat, lon]);
+
+            // Add pins for non-hotel stops (start/end of route is hotel)
+            const isHotelStop = (stepIdx === 0 || stepIdx === day.route.length - 1);
+            if (!isHotelStop) {
+                const marker = L.circleMarker([lat, lon], {
+                    radius: 8,
+                    fillColor: color,
+                    color: "#FFFFFF",
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.9
+                }).addTo(map);
+
+                const costText = step.cost === 0 ? "Free" : `₹${step.cost.toFixed(2)}`;
+                marker.bindPopup(`
+                    <div style="font-family: var(--font-sans); font-size: 0.85rem;">
+                        <b style="color: ${color}; font-size: 0.95rem;">Day ${day.day} - Stop ${stepIdx + 1}</b><br>
+                        <b style="color: var(--text-primary);">${step.name}</b><br>
+                        <span style="color: var(--text-secondary);">${step.sub_type.toUpperCase()}</span><br>
+                        <span style="color: var(--accent); font-weight: bold; margin-top: 4px; display: inline-block;">${costText}</span>
+                    </div>
+                `);
+                mapLayers.push(marker);
+            }
+        });
+
+        // Draw dotted polyline
+        if (routeCoords.length > 1) {
+            const polyline = L.polyline(routeCoords, {
+                color: color,
+                weight: 3.5,
+                opacity: 0.8,
+                dashArray: "6, 8"
+            }).addTo(map);
+            
+            polyline.bindPopup(`<b>Day ${day.day} Route</b><br>${day.total_distance_km} km total`);
+            mapLayers.push(polyline);
+        }
+    });
+
+    // Fit map bounds to show all itinerary locations
+    if (allLatLngs.length > 0) {
+        map.fitBounds(allLatLngs, { padding: [50, 50] });
+    }
 }

@@ -8,6 +8,7 @@ from src.geocoding import geocode_city
 from src.overpass import fetch_venues
 from src.optimizer import optimize_trip_budget
 from src.cache import get_cached_response
+from src.router import plan_day_wise_itinerary
 
 app = FastAPI(title="TripSplit - Group Trip Budget Optimizer")
 
@@ -92,16 +93,38 @@ def plan_trip(req: PlanRequest):
             "message": result.get("message", "Budget is too low to create a valid itinerary.")
         }
         
+    # Generate day-wise TSP routing for the selected items
+    day_itinerary = plan_day_wise_itinerary(
+        result["hotel"],
+        result["restaurants"],
+        result["attractions"],
+        req.days
+    )
+
+    # Do the same for the backup plan if it exists
+    backup_plan = None
+    if result.get("backup"):
+        backup_itinerary = plan_day_wise_itinerary(
+            result["backup"]["hotel"],
+            result["backup"]["restaurants"],
+            result["backup"]["attractions"],
+            req.days
+        )
+        backup_plan = {
+            "hotel": result["backup"]["hotel"],
+            "total_cost": result["backup"]["total_cost"],
+            "itinerary": backup_itinerary
+        }
+        
     return {
         "success": True,
         "plan": {
             "hotel": result["hotel"],
-            "restaurants": result["restaurants"],
-            "attractions": result["attractions"],
             "total_cost": result["total_cost"],
             "utility": result["utility"],
             "cost_per_person": result["total_cost"] / req.people,
-            "backup": result.get("backup")
+            "itinerary": day_itinerary,
+            "backup": backup_plan
         }
     }
 

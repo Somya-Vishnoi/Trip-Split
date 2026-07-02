@@ -497,16 +497,16 @@ input:focus, select.custom-select:focus {
     color: var(--accent);
 }
 
-/* Optimized Grid items */
-.optimized-venues-grid {
+/* Optimized Layout Grid (2 columns: Hotel info sidebar, Itinerary timeline main area) */
+.optimized-layout-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 280px 1fr;
     gap: 1.5rem;
     margin-bottom: 2rem;
 }
 
 @media (max-width: 850px) {
-    .optimized-venues-grid {
+    .optimized-layout-grid {
         grid-template-columns: 1fr;
     }
 }
@@ -523,8 +523,126 @@ input:focus, select.custom-select:focus {
 .opt-card h3 {
     border-bottom: 2px solid var(--bg-main);
     padding-bottom: 0.5rem;
-    font-size: 1.1rem;
+    font-size: 1.15rem;
     color: var(--text-primary);
+}
+
+.opt-itinerary-card {
+    flex: 1;
+}
+
+/* Timeline Day Block */
+.day-block {
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+
+.day-header {
+    background: #FAF5FF; /* Very soft light purple background */
+    border-bottom: 1px solid var(--border);
+    padding: 0.85rem 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.day-header h4 {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--accent);
+}
+
+.day-dist-badge {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    background: #EFE9F7;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+}
+
+/* Route steps list */
+.route-steps-list {
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    position: relative;
+}
+
+.route-steps-list::before {
+    content: '';
+    position: absolute;
+    top: 2rem;
+    bottom: 2rem;
+    left: 2.15rem; /* center of icon line */
+    width: 2px;
+    background: #E9D5FF; /* Light purple line */
+    z-index: 0;
+}
+
+.route-step-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.step-number-circle {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 800;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.step-number-circle.depot {
+    background: var(--accent);
+    color: #FFFFFF;
+}
+
+.step-details {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.6rem 1rem;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+}
+
+.step-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.step-type-tag {
+    font-size: 0.7rem;
+    font-weight: 750;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-left: 0.5rem;
+}
+
+.step-cost {
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 0.85rem;
 }
 
 /* Hotel Details */
