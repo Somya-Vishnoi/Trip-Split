@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupActionButtons();
     renderHistoryList();
     renderFavoritesList();
+    setupHeaderNavigation();
     
     // Toggle Intercity Travel Fields
     const travelCheckbox = document.getElementById("add-intercity-travel");
@@ -35,6 +36,78 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
+
+// Setup navigation links actions and modal triggers
+function setupHeaderNavigation() {
+    const navDiscover = document.getElementById("nav-discover");
+    const navTrips = document.getElementById("nav-trips");
+    const navEngine = document.getElementById("nav-engine");
+    const navLinks = document.querySelectorAll(".nav-links a");
+
+    function setActiveNav(activeBtn) {
+        navLinks.forEach(a => a.classList.remove("active"));
+        activeBtn.classList.add("active");
+    }
+
+    if (navDiscover) {
+        navDiscover.addEventListener("click", (e) => {
+            e.preventDefault();
+            setActiveNav(navDiscover);
+            const destinationInput = document.getElementById("destination");
+            if (destinationInput) {
+                destinationInput.focus();
+                destinationInput.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+        });
+    }
+
+    if (navTrips) {
+        navTrips.addEventListener("click", (e) => {
+            e.preventDefault();
+            setActiveNav(navTrips);
+            const historyCard = document.getElementById("history-card");
+            if (historyCard) {
+                historyCard.scrollIntoView({ behavior: "smooth", block: "center" });
+                // Visual Flash Animation to highlight the panel
+                historyCard.style.transition = "outline 0.3s ease";
+                historyCard.style.outline = "3px solid var(--accent)";
+                setTimeout(() => {
+                    historyCard.style.outline = "none";
+                }, 1000);
+            }
+        });
+    }
+
+    // Modal display management
+    const aboutModal = document.getElementById("about-modal");
+    const closeModalBtn = document.getElementById("close-modal-btn");
+    const closeModalBtnBottom = document.getElementById("close-modal-btn-bottom");
+
+    if (navEngine && aboutModal) {
+        navEngine.addEventListener("click", (e) => {
+            e.preventDefault();
+            aboutModal.classList.remove("hidden");
+        });
+    }
+
+    function hideModal() {
+        if (aboutModal) {
+            aboutModal.classList.add("hidden");
+        }
+    }
+
+    if (closeModalBtn) closeModalBtn.addEventListener("click", hideModal);
+    if (closeModalBtnBottom) closeModalBtnBottom.addEventListener("click", hideModal);
+
+    // Hide when clicking outside modal-card
+    if (aboutModal) {
+        aboutModal.addEventListener("click", (e) => {
+            if (e.target === aboutModal) {
+                hideModal();
+            }
+        });
+    }
+}
 
 // Helper for formatting numeric cost values safely
 function formatCost(val) {
