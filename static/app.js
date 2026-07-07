@@ -793,48 +793,35 @@ function renderPlanItinerary(plan) {
     }
 }
 
-// --- DYNAMIC VENUE IMAGES SYSTEM ---
 function getVenueImageUrl(name, category) {
-    const nameL = name.toLowerCase();
+    const stopWords = ["hotel", "restaurant", "cafe", "bar", "club", "pub", "lounge", "inn", "stay", "and", "the", "in", "at", "resort", "palace", "of", "deluxe", "executive", "premium", "luxury", "budget", "room", "guest", "house", "suites", "dining", "kitchen", "ltd", "pvt", "limited"];
     
-    if (category === "attraction") {
-        if (nameL.includes("beach") || nameL.includes("chowpatty") || nameL.includes("sea shore") || nameL.includes("coast")) {
-            return "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500&auto=format&fit=crop&q=80";
-        }
-        if (nameL.includes("fort") || nameL.includes("palace") || nameL.includes("mahal") || nameL.includes("castle") || nameL.includes("monument") || nameL.includes("gate")) {
-            return "https://images.unsplash.com/photo-1598977123418-45f04b016423?w=500&auto=format&fit=crop&q=80";
-        }
-        if (nameL.includes("temple") || nameL.includes("church") || nameL.includes("mosque") || nameL.includes("spiritual") || nameL.includes("shrine") || nameL.includes("cathedral")) {
-            return "https://images.unsplash.com/photo-1564507592333-c60657eea523?w=500&auto=format&fit=crop&q=80";
-        }
-        if (nameL.includes("garden") || nameL.includes("park") || nameL.includes("lake") || nameL.includes("zoo") || nameL.includes("reserve")) {
-            return "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=500&auto=format&fit=crop&q=80";
-        }
-        if (nameL.includes("museum") || nameL.includes("gallery") || nameL.includes("art") || nameL.includes("exhibition")) {
-            return "https://images.unsplash.com/photo-1569003339405-ea396a5a8a90?w=500&auto=format&fit=crop&q=80";
-        }
-        return "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=500&auto=format&fit=crop&q=80";
+    // Remove symbols and split into words
+    let words = name.toLowerCase()
+                    .replace(/[^a-z0-9\s]/g, "")
+                    .split(/\s+/)
+                    .filter(w => w.length > 1 && !stopWords.includes(w));
+    
+    // If all words got filtered, fall back to the original name words
+    if (words.length === 0) {
+        words = name.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 0);
     }
     
-    if (category === "hotel" || category === "stay") {
-        if (nameL.includes("resort") || nameL.includes("palace") || nameL.includes("villa") || nameL.includes("grand")) {
-            return "https://images.unsplash.com/photo-1540541338287-41700207dee6?w=500&auto=format&fit=crop&q=80";
+    // Limit to first 4 keyword tags to prevent overly specific searches that Flickr might fail
+    const tags = words.slice(0, 4);
+    
+    // Get destination city name from search inputs for additional tag context if available
+    const destInput = document.getElementById("destination");
+    if (destInput && destInput.value) {
+        const cityWords = destInput.value.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 0);
+        // Append the first word of the city if it's not already in the tags list
+        if (cityWords.length > 0 && !tags.includes(cityWords[0])) {
+            tags.push(cityWords[0]);
         }
-        return "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500&auto=format&fit=crop&q=80";
     }
     
-    if (category === "restaurant") {
-        if (nameL.includes("cafe") || nameL.includes("coffee") || nameL.includes("bakery") || nameL.includes("bistro")) {
-            return "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500&auto=format&fit=crop&q=80";
-        }
-        return "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=500&auto=format&fit=crop&q=80";
-    }
-    
-    if (category === "bar" || category === "club" || nameL.includes("pub") || nameL.includes("lounge")) {
-        return "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=500&auto=format&fit=crop&q=80";
-    }
-
-    return "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=500&auto=format&fit=crop&q=80";
+    const query = tags.join(",");
+    return `https://loremflickr.com/400/300/${query}`;
 }
 
 function renderVenueImageHtml(venueName, category) {
