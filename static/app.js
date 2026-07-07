@@ -1665,3 +1665,24 @@ function renderFavoritesList() {
         console.error("Failed to render favorites list:", e);
     }
 }
+
+// Prefill City Helper for Trending Destinations cards
+window.preFillCity = function(cityName) {
+    const destInput = document.getElementById("destination");
+    if (destInput) {
+        destInput.value = cityName;
+        // Scroll to search inputs
+        destInput.scrollIntoView({ behavior: "smooth", block: "center" });
+        destInput.focus();
+        
+        // Auto-submit form
+        const form = document.getElementById("search-form");
+        if (form) {
+            // Trigger submit event
+            const submitBtn = document.getElementById("search-btn");
+            if (submitBtn) {
+                submitBtn.click();
+            }
+        }
+    }
+};

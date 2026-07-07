@@ -1025,6 +1025,12 @@ input:focus, select.custom-select:focus {
     font-size: 0.85rem;
 }
 
+.trending-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(124, 90, 237, 0.15) !important;
+    border-color: var(--accent) !important;
+}
+
 /* Print CSS */
 @media print {
     body {

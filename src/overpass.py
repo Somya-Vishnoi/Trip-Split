@@ -41,6 +41,21 @@ def fetch_venues(
             min_lon = lon_center - 0.04
             max_lon = lon_center + 0.04
 
+    # Define a wider bounding box for beaches to ensure they are captured along coastlines (Goa/Mumbai)
+    if lat is not None and lon is not None:
+        w_min_lat = lat - 0.25
+        w_max_lat = lat + 0.25
+        w_min_lon = lon - 0.25
+        w_max_lon = lon + 0.25
+    else:
+        min_lat, max_lat, min_lon, max_lon = bbox
+        lat_center = (min_lat + max_lat) / 2
+        lon_center = (min_lon + max_lon) / 2
+        w_min_lat = lat_center - 0.20
+        w_max_lat = lat_center + 0.20
+        w_min_lon = lon_center - 0.20
+        w_max_lon = lon_center + 0.20
+
     query = f"""
     [out:json][timeout:30];
     (
@@ -55,8 +70,15 @@ def fetch_venues(
       // Attractions: Museums, Monuments, Parks, Bars, Beaches, Viewpoints, and general attractions
       node["tourism"~"museum|gallery|zoo|attraction|viewpoint"]({min_lat},{min_lon},{max_lat},{max_lon});
       way["tourism"~"museum|gallery|zoo|attraction|viewpoint"]({min_lat},{min_lon},{max_lat},{max_lon});
-      node["natural"~"beach"]({min_lat},{min_lon},{max_lat},{max_lon});
-      way["natural"~"beach"]({min_lat},{min_lon},{max_lat},{max_lon});
+      
+      // Beaches (wider box search to capture coastlines)
+      node["natural"~"beach"]({w_min_lat},{w_min_lon},{w_max_lat},{w_max_lon});
+      way["natural"~"beach"]({w_min_lat},{w_min_lon},{w_max_lat},{w_max_lon});
+      node["tourism"~"beach"]({w_min_lat},{w_min_lon},{w_max_lat},{w_max_lon});
+      way["tourism"~"beach"]({w_min_lat},{w_min_lon},{w_max_lat},{w_max_lon});
+      node["leisure"~"beach"]({w_min_lat},{w_min_lon},{w_max_lat},{w_max_lon});
+      way["leisure"~"beach"]({w_min_lat},{w_min_lon},{w_max_lat},{w_max_lon});
+      
       node["historic"~"monument|castle"]({min_lat},{min_lon},{max_lat},{max_lon});
       way["historic"~"monument|castle"]({min_lat},{min_lon},{max_lat},{max_lon});
       node["leisure"~"park|garden"]({min_lat},{min_lon},{max_lat},{max_lon});
@@ -125,7 +147,11 @@ def fetch_venues(
                     sub_type = "museum"
                 elif "historic" in tags:
                     sub_type = "museum" # Group historic landmarks as museum-like
-                elif "natural" in tags and tags["natural"] == "beach":
+                elif ("natural" in tags and tags["natural"] == "beach") or \
+                     ("tourism" in tags and tags["tourism"] == "beach") or \
+                     ("leisure" in tags and tags["leisure"] == "beach") or \
+                     ("beach" in tags) or \
+                     ("beach" in name_lower or "chowpatty" in name_lower or "sea shore" in name_lower):
                     sub_type = "beach"
                 elif "tourism" in tags and tags["tourism"] == "viewpoint":
                     sub_type = "viewpoint"
