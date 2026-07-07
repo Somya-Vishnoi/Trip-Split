@@ -6,26 +6,26 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-    --bg-main: #F2F2F2;         /* Light grey TripAdvisor page background */
+    --bg-main: #F4F6F9;         /* Light grey page background */
     --surface: #FFFFFF;         /* Pure white cards */
     --surface-light: #F9FAFB;   /* Very light grey for inputs and hover list items */
     
-    --border: #E2E8F0;          /* Light grey borders */
-    --border-accent: #00AA6C;   /* TripAdvisor Green for highlights */
+    --border: #E5E7EB;          /* Light grey borders */
+    --border-accent: #7C3AED;   /* Purple for highlights */
     
-    --text-primary: #1E293B;    /* Slate-800 for high-contrast primary text */
+    --text-primary: #0F172A;    /* Slate-900 for high-contrast primary text */
     --text-secondary: #475569;  /* Slate-600 for subtext */
     --text-muted: #94A3B8;      /* Slate-400 for placeholders */
     
-    --accent: #00AA6C;          /* TripAdvisor Green */
-    --accent-hover: #008456;    /* Darker TripAdvisor Green for hover state */
-    --accent-gold: #F2B203;     /* TripAdvisor gold / yellow */
+    --accent: #7C3AED;          /* Vibrant purple */
+    --accent-hover: #6D28D9;    /* Darker purple for hover state */
+    --accent-gold: #F59E0B;     /* Ratings gold / yellow */
     --accent-red: #EF4444;      /* Red alert for warnings/backup */
     
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     
     --border-radius: 12px;
-    --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -76,7 +76,7 @@ body {
 }
 
 .tripadvisor-header .logo h1 span {
-    color: #00AA6C;
+    color: var(--accent);
 }
 
 .nav-links {
@@ -96,12 +96,12 @@ body {
 
 .nav-links a:hover {
     background: var(--surface-light);
-    color: #00AA6C;
+    color: var(--accent);
 }
 
 .nav-links a.active {
-    color: #00AA6C;
-    background: #E8F5E9;
+    color: var(--accent);
+    background: #FAF5FF;
 }
 
 /* TripAdvisor Hero Section */
@@ -154,14 +154,14 @@ body {
 }
 
 .quick-filter-btn:hover {
-    border-color: #00AA6C;
-    background: #F4FBF7;
+    border-color: var(--accent);
+    background: #FAF5FF;
 }
 
 .quick-filter-btn.active {
-    border-color: #00AA6C;
-    background: #E8F5E9;
-    color: #00AA6C;
+    border-color: var(--accent);
+    background: #FAF5FF;
+    color: var(--accent);
 }
 
 .container {

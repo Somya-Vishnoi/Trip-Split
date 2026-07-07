@@ -20,6 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initCurrencyConverter();
     setupActionButtons();
     renderHistoryList();
+    renderFavoritesList();
     
     // Toggle Intercity Travel Fields
     const travelCheckbox = document.getElementById("add-intercity-travel");
@@ -361,6 +362,7 @@ function setupForm() {
     });
 }
 
+// Populate search candidate lists with TripAdvisor interactive Heart icons
 function populateList(elementId, items, emptyMessage) {
     const list = document.getElementById(elementId);
     if (!list) return;
@@ -374,10 +376,44 @@ function populateList(elementId, items, emptyMessage) {
         return;
     }
 
+    const category = elementId.includes("hotel") ? "hotel" : elementId.includes("rest") ? "restaurant" : "attraction";
+    const categoryIcon = category === "hotel" ? "🏨" : category === "restaurant" ? "🍔" : "🏛️";
+
     items.forEach(name => {
         const li = document.createElement("li");
-        li.textContent = name;
-        li.title = name;
+        li.style.display = "flex";
+        li.style.justifyContent = "space-between";
+        li.style.alignItems = "center";
+        li.style.gap = "0.5rem";
+
+        const textSpan = document.createElement("span");
+        textSpan.textContent = name;
+        textSpan.title = name;
+        textSpan.style.whiteSpace = "nowrap";
+        textSpan.style.overflow = "hidden";
+        textSpan.style.textOverflow = "ellipsis";
+        textSpan.style.flex = "1";
+
+        // Heart Icon Button
+        const heartBtn = document.createElement("button");
+        heartBtn.className = "heart-btn";
+        heartBtn.style.background = "none";
+        heartBtn.style.border = "none";
+        heartBtn.style.cursor = "pointer";
+        heartBtn.style.fontSize = "1rem";
+        heartBtn.style.padding = "0.2rem";
+        
+        const isHearted = isVenueFavorite(name);
+        heartBtn.innerHTML = isHearted ? "❤️" : "🤍";
+        
+        heartBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            toggleFavoriteVenue(name, category, categoryIcon);
+            heartBtn.innerHTML = isVenueFavorite(name) ? "❤️" : "🤍";
+        });
+
+        li.appendChild(textSpan);
+        li.appendChild(heartBtn);
         list.appendChild(li);
     });
 }
@@ -521,9 +557,15 @@ function renderPlanItinerary(plan) {
                         }
                     }
 
+                    const isHearted = isVenueFavorite(stop.hotel.name);
+                    const heartIcon = isHearted ? "❤️" : "🤍";
+
                     hotelDetail.innerHTML = `
                         <div class="hotel-details-block">
-                            <div class="hotel-name" style="font-weight: 700;">${stop.hotel.name}</div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.25rem;">
+                                <div class="hotel-name" style="font-weight: 700;">${stop.hotel.name}</div>
+                                <button onclick="toggleFavoriteVenue('${stop.hotel.name.replace(/'/g, "\\'")}', 'hotel', '🏨', ${stop.hotel.lat}, ${stop.hotel.lon})" style="background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.2rem;">${heartIcon}</button>
+                            </div>
                             <div class="hotel-meta" style="display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap;">${hotelType} ${starsHtml}</div>
                             <div class="hotel-cost">Est. Total: ₹${formatCost(stop.hotel.cost)}</div>
                             ${enrichHtml}
@@ -619,9 +661,15 @@ function renderPlanItinerary(plan) {
                     }
                 }
 
+                const isHearted = isVenueFavorite(stop.hotel.name);
+                const heartIcon = isHearted ? "❤️" : "🤍";
+
                 hotelDetail.innerHTML = `
                     <div class="hotel-details-block">
-                        <div class="hotel-name" style="font-weight: 700;">${stop.hotel.name}</div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.25rem;">
+                            <div class="hotel-name" style="font-weight: 700;">${stop.hotel.name}</div>
+                            <button onclick="toggleFavoriteVenue('${stop.hotel.name.replace(/'/g, "\\'")}', 'hotel', '🏨', ${stop.hotel.lat}, ${stop.hotel.lon})" style="background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.2rem;">${heartIcon}</button>
+                        </div>
                         <div class="hotel-meta" style="display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap;">${hotelType} ${starsHtml}</div>
                         <div class="hotel-cost">Est. Total: ₹${formatCost(stop.hotel.cost)}</div>
                         ${enrichHtml}
@@ -648,7 +696,7 @@ function renderPlanItinerary(plan) {
     }
 }
 
-// Modular food and drinks rendering helper
+// Modular food and drinks rendering helper with TripAdvisor Heart Favorites icon
 function renderFoodAndNightlifeElements(restaurants, bars, restList, barsList, barsContainer) {
     if (restList) {
         restList.innerHTML = "";
@@ -678,10 +726,16 @@ function renderFoodAndNightlifeElements(restaurants, bars, restList, barsList, b
                         </div>
                     `;
                 }
+
+                const isHearted = isVenueFavorite(r.name);
+                const heartIcon = isHearted ? "❤️" : "🤍";
                 
                 li.innerHTML = `
                     <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                        <span class="opt-item-name">${r.name}${qtyText}</span>
+                        <div style="display:flex; align-items:center; gap:0.25rem; overflow:hidden; flex:1;">
+                            <span class="opt-item-name" style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${r.name}${qtyText}</span>
+                            <button onclick="toggleFavoriteVenue('${r.name.replace(/'/g, "\\'")}', 'restaurant', '🍔', ${r.lat}, ${r.lon})" style="background:none; border:none; cursor:pointer; font-size:0.85rem; padding:0.1rem;">${heartIcon}</button>
+                        </div>
                         <span class="opt-item-cost">₹${formatCost(r.cost * r.qty)}</span>
                     </div>
                     ${enrichHtml}
@@ -712,10 +766,16 @@ function renderFoodAndNightlifeElements(restaurants, bars, restList, barsList, b
                         </div>
                     `;
                 }
+
+                const isHearted = isVenueFavorite(b.name);
+                const heartIcon = isHearted ? "❤️" : "🤍";
                 
                 li.innerHTML = `
                     <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                        <span class="opt-item-name">${b.name}</span>
+                        <div style="display:flex; align-items:center; gap:0.25rem; overflow:hidden; flex:1;">
+                            <span class="opt-item-name" style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${b.name}</span>
+                            <button onclick="toggleFavoriteVenue('${b.name.replace(/'/g, "\\'")}', 'bar', '🍻', ${b.lat}, ${b.lon})" style="background:none; border:none; cursor:pointer; font-size:0.85rem; padding:0.1rem;">${heartIcon}</button>
+                        </div>
                         <span class="opt-item-cost">${b.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(b.cost)}</span>
                     </div>
                     ${enrichHtml}
@@ -726,7 +786,7 @@ function renderFoodAndNightlifeElements(restaurants, bars, restList, barsList, b
     }
 }
 
-// Modular sightseeing zones rendering helper
+// Modular sightseeing zones rendering helper with TripAdvisor Heart Favorites icon
 function renderExplorationZonesElements(zones, container, zonesSection) {
     if (!container) return;
     container.innerHTML = "";
@@ -755,62 +815,90 @@ function renderExplorationZonesElements(zones, container, zonesSection) {
         if (zone.popular_places && zone.popular_places.length > 0) {
             const group = document.createElement("div");
             group.className = "sub-zone-group popular";
-            group.innerHTML = `
-                <h5>Popular Sights</h5>
-                <ul class="zone-list">
-                    ${zone.popular_places.map(item => {
-                        let enrichHtml = "";
-                        if (item.enrichment) {
-                            enrichHtml = `
-                                <div class="enrich-desc" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; width: 100%; line-height: 1.3;">${item.enrichment.description}</div>
-                                <div class="enrich-meta" style="font-size: 0.75rem; color: #4B5563; margin-top: 0.15rem;">
-                                    Vibe: ${item.enrichment.vibe} | Tips: ${item.enrichment.extra_tips}
-                                </div>
-                            `;
-                        }
-                        return `
-                            <li class="zone-item" style="flex-direction: column; align-items: flex-start; gap: 0.25rem;">
-                                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                                    <span class="zone-item-name">${item.name}</span>
-                                    <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
-                                </div>
-                                ${enrichHtml}
-                            </li>
-                        `;
-                    }).join('')}
-                </ul>
-            `;
+            
+            const list = document.createElement("ul");
+            list.className = "zone-list";
+            
+            zone.popular_places.forEach(item => {
+                const li = document.createElement("li");
+                li.className = "zone-item";
+                li.style.flexDirection = "column";
+                li.style.alignItems = "flex-start";
+                li.style.gap = "0.25rem";
+                
+                let enrichHtml = "";
+                if (item.enrichment) {
+                    enrichHtml = `
+                        <div class="enrich-desc" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; width: 100%; line-height: 1.3;">${item.enrichment.description}</div>
+                        <div class="enrich-meta" style="font-size: 0.75rem; color: #4B5563; margin-top: 0.15rem;">
+                            Vibe: ${item.enrichment.vibe} | Tips: ${item.enrichment.extra_tips}
+                        </div>
+                    `;
+                }
+
+                const isHearted = isVenueFavorite(item.name);
+                const heartIcon = isHearted ? "❤️" : "🤍";
+
+                li.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                        <div style="display:flex; align-items:center; gap:0.25rem; overflow:hidden; flex:1;">
+                            <span class="zone-item-name" style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${item.name}</span>
+                            <button onclick="toggleFavoriteVenue('${item.name.replace(/'/g, "\\'")}', 'attraction', '🏛️', ${item.lat}, ${item.lon})" style="background:none; border:none; cursor:pointer; font-size:0.85rem; padding:0.1rem;">${heartIcon}</button>
+                        </div>
+                        <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
+                    </div>
+                    ${enrichHtml}
+                `;
+                list.appendChild(li);
+            });
+
+            group.innerHTML = "<h5>Popular Sights</h5>";
+            group.appendChild(list);
             content.appendChild(group);
         }
 
         if (zone.underrated_gems && zone.underrated_gems.length > 0) {
             const group = document.createElement("div");
             group.className = "sub-zone-group underrated";
-            group.innerHTML = `
-                <h5>Underrated Gems</h5>
-                <ul class="zone-list">
-                    ${zone.underrated_gems.map(item => {
-                        let enrichHtml = "";
-                        if (item.enrichment) {
-                            enrichHtml = `
-                                <div class="enrich-desc" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; width: 100%; line-height: 1.3;">${item.enrichment.description}</div>
-                                <div class="enrich-meta" style="font-size: 0.75rem; color: #4B5563; margin-top: 0.15rem;">
-                                    Vibe: ${item.enrichment.vibe} | Tips: ${item.enrichment.extra_tips}
-                                </div>
-                            `;
-                        }
-                        return `
-                            <li class="zone-item" style="flex-direction: column; align-items: flex-start; gap: 0.25rem;">
-                                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                                    <span class="zone-item-name">${item.name}</span>
-                                    <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
-                                </div>
-                                ${enrichHtml}
-                            </li>
-                        `;
-                    }).join('')}
-                </ul>
-            `;
+            
+            const list = document.createElement("ul");
+            list.className = "zone-list";
+            
+            zone.underrated_gems.forEach(item => {
+                const li = document.createElement("li");
+                li.className = "zone-item";
+                li.style.flexDirection = "column";
+                li.style.alignItems = "flex-start";
+                li.style.gap = "0.25rem";
+                
+                let enrichHtml = "";
+                if (item.enrichment) {
+                    enrichHtml = `
+                        <div class="enrich-desc" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; width: 100%; line-height: 1.3;">${item.enrichment.description}</div>
+                        <div class="enrich-meta" style="font-size: 0.75rem; color: #4B5563; margin-top: 0.15rem;">
+                            Vibe: ${item.enrichment.vibe} | Tips: ${item.enrichment.extra_tips}
+                        </div>
+                    `;
+                }
+
+                const isHearted = isVenueFavorite(item.name);
+                const heartIcon = isHearted ? "❤️" : "🤍";
+
+                li.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                        <div style="display:flex; align-items:center; gap:0.25rem; overflow:hidden; flex:1;">
+                            <span class="zone-item-name" style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${item.name}</span>
+                            <button onclick="toggleFavoriteVenue('${item.name.replace(/'/g, "\\'")}', 'attraction', '🏛️', ${item.lat}, ${item.lon})" style="background:none; border:none; cursor:pointer; font-size:0.85rem; padding:0.1rem;">${heartIcon}</button>
+                        </div>
+                        <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
+                    </div>
+                    ${enrichHtml}
+                `;
+                list.appendChild(li);
+            });
+
+            group.innerHTML = "<h5>Underrated Gems</h5>";
+            group.appendChild(list);
             content.appendChild(group);
         }
 
@@ -1272,14 +1360,14 @@ function deleteHistoryItem(index) {
     }
 }
 
-// TripAdvisor Bubble Ratings Helper
+// TripAdvisor Bubble Ratings Helper (Styled in Purple)
 function getBubbleRatingHtml(stars) {
     if (!stars) return "";
     const count = Math.min(5, Math.max(1, Math.round(stars)));
     let bubbles = "";
     for (let i = 0; i < 5; i++) {
         if (i < count) {
-            bubbles += `<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#00AA6C; margin-right:3px; border:1px solid #00AA6C;"></span>`;
+            bubbles += `<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#7C3AED; margin-right:3px; border:1px solid #7C3AED;"></span>`;
         } else {
             bubbles += `<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#E0E0E0; margin-right:3px; border:1px solid #CCCCCC;"></span>`;
         }
@@ -1313,3 +1401,194 @@ window.toggleHeroFilter = function(type) {
         }
     }
 };
+
+// Favorites / TripAdvisor Trip Board Helpers
+function isVenueFavorite(name) {
+    try {
+        const favorites = JSON.parse(localStorage.getItem("tripsplit_favorites")) || [];
+        return favorites.some(f => f.name.toLowerCase() === name.toLowerCase());
+    } catch (e) {
+        return false;
+    }
+}
+
+function toggleFavoriteVenue(name, category, icon, lat = null, lon = null) {
+    try {
+        let favorites = JSON.parse(localStorage.getItem("tripsplit_favorites")) || [];
+        const index = favorites.findIndex(f => f.name.toLowerCase() === name.toLowerCase());
+        
+        if (index > -1) {
+            favorites.splice(index, 1);
+        } else {
+            let finalLat = lat;
+            let finalLon = lon;
+            if (!finalLat) {
+                // Try to find in lastPlanResult stops
+                if (lastPlanResult && lastPlanResult.stops) {
+                    for (const stop of lastPlanResult.stops) {
+                        if (stop.hotel && stop.hotel.name.toLowerCase() === name.toLowerCase()) {
+                            finalLat = stop.hotel.lat;
+                            finalLon = stop.hotel.lon;
+                            break;
+                        }
+                        const rMatch = stop.restaurants.find(r => r.name.toLowerCase() === name.toLowerCase());
+                        if (rMatch) {
+                            finalLat = rMatch.lat;
+                            finalLon = rMatch.lon;
+                            break;
+                        }
+                        const bMatch = stop.bars.find(b => b.name.toLowerCase() === name.toLowerCase());
+                        if (bMatch) {
+                            finalLat = bMatch.lat;
+                            finalLon = bMatch.lon;
+                            break;
+                        }
+                        if (stop.zones) {
+                            for (const zone of stop.zones) {
+                                const pMatch = zone.popular_places ? zone.popular_places.find(p => p.name.toLowerCase() === name.toLowerCase()) : null;
+                                if (pMatch) {
+                                    finalLat = pMatch.lat;
+                                    finalLon = pMatch.lon;
+                                    break;
+                                }
+                                const uMatch = zone.underrated_gems ? zone.underrated_gems.find(u => u.name.toLowerCase() === name.toLowerCase()) : null;
+                                if (uMatch) {
+                                    finalLat = uMatch.lat;
+                                    finalLon = uMatch.lon;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (!finalLat && currentSearchData && currentSearchData.geocoding) {
+                finalLat = currentSearchData.geocoding.lat;
+                finalLon = currentSearchData.geocoding.lon;
+            }
+            favorites.push({
+                name: name,
+                category: category,
+                icon: icon,
+                lat: finalLat,
+                lon: finalLon,
+                timestamp: new Date().toLocaleString()
+            });
+        }
+        localStorage.setItem("tripsplit_favorites", JSON.stringify(favorites));
+        renderFavoritesList();
+        
+        // Refresh visible elements
+        if (currentSearchData) {
+            populateList("sample-hotels", currentSearchData.sample_venues.hotels, "No hotels found");
+            populateList("sample-restaurants", currentSearchData.sample_venues.restaurants, "No restaurants found");
+            populateList("sample-attractions", currentSearchData.sample_venues.attractions, "No attractions found");
+        }
+        if (lastPlanResult) {
+            renderPlanItinerary(lastPlanResult);
+        }
+    } catch (e) {
+        console.error("Failed to toggle favorite:", e);
+    }
+}
+
+function renderFavoritesList() {
+    const list = document.getElementById("favorites-list");
+    const placeholder = document.getElementById("favorites-placeholder");
+    if (!list) return;
+    list.innerHTML = "";
+
+    try {
+        const favorites = JSON.parse(localStorage.getItem("tripsplit_favorites")) || [];
+        if (favorites.length === 0) {
+            if (placeholder) placeholder.classList.remove("hidden");
+            list.classList.add("hidden");
+            return;
+        }
+
+        if (placeholder) placeholder.classList.add("hidden");
+        list.classList.remove("hidden");
+
+        favorites.forEach((item, index) => {
+            const li = document.createElement("li");
+            li.style.display = "flex";
+            li.style.justifyContent = "space-between";
+            li.style.alignItems = "center";
+            li.style.padding = "0.5rem";
+            li.style.border = "1px solid var(--border)";
+            li.style.borderRadius = "6px";
+            li.style.background = "var(--surface-light)";
+            li.style.fontSize = "0.82rem";
+
+            const info = document.createElement("div");
+            info.style.display = "flex";
+            info.style.alignItems = "center";
+            info.style.gap = "0.4rem";
+            info.style.overflow = "hidden";
+            info.style.flex = "1";
+            
+            const iconSpan = document.createElement("span");
+            iconSpan.textContent = item.icon;
+            
+            const nameSpan = document.createElement("span");
+            nameSpan.textContent = item.name;
+            nameSpan.style.fontWeight = "600";
+            nameSpan.style.whiteSpace = "nowrap";
+            nameSpan.style.overflow = "hidden";
+            nameSpan.style.textOverflow = "ellipsis";
+
+            info.appendChild(iconSpan);
+            info.appendChild(nameSpan);
+
+            const actions = document.createElement("div");
+            actions.style.display = "flex";
+            actions.style.gap = "0.3rem";
+
+            if (item.lat && item.lon) {
+                const pinBtn = document.createElement("button");
+                pinBtn.innerHTML = "📍";
+                pinBtn.title = "Locate on Map";
+                pinBtn.style.background = "none";
+                pinBtn.style.border = "none";
+                pinBtn.style.cursor = "pointer";
+                pinBtn.style.fontSize = "0.95rem";
+                pinBtn.addEventListener("click", () => {
+                    if (map) {
+                        // Switch to map tab first
+                        const mapTabBtn = document.querySelector('[data-tab="map-tab"]');
+                        if (mapTabBtn) mapTabBtn.click();
+                        
+                        // Center map on coordinates with zoom level 15
+                        map.setView([item.lat, item.lon], 15);
+                        
+                        // Find matching marker layer if exists and open popup
+                        mapLayers.forEach(layer => {
+                            if (layer.getLatLng && layer.getLatLng().lat === item.lat && layer.getLatLng().lng === item.lon) {
+                                layer.openPopup();
+                            }
+                        });
+                    }
+                });
+                actions.appendChild(pinBtn);
+            }
+
+            const delBtn = document.createElement("button");
+            delBtn.innerHTML = "🗑";
+            delBtn.title = "Remove";
+            delBtn.style.background = "none";
+            delBtn.style.border = "none";
+            delBtn.style.cursor = "pointer";
+            delBtn.style.fontSize = "0.95rem";
+            delBtn.addEventListener("click", () => {
+                toggleFavoriteVenue(item.name, item.category, item.icon);
+            });
+            actions.appendChild(delBtn);
+
+            li.appendChild(info);
+            li.appendChild(actions);
+            list.appendChild(li);
+        });
+    } catch (e) {
+        console.error("Failed to render favorites list:", e);
+    }
+}
