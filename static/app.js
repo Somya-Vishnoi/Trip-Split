@@ -461,25 +461,25 @@ function renderPlanItinerary(plan) {
                             <div class="stop-hotel-detail-${i} opt-detail"></div>
                         </div>
                         
-                        <!-- Right: Food, Nightlife & Zones -->
-                        <div class="opt-card opt-itinerary-card">
-                            <!-- Food & Nightlife Section -->
+                        <!-- Middle: Food & Nightlife Card -->
+                        <div class="opt-card opt-food-card">
+                            <h3>Food & Nightlife</h3>
                             <div class="plan-sub-section">
-                                <div class="food-nightlife-container">
-                                    <div class="food-block">
-                                        <h4>Selected Restaurants</h4>
-                                        <ul class="stop-restaurants-list-${i} opt-list"></ul>
-                                    </div>
-                                    <div class="nightlife-block stop-bars-container-${i}">
-                                        <h4>Selected Bars & Clubs</h4>
-                                        <ul class="stop-bars-list-${i} opt-list"></ul>
-                                    </div>
+                                <div class="food-block">
+                                    <h4>Selected Restaurants</h4>
+                                    <ul class="stop-restaurants-list-${i} opt-list"></ul>
+                                </div>
+                                <div class="nightlife-block stop-bars-container-${i}" style="margin-top: 1rem;">
+                                    <h4>Selected Bars & Clubs</h4>
+                                    <ul class="stop-bars-list-${i} opt-list"></ul>
                                 </div>
                             </div>
-                            
-                            <!-- Exploration Zones -->
-                            <div class="plan-sub-section stop-zones-section-${i}" style="margin-top: 1.75rem;">
-                                <h3>Exploration Zones (Clustered by Location)</h3>
+                        </div>
+                        
+                        <!-- Right: Sightseeing & Exploration Card -->
+                        <div class="opt-card opt-itinerary-card">
+                            <h3>Sightseeing & Exploration</h3>
+                            <div class="plan-sub-section stop-zones-section-${i}">
                                 <div class="stop-zones-container-${i} zones-timeline"></div>
                             </div>
                         </div>
@@ -560,23 +560,25 @@ function renderPlanItinerary(plan) {
                         <div id="opt-hotel-detail" class="opt-detail"></div>
                     </div>
                     
-                    <!-- Right: Food, Nightlife & Zones -->
-                    <div class="opt-card opt-itinerary-card">
+                    <!-- Middle: Food & Nightlife Card -->
+                    <div class="opt-card opt-food-card">
+                        <h3>Food & Nightlife</h3>
                         <div class="plan-sub-section">
-                            <div class="food-nightlife-container">
-                                <div class="food-block">
-                                    <h4>Selected Restaurants</h4>
-                                    <ul id="opt-restaurants-list" class="opt-list"></ul>
-                                </div>
-                                <div class="nightlife-block" id="opt-bars-container">
-                                    <h4>Selected Bars & Clubs</h4>
-                                    <ul id="opt-bars-list" class="opt-list"></ul>
-                                </div>
+                            <div class="food-block">
+                                <h4>Selected Restaurants</h4>
+                                <ul id="opt-restaurants-list" class="opt-list"></ul>
+                            </div>
+                            <div class="nightlife-block" id="opt-bars-container" style="margin-top: 1rem;">
+                                <h4>Selected Bars & Clubs</h4>
+                                <ul id="opt-bars-list" class="opt-list"></ul>
                             </div>
                         </div>
-                        
-                        <div class="plan-sub-section" id="opt-zones-section" style="margin-top: 1.75rem;">
-                            <h3>Exploration Zones (Clustered by Location)</h3>
+                    </div>
+                    
+                    <!-- Right: Sightseeing & Exploration Card -->
+                    <div class="opt-card opt-itinerary-card">
+                        <h3>Sightseeing & Exploration</h3>
+                        <div class="plan-sub-section" id="opt-zones-section">
                             <div id="opt-zones-container" class="zones-timeline"></div>
                         </div>
                     </div>

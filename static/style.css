@@ -497,17 +497,29 @@ input:focus, select.custom-select:focus {
     color: var(--accent);
 }
 
-/* Optimized Layout Grid (2 columns: Hotel info sidebar, Itinerary timeline main area) */
+/* Optimized Layout Grid (3 columns: Accommodation, Food & Dining, Sightseeing) */
 .optimized-layout-grid {
     display: grid;
-    grid-template-columns: 280px 1fr;
+    grid-template-columns: 260px 1fr 1.2fr;
     gap: 1.5rem;
     margin-bottom: 2rem;
 }
 
-@media (max-width: 850px) {
+@media (max-width: 1150px) {
+    .optimized-layout-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    .opt-hotel-card {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 800px) {
     .optimized-layout-grid {
         grid-template-columns: 1fr;
+    }
+    .opt-hotel-card {
+        grid-column: span 1;
     }
 }
 
