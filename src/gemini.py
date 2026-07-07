@@ -183,3 +183,43 @@ Do not return any markdown codeblocks or text outside the JSON. Return only the 
         zone["underrated_gems"] = new_underrated
 
     return plan
+
+def query_gemini_assistant(query: str, favorites: List[Dict[str, Any]]) -> str:
+    """
+    Queries Gemini as a travel assistant. Can answer general travel queries and utilize saved venues context.
+    """
+    if not GEMINI_API_KEY:
+        return "Assistant: Please add your Gemini API Key in the config or .env to enable the AI travel assistant."
+
+    prompt = f"""
+    You are the TripSplit Travel AI Assistant, a world-class travel guide, local experience expert, and travel planner. 
+    
+    The user can ask you any question about travel, destinations, itineraries, cultural tips, packing lists, general travel experiences, local cuisines, or anything they need.
+    
+    Additionally, for context, here is the user's Saved/Hearted Venues Board (hotels, restaurants, attractions they saved):
+    {json.dumps(favorites, indent=2)}
+    
+    User Query: "{query}"
+    
+    Instructions:
+    1. Answer the user's question comprehensively and helpfully.
+    2. Draw from your extensive global travel knowledge to give detailed tips, advice, and cultural suggestions that aren't just dry facts.
+    3. If the user's query relates to their saved venues or if you see a relevant match in their Saved Board, reference those venues naturally.
+    4. Keep your tone enthusiastic, professional, and friendly.
+    5. Use markdown formatting. Keep the answer concise (under 250 words) yet high-value and satisfying.
+    6. Never refer to yourself as TripAdvisor; you are the TripSplit Travel Assistant.
+    """
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}]
+    }
+    
+    try:
+        response = requests.post(url, json=payload, timeout=15)
+        response.raise_for_status()
+        res_json = response.json()
+        text = res_json["candidates"][0]["content"]["parts"][0]["text"]
+        return text.strip()
+    except Exception as e:
+        return f"Assistant Error: Could not connect to Gemini API ({e})"

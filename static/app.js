@@ -22,6 +22,8 @@ document.addEventListener("DOMContentLoaded", () => {
     renderHistoryList();
     renderFavoritesList();
     setupHeaderNavigation();
+    setupLedger();
+    setupAssistantChat();
     
     // Toggle Intercity Travel Fields
     const travelCheckbox = document.getElementById("add-intercity-travel");
@@ -532,9 +534,16 @@ function renderPlanItinerary(plan) {
                 routeLabels = `${plan.origin_city} ➔ ${destName}`;
             }
 
+            const carbonFactor = plan.travel_mode === "flight" ? 0.15 : 
+                                 plan.travel_mode === "bus" ? 0.05 : 0.025;
+            const carbonValue = plan.distance_km * plan.people * carbonFactor;
+
             travelDetails.innerHTML = `
                 <div style="margin-bottom: 0.25rem;"><strong>Roundtrip Route:</strong> ${routeLabels}</div>
-                <div>Distance: ${plan.distance_km.toFixed(1)} km | Mode: ${modeName}</div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>Distance: ${plan.distance_km.toFixed(1)} km | Mode: ${modeName}</div>
+                    <span class="carbon-badge">🌱 Carbon: ${carbonValue.toFixed(1)} kg CO₂</span>
+                </div>
                 <div style="margin-top: 0.35rem; font-size: 0.85rem; border-top: 1.5px dashed var(--border); padding-top: 0.35rem;">
                     Travel Cost: <strong>₹${formatCost(plan.travel_cost)}</strong> | 
                     Local Stops Budget: <strong>₹${formatCost(plan.local_trip_cost)}</strong>
@@ -643,6 +652,7 @@ function renderPlanItinerary(plan) {
                             <div class="hotel-cost">Est. Total: ₹${formatCost(stop.hotel.cost)}</div>
                             ${enrichHtml}
                             ${altHtml}
+                            ${getVotingTagsHtml(stop.hotel.name)}
                         </div>
                     `;
                 } else {
@@ -747,6 +757,7 @@ function renderPlanItinerary(plan) {
                         <div class="hotel-cost">Est. Total: ₹${formatCost(stop.hotel.cost)}</div>
                         ${enrichHtml}
                         ${altHtml}
+                        ${getVotingTagsHtml(stop.hotel.name)}
                     </div>
                 `;
             } else {
@@ -812,6 +823,7 @@ function renderFoodAndNightlifeElements(restaurants, bars, restList, barsList, b
                         <span class="opt-item-cost">₹${formatCost(r.cost * r.qty)}</span>
                     </div>
                     ${enrichHtml}
+                    ${getVotingTagsHtml(r.name)}
                 `;
                 restList.appendChild(li);
             });
@@ -852,6 +864,7 @@ function renderFoodAndNightlifeElements(restaurants, bars, restList, barsList, b
                         <span class="opt-item-cost">${b.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(b.cost)}</span>
                     </div>
                     ${enrichHtml}
+                    ${getVotingTagsHtml(b.name)}
                 `;
                 barsList.appendChild(li);
             });
@@ -921,6 +934,7 @@ function renderExplorationZonesElements(zones, container, zonesSection) {
                         <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
                     </div>
                     ${enrichHtml}
+                    ${getVotingTagsHtml(item.name)}
                 `;
                 list.appendChild(li);
             });
@@ -966,6 +980,7 @@ function renderExplorationZonesElements(zones, container, zonesSection) {
                         <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
                     </div>
                     ${enrichHtml}
+                    ${getVotingTagsHtml(item.name)}
                 `;
                 list.appendChild(li);
             });
@@ -1585,13 +1600,21 @@ function renderFavoritesList() {
         favorites.forEach((item, index) => {
             const li = document.createElement("li");
             li.style.display = "flex";
-            li.style.justifyContent = "space-between";
-            li.style.alignItems = "center";
+            li.style.flexDirection = "column";
+            li.style.alignItems = "stretch";
             li.style.padding = "0.5rem";
             li.style.border = "1px solid var(--border)";
             li.style.borderRadius = "6px";
             li.style.background = "var(--surface-light)";
             li.style.fontSize = "0.82rem";
+            li.style.gap = "0.25rem";
+
+            // Row 1: Icon, Name and Action Buttons
+            const topRow = document.createElement("div");
+            topRow.style.display = "flex";
+            topRow.style.justifyContent = "space-between";
+            topRow.style.alignItems = "center";
+            topRow.style.width = "100%";
 
             const info = document.createElement("div");
             info.style.display = "flex";
@@ -1627,14 +1650,9 @@ function renderFavoritesList() {
                 pinBtn.style.fontSize = "0.95rem";
                 pinBtn.addEventListener("click", () => {
                     if (map) {
-                        // Switch to map tab first
                         const mapTabBtn = document.querySelector('[data-tab="map-tab"]');
                         if (mapTabBtn) mapTabBtn.click();
-                        
-                        // Center map on coordinates with zoom level 15
                         map.setView([item.lat, item.lon], 15);
-                        
-                        // Find matching marker layer if exists and open popup
                         mapLayers.forEach(layer => {
                             if (layer.getLatLng && layer.getLatLng().lat === item.lat && layer.getLatLng().lng === item.lon) {
                                 layer.openPopup();
@@ -1657,8 +1675,16 @@ function renderFavoritesList() {
             });
             actions.appendChild(delBtn);
 
-            li.appendChild(info);
-            li.appendChild(actions);
+            topRow.appendChild(info);
+            topRow.appendChild(actions);
+
+            li.appendChild(topRow);
+
+            // Row 2: Voting Tags
+            const voteDiv = document.createElement("div");
+            voteDiv.innerHTML = getVotingTagsHtml(item.name);
+            li.appendChild(voteDiv);
+
             list.appendChild(li);
         });
     } catch (e) {
@@ -1671,14 +1697,11 @@ window.preFillCity = function(cityName) {
     const destInput = document.getElementById("destination");
     if (destInput) {
         destInput.value = cityName;
-        // Scroll to search inputs
         destInput.scrollIntoView({ behavior: "smooth", block: "center" });
         destInput.focus();
         
-        // Auto-submit form
         const form = document.getElementById("search-form");
         if (form) {
-            // Trigger submit event
             const submitBtn = document.getElementById("search-btn");
             if (submitBtn) {
                 submitBtn.click();
@@ -1686,3 +1709,374 @@ window.preFillCity = function(cityName) {
         }
     }
 };
+
+// --- TRIP GROUP EXPENSE LEDGER SYSTEM ---
+function setupLedger() {
+    const membersInput = document.getElementById("group-members-input");
+    const ledgerForm = document.getElementById("ledger-form");
+    const clearBtn = document.getElementById("clear-ledger-btn");
+
+    if (!membersInput) return;
+
+    // Listen to changes in group members list
+    membersInput.addEventListener("input", updateLedgerInputs);
+    updateLedgerInputs(); // Initial setup of dropdowns
+
+    if (ledgerForm) {
+        ledgerForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const desc = document.getElementById("exp-desc").value.trim();
+            const amount = parseFloat(document.getElementById("exp-amount").value);
+            const paidBy = document.getElementById("exp-paid-by").value;
+            
+            // Get split candidates
+            const checkedBoxes = document.querySelectorAll("#exp-split-checkboxes input:checked");
+            const splitBetween = Array.from(checkedBoxes).map(cb => cb.value);
+
+            if (!desc || isNaN(amount) || amount <= 0 || !paidBy || splitBetween.length === 0) {
+                alert("Please fill all expense fields and select at least one person to split between!");
+                return;
+            }
+
+            const expenses = JSON.parse(localStorage.getItem("tripsplit_ledger")) || [];
+            expenses.push({
+                desc,
+                amount,
+                paidBy,
+                splitBetween,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+
+            localStorage.setItem("tripsplit_ledger", JSON.stringify(expenses));
+            
+            // Clear input fields
+            document.getElementById("exp-desc").value = "";
+            document.getElementById("exp-amount").value = "";
+            
+            renderLedger();
+        });
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener("click", () => {
+            if (confirm("Are you sure you want to clear all ledger expenses?")) {
+                localStorage.removeItem("tripsplit_ledger");
+                renderLedger();
+            }
+        });
+    }
+
+    renderLedger();
+}
+
+function updateLedgerInputs() {
+    const input = document.getElementById("group-members-input");
+    const select = document.getElementById("exp-paid-by");
+    const checkboxesDiv = document.getElementById("exp-split-checkboxes");
+    
+    if (!input || !select || !checkboxesDiv) return;
+
+    const members = input.value.split(",").map(m => m.trim()).filter(m => m.length > 0);
+    
+    // Save selected values to restore them
+    const prevPaidBy = select.value;
+    
+    // Clear
+    select.innerHTML = "";
+    checkboxesDiv.innerHTML = "";
+
+    members.forEach(member => {
+        // Dropdown Option
+        const opt = document.createElement("option");
+        opt.value = member;
+        opt.textContent = member;
+        select.appendChild(opt);
+
+        // Checkbox Split Item
+        const label = document.createElement("label");
+        label.style.display = "flex";
+        label.style.alignItems = "center";
+        label.style.gap = "0.35rem";
+        label.style.fontSize = "0.8rem";
+        label.style.cursor = "pointer";
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.value = member;
+        cb.checked = true; // default splits equally
+        
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(member));
+        checkboxesDiv.appendChild(label);
+    });
+
+    if (prevPaidBy && members.includes(prevPaidBy)) {
+        select.value = prevPaidBy;
+    }
+}
+
+function renderLedger() {
+    const list = document.getElementById("ledger-history-list");
+    const placeholder = document.getElementById("ledger-history-placeholder");
+    const balanceList = document.getElementById("ledger-balances-list");
+    const balancePlaceholder = document.getElementById("ledger-balances-placeholder");
+    const input = document.getElementById("group-members-input");
+
+    if (!list || !balanceList || !input) return;
+
+    list.innerHTML = "";
+    balanceList.innerHTML = "";
+
+    const members = input.value.split(",").map(m => m.trim()).filter(m => m.length > 0);
+    const expenses = JSON.parse(localStorage.getItem("tripsplit_ledger")) || [];
+
+    if (expenses.length === 0) {
+        if (placeholder) placeholder.classList.remove("hidden");
+        if (balancePlaceholder) balancePlaceholder.classList.remove("hidden");
+        return;
+    }
+
+    if (placeholder) placeholder.classList.add("hidden");
+    if (balancePlaceholder) balancePlaceholder.classList.add("hidden");
+
+    // 1. Render expense history
+    expenses.forEach((e, idx) => {
+        const li = document.createElement("li");
+        li.style.display = "flex";
+        li.style.justifyContent = "space-between";
+        li.style.padding = "0.35rem 0";
+        li.style.borderBottom = "1px dashed var(--border)";
+
+        li.innerHTML = `
+            <div>
+                <strong>${e.desc}</strong> <span style="font-size:0.75rem; color:var(--text-secondary);">(${e.timestamp})</span><br>
+                <span style="font-size:0.72rem; color:var(--text-secondary);">Paid by <b>${e.paidBy}</b> split amongst: ${e.splitBetween.join(", ")}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.35rem;">
+                <span style="font-weight:700; color:var(--accent);">₹${e.amount}</span>
+                <button onclick="deleteLedgerItem(${idx})" style="background:none; border:none; cursor:pointer; font-size:0.8rem;">❌</button>
+            </div>
+        `;
+        list.appendChild(li);
+    });
+
+    // 2. Settle Up Calculator (Splitwise debt clearing greedy algorithm)
+    const balances = {};
+    members.forEach(m => { balances[m] = 0.0; });
+
+    expenses.forEach(e => {
+        // Payer gets credited full amount
+        if (balances[e.paidBy] !== undefined) {
+            balances[e.paidBy] += e.amount;
+        }
+        
+        // Split amount per split candidate
+        const share = e.amount / e.splitBetween.length;
+        e.splitBetween.forEach(recipient => {
+            if (balances[recipient] !== undefined) {
+                balances[recipient] -= share;
+            }
+        });
+    });
+
+    // Solve debt clearing transactions
+    const debtors = [];
+    const creditors = [];
+
+    Object.keys(balances).forEach(person => {
+        const bal = balances[person];
+        if (bal < -0.01) {
+            debtors.push({ name: person, amount: -bal });
+        } else if (bal > 0.01) {
+            creditors.push({ name: person, amount: bal });
+        }
+    });
+
+    // Greedy matching
+    let transactionsCount = 0;
+    while (debtors.length > 0 && creditors.length > 0) {
+        // Sort descending to settle largest first
+        debtors.sort((a, b) => b.amount - a.amount);
+        creditors.sort((a, b) => b.amount - a.amount);
+
+        const debtor = debtors[0];
+        const creditor = creditors[0];
+        const settleAmount = Math.min(debtor.amount, creditor.amount);
+
+        const li = document.createElement("li");
+        li.style.display = "flex";
+        li.style.alignItems = "center";
+        li.style.gap = "0.25rem";
+        li.style.background = "#fff";
+        li.style.padding = "0.35rem 0.5rem";
+        li.style.borderRadius = "4px";
+        li.style.border = "1px solid #E9D5FF";
+        li.style.marginBottom = "0.25rem";
+        li.innerHTML = `💸 <span style="color:#6D28D9;">${debtor.name}</span> owes <span style="color:#059669;">${creditor.name}</span> <strong>₹${settleAmount.toFixed(1)}</strong>`;
+        balanceList.appendChild(li);
+        transactionsCount++;
+
+        debtor.amount -= settleAmount;
+        creditor.amount -= settleAmount;
+
+        if (debtor.amount < 0.01) debtors.shift();
+        if (creditor.amount < 0.01) creditors.shift();
+    }
+
+    if (transactionsCount === 0) {
+        if (balancePlaceholder) balancePlaceholder.classList.remove("hidden");
+    }
+}
+
+window.deleteLedgerItem = function(index) {
+    const expenses = JSON.parse(localStorage.getItem("tripsplit_ledger")) || [];
+    expenses.splice(index, 1);
+    localStorage.setItem("tripsplit_ledger", JSON.stringify(expenses));
+    renderLedger();
+};
+
+// --- DYNAMIC GROUP VOTING SYSTEM ---
+window.toggleMemberVote = function(venueName, memberName) {
+    try {
+        let votes = JSON.parse(localStorage.getItem("tripsplit_votes")) || {};
+        if (!votes[venueName]) {
+            votes[venueName] = {};
+        }
+
+        const currentVote = votes[venueName][memberName] || "";
+        let nextVote = "";
+        
+        if (currentVote === "") {
+            nextVote = "yes";
+        } else if (currentVote === "yes") {
+            nextVote = "no";
+        } else {
+            nextVote = "";
+        }
+
+        votes[venueName][memberName] = nextVote;
+        localStorage.setItem("tripsplit_votes", JSON.stringify(votes));
+        
+        // Refresh Favorites and Itinerary displays to show matching vote tag style
+        if (currentSearchData) {
+            populateList("sample-hotels", currentSearchData.sample_venues.hotels, "No hotels found");
+            populateList("sample-restaurants", currentSearchData.sample_venues.restaurants, "No restaurants found");
+            populateList("sample-attractions", currentSearchData.sample_venues.attractions, "No attractions found");
+        }
+        if (lastPlanResult) {
+            renderPlanItinerary(lastPlanResult);
+        }
+        renderFavoritesList();
+    } catch (e) {
+        console.error("Failed to toggle member vote:", e);
+    }
+};
+
+function getVotingTagsHtml(venueName) {
+    const input = document.getElementById("group-members-input");
+    if (!input) return "";
+    const members = input.value.split(",").map(m => m.trim()).filter(m => m.length > 0);
+    
+    let votes = {};
+    try {
+        votes = JSON.parse(localStorage.getItem("tripsplit_votes")) || {};
+    } catch (e) {}
+
+    const venueVotes = votes[venueName] || {};
+
+    const badges = members.map(m => {
+        const val = venueVotes[m] || ""; // "yes", "no" or ""
+        let classStr = "vote-tag";
+        let label = `${m}`;
+        if (val === "yes") {
+            classStr += " yes";
+            label += " 👍";
+        } else if (val === "no") {
+            classStr += " no";
+            label += " 👎";
+        }
+        
+        return `<span class="${classStr}" onclick="event.stopPropagation(); toggleMemberVote('${venueName.replace(/'/g, "\\'")}', '${m.replace(/'/g, "\\'")}')">${label}</span>`;
+    }).join("");
+
+    return `
+        <div class="voting-tags-row">
+            <span style="font-size:0.7rem; color:var(--text-secondary); align-self:center; font-weight:700; margin-right:4px;">Votes:</span>
+            ${badges}
+        </div>
+    `;
+}
+
+// --- GEMINI TRAVEL ASSISTANT CHAT SYSTEM ---
+function setupAssistantChat() {
+    const chatBtn = document.getElementById("assistant-chat-btn");
+    const chatInput = document.getElementById("assistant-chat-input");
+    const chatBox = document.getElementById("assistant-chat-box");
+
+    if (!chatBtn || !chatInput || !chatBox) return;
+
+    async function sendChatQuery() {
+        const query = chatInput.value.trim();
+        if (!query) return;
+
+        // Clear input
+        chatInput.value = "";
+
+        // Append User bubble
+        appendChatBubble(chatBox, query, "user");
+
+        // Append Loading / Typing indicator
+        const typingId = appendChatBubble(chatBox, "Typing...", "assistant");
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        try {
+            // Load current favorites/hearted board list as context
+            const favorites = JSON.parse(localStorage.getItem("tripsplit_favorites")) || [];
+            
+            const response = await fetch("/api/assistant", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ query, favorites })
+            });
+
+            const typingBubble = document.getElementById(typingId);
+            if (typingBubble) typingBubble.remove();
+
+            if (!response.ok) {
+                throw new Error("Assistant connection lost.");
+            }
+
+            const data = await response.json();
+            appendChatBubble(chatBox, data.response, "assistant");
+        } catch (e) {
+            const typingBubble = document.getElementById(typingId);
+            if (typingBubble) typingBubble.remove();
+            appendChatBubble(chatBox, `Assistant: ${e.message}`, "error");
+        }
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    chatBtn.addEventListener("click", sendChatQuery);
+    chatInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            sendChatQuery();
+        }
+    });
+}
+
+function appendChatBubble(container, text, type) {
+    const bubble = document.createElement("div");
+    const id = "bubble_" + Math.random().toString(36).slice(2, 9);
+    bubble.id = id;
+    bubble.className = `chat-msg ${type}`;
+    
+    // Support basic markdown like **bold** in assistant response
+    if (type === "assistant") {
+        bubble.innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    } else {
+        bubble.textContent = text;
+    }
+    
+    container.appendChild(bubble);
+    return id;
+}

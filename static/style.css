@@ -1067,3 +1067,84 @@ input:focus, select.custom-select:focus {
         color: #000000 !important;
     }
 }
+
+/* Chat Assistant Bubble Styles */
+.chat-msg {
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    max-width: 85%;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    margin-bottom: 0.25rem;
+}
+
+.chat-msg.user {
+    align-self: flex-end;
+    background: #EDE9FE;
+    color: #5B21B6;
+    border-bottom-right-radius: 2px;
+}
+
+.chat-msg.assistant {
+    align-self: flex-start;
+    background: #F1F5F9;
+    color: var(--text-primary);
+    border-bottom-left-radius: 2px;
+    border: 1px solid var(--border);
+}
+
+.chat-msg.error {
+    align-self: flex-start;
+    background: #FEE2E2;
+    color: #991B1B;
+    border: 1px solid #FCA5A5;
+}
+
+/* Interactive Group Voting Badges */
+.voting-tags-row {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.35rem;
+    flex-wrap: wrap;
+}
+
+.vote-tag {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.35rem;
+    border-radius: 4px;
+    cursor: pointer;
+    background: #F1F5F9;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    transition: var(--transition);
+    user-select: none;
+}
+
+.vote-tag:hover {
+    background: #E2E8F0;
+}
+
+.vote-tag.yes {
+    background: #DCFCE7;
+    color: #15803D;
+    border-color: #BBF7D0;
+}
+
+.vote-tag.no {
+    background: #FEE2E2;
+    color: #B91C1C;
+    border-color: #FCA5A5;
+}
+
+/* Carbon Footprint Badge */
+.carbon-badge {
+    background: #D1FAE5;
+    color: #065F46;
+    font-weight: 700;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
