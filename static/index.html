@@ -29,6 +29,7 @@
                     <a href="#" id="nav-discover" class="active">Discover</a>
                     <a href="#" id="nav-trips">Trips</a>
                     <a href="#" id="nav-engine">About Engine</a>
+                    <a href="#" id="nav-chat">AI Assistant</a>
                 </nav>
             </div>
         </header>
@@ -227,18 +228,6 @@
                     <ul id="favorites-list" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.5rem; max-height: 200px; overflow-y: auto;"></ul>
                 </section>
 
-                <section class="card history-panel" id="assistant-card" style="margin-top: 1.5rem;">
-                    <h2>💬 Gemini Board Assistant</h2>
-                    <div class="assistant-chat-container" style="display: flex; flex-direction: column; gap: 0.5rem; text-align: left;">
-                        <div id="assistant-chat-box" style="height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; background: var(--surface-light); font-size: 0.8rem; line-height: 1.4; display: flex; flex-direction: column; gap: 0.5rem;">
-                            <div style="color: var(--text-secondary); font-style: italic;">Ask me anything about your saved board! e.g., "Recommend a hotel from my saves."</div>
-                        </div>
-                        <div style="display: flex; gap: 0.25rem;">
-                            <input type="text" id="assistant-chat-input" placeholder="Ask Assistant..." style="font-size: 0.8rem; padding: 0.4rem; flex: 1; border-radius: 4px; border: 1px solid var(--border);">
-                            <button id="assistant-chat-btn" class="btn-primary" style="font-size: 0.8rem; padding: 0.4rem 0.75rem; border-radius: 4px;">Send</button>
-                        </div>
-                    </div>
-                </section>
             </div>
 
             <!-- Right Panel: Map & Summary -->
@@ -457,6 +446,49 @@
             <button id="close-modal-btn-bottom" class="btn-secondary" style="margin-top: 1.5rem; width: 100%; font-weight: 700; padding: 0.6rem;">Got it!</button>
         </div>
     </div>
+
+    <!-- Image Lightbox Modal -->
+    <div id="image-lightbox" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 10000;" onclick="closeLightbox()">
+        <div class="lightbox-content" style="position: relative; max-width: 90%; max-height: 80%; text-align: center;" onclick="event.stopPropagation()">
+            <button style="position: absolute; top: -2.5rem; right: 0; background: none; border: none; font-size: 2rem; cursor: pointer; color: #fff;" onclick="closeLightbox()">&times;</button>
+            <img id="lightbox-img" src="" alt="Venue Image" style="max-width: 100%; max-height: 70vh; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); object-fit: contain; border: 2px solid rgba(255,255,255,0.2);">
+            <div id="lightbox-caption" style="color: #fff; font-size: 1.1rem; font-weight: 700; margin-top: 1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.8);"></div>
+        </div>
+    </div>
+
+    <!-- Floating Gemini AI Chat Widget -->
+    <div id="floating-chat-container" class="floating-chat-box" style="position: fixed; bottom: 1.5rem; right: 1.5rem; width: 340px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); box-shadow: 0 10px 25px rgba(0,0,0,0.15); display: flex; flex-direction: column; z-index: 999; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); transform-origin: bottom right;">
+        <!-- Chat Header -->
+        <div class="chat-header" style="background: linear-gradient(135deg, #7C3AED, #5B21B6); color: #fff; padding: 0.85rem 1rem; border-top-left-radius: 11px; border-top-right-radius: 11px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1.1rem;">🤖</span>
+                <div style="text-align: left;">
+                    <h3 style="margin: 0; font-size: 0.88rem; font-weight: 700; color: #ffffff;">TripSplit Travel AI</h3>
+                    <span style="font-size: 0.68rem; opacity: 0.85;">Always Active Advisor</span>
+                </div>
+            </div>
+            <button id="minimize-chat-btn" style="background: none; border: none; color: #fff; cursor: pointer; font-size: 1rem; font-weight: bold; padding: 0.2rem 0.5rem; line-height: 1;">&minus;</button>
+        </div>
+        
+        <!-- Chat Body (Always ON/Expanded by default) -->
+        <div id="chat-widget-body" style="display: flex; flex-direction: column; height: 320px;">
+            <div id="assistant-chat-box" style="flex: 1; overflow-y: auto; padding: 0.85rem; background: var(--surface-light); display: flex; flex-direction: column; gap: 0.75rem;">
+                <div class="chat-msg assistant">
+                    👋 Hello! I am your <strong>TripSplit Travel Assistant</strong>, powered by Gemini. <br><br>
+                    Ask me anything about cities, travel itineraries, packing lists, local secrets, or cultural etiquettes. I will also keep an eye on your hearted/saved places to give matching recommendations!
+                </div>
+            </div>
+            <div style="padding: 0.75rem; border-top: 1px solid var(--border); display: flex; gap: 0.35rem; background: var(--surface);">
+                <input type="text" id="assistant-chat-input" placeholder="Ask travel question..." style="font-size: 0.85rem; padding: 0.5rem; flex: 1; border-radius: 6px; border: 1px solid var(--border); outline: none;">
+                <button id="assistant-chat-btn" class="btn-primary" style="font-size: 0.85rem; padding: 0.5rem 0.85rem; border-radius: 6px; font-weight: 700;">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Chat Badge Icon (Only visible when chat is minimized) -->
+    <button id="floating-chat-badge" style="position: fixed; bottom: 1.5rem; right: 1.5rem; width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #7C3AED, #5B21B6); border: none; box-shadow: 0 4px 15px rgba(124, 58, 237, 0.45); color: #fff; font-size: 1.8rem; cursor: pointer; display: none; align-items: center; justify-content: center; z-index: 999; transition: var(--transition);">
+        🤖
+    </button>
 
     <!-- Leaflet Map JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

@@ -1148,3 +1148,131 @@ input:focus, select.custom-select:focus {
     align-items: center;
     gap: 0.25rem;
 }
+
+/* Real Interactive Images UI/UX */
+.venue-img-container {
+    position: relative;
+    width: 100%;
+    height: 130px;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+    border: 1px solid var(--border);
+    background: #e2e8f0;
+}
+
+.venue-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    cursor: pointer;
+}
+
+.venue-img-container:hover .venue-img {
+    transform: scale(1.08);
+}
+
+.img-overlay-info {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+    padding: 0.5rem 0.75rem;
+    color: #ffffff;
+    font-size: 0.75rem;
+    pointer-events: none;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+.img-zoom-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.85);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: var(--transition);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+
+.venue-img-container:hover .img-zoom-btn {
+    opacity: 1;
+}
+
+.img-zoom-btn:hover {
+    background: #ffffff;
+    transform: scale(1.1);
+}
+
+/* Lightbox Content Transition */
+.lightbox-content img {
+    animation: zoomIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes zoomIn {
+    from {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Horizontal Card Decks */
+.horizontal-card-deck {
+    display: flex !important;
+    gap: 1rem !important;
+    overflow-x: auto !important;
+    padding: 0.5rem 0.25rem !important;
+    list-style: none !important;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+    margin: 0.5rem 0 1rem 0;
+}
+
+.horizontal-card-deck::-webkit-scrollbar {
+    height: 6px;
+}
+
+.horizontal-card-deck::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.horizontal-card-deck::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.horizontal-card-deck .horizontal-card {
+    flex: 0 0 215px !important;
+    width: 215px !important;
+    scroll-snap-align: start;
+    display: flex !important;
+    flex-direction: column !important;
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 0.75rem !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
+    transition: var(--transition) !important;
+    text-align: left;
+}
+
+.horizontal-card-deck .horizontal-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+}

@@ -92,6 +92,17 @@ function setupHeaderNavigation() {
         });
     }
 
+    const navChat = document.getElementById("nav-chat");
+    if (navChat) {
+        navChat.addEventListener("click", (e) => {
+            e.preventDefault();
+            setActiveNav(navChat);
+            if (window.toggleFloatingChat) {
+                window.toggleFloatingChat(true);
+            }
+        });
+    }
+
     function hideModal() {
         if (aboutModal) {
             aboutModal.classList.add("hidden");
@@ -644,6 +655,7 @@ function renderPlanItinerary(plan) {
 
                     hotelDetail.innerHTML = `
                         <div class="hotel-details-block">
+                            ${renderVenueImageHtml(stop.hotel.name, 'hotel')}
                             <div style="display:flex; justify-content:space-between; align-items:center; gap:0.25rem;">
                                 <div class="hotel-name" style="font-weight: 700;">${stop.hotel.name}</div>
                                 <button onclick="toggleFavoriteVenue('${stop.hotel.name.replace(/'/g, "\\'")}', 'hotel', '🏨', ${stop.hotel.lat}, ${stop.hotel.lon})" style="background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.2rem;">${heartIcon}</button>
@@ -749,6 +761,7 @@ function renderPlanItinerary(plan) {
 
                 hotelDetail.innerHTML = `
                     <div class="hotel-details-block">
+                        ${renderVenueImageHtml(stop.hotel.name, 'hotel')}
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.25rem;">
                             <div class="hotel-name" style="font-weight: 700;">${stop.hotel.name}</div>
                             <button onclick="toggleFavoriteVenue('${stop.hotel.name.replace(/'/g, "\\'")}', 'hotel', '🏨', ${stop.hotel.lat}, ${stop.hotel.lon})" style="background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.2rem;">${heartIcon}</button>
@@ -780,12 +793,88 @@ function renderPlanItinerary(plan) {
     }
 }
 
-// Modular food and drinks rendering helper with TripAdvisor Heart Favorites icon
+// --- DYNAMIC VENUE IMAGES SYSTEM ---
+function getVenueImageUrl(name, category) {
+    const nameL = name.toLowerCase();
+    
+    if (category === "attraction") {
+        if (nameL.includes("beach") || nameL.includes("chowpatty") || nameL.includes("sea shore") || nameL.includes("coast")) {
+            return "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500&auto=format&fit=crop&q=80";
+        }
+        if (nameL.includes("fort") || nameL.includes("palace") || nameL.includes("mahal") || nameL.includes("castle") || nameL.includes("monument") || nameL.includes("gate")) {
+            return "https://images.unsplash.com/photo-1598977123418-45f04b016423?w=500&auto=format&fit=crop&q=80";
+        }
+        if (nameL.includes("temple") || nameL.includes("church") || nameL.includes("mosque") || nameL.includes("spiritual") || nameL.includes("shrine") || nameL.includes("cathedral")) {
+            return "https://images.unsplash.com/photo-1564507592333-c60657eea523?w=500&auto=format&fit=crop&q=80";
+        }
+        if (nameL.includes("garden") || nameL.includes("park") || nameL.includes("lake") || nameL.includes("zoo") || nameL.includes("reserve")) {
+            return "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=500&auto=format&fit=crop&q=80";
+        }
+        if (nameL.includes("museum") || nameL.includes("gallery") || nameL.includes("art") || nameL.includes("exhibition")) {
+            return "https://images.unsplash.com/photo-1569003339405-ea396a5a8a90?w=500&auto=format&fit=crop&q=80";
+        }
+        return "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=500&auto=format&fit=crop&q=80";
+    }
+    
+    if (category === "hotel" || category === "stay") {
+        if (nameL.includes("resort") || nameL.includes("palace") || nameL.includes("villa") || nameL.includes("grand")) {
+            return "https://images.unsplash.com/photo-1540541338287-41700207dee6?w=500&auto=format&fit=crop&q=80";
+        }
+        return "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500&auto=format&fit=crop&q=80";
+    }
+    
+    if (category === "restaurant") {
+        if (nameL.includes("cafe") || nameL.includes("coffee") || nameL.includes("bakery") || nameL.includes("bistro")) {
+            return "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500&auto=format&fit=crop&q=80";
+        }
+        return "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=500&auto=format&fit=crop&q=80";
+    }
+    
+    if (category === "bar" || category === "club" || nameL.includes("pub") || nameL.includes("lounge")) {
+        return "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=500&auto=format&fit=crop&q=80";
+    }
+
+    return "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=500&auto=format&fit=crop&q=80";
+}
+
+function renderVenueImageHtml(venueName, category) {
+    const url = getVenueImageUrl(venueName, category);
+    const escapedName = venueName.replace(/'/g, "\\'");
+    return `
+        <div class="venue-img-container" onclick="openLightbox('${url}', '${escapedName}')">
+            <img src="${url}" class="venue-img" alt="${venueName}">
+            <div class="img-overlay-info">📸 Interactive Photo</div>
+            <button class="img-zoom-btn" onclick="event.stopPropagation(); openLightbox('${url}', '${escapedName}')">🔍</button>
+        </div>
+    `;
+}
+
+// Lightbox controller
+window.openLightbox = function(src, caption) {
+    const lightbox = document.getElementById("image-lightbox");
+    const img = document.getElementById("lightbox-img");
+    const cap = document.getElementById("lightbox-caption");
+    if (lightbox && img) {
+        img.src = src;
+        if (cap) cap.textContent = caption;
+        lightbox.classList.remove("hidden");
+    }
+};
+
+window.closeLightbox = function() {
+    const lightbox = document.getElementById("image-lightbox");
+    if (lightbox) {
+        lightbox.classList.add("hidden");
+    }
+};
+
+// Modular food and drinks rendering helper - Horizontal scrolling cards
 function renderFoodAndNightlifeElements(restaurants, bars, restList, barsList, barsContainer) {
     if (restList) {
+        restList.className = "horizontal-card-deck";
         restList.innerHTML = "";
         if (!restaurants || restaurants.length === 0) {
-            restList.innerHTML = "<li style='font-style: italic;'>None selected</li>";
+            restList.innerHTML = "<li style='font-style: italic; color: var(--text-secondary);'>None selected</li>";
         } else {
             const counts = {};
             restaurants.forEach(r => {
@@ -795,35 +884,38 @@ function renderFoodAndNightlifeElements(restaurants, bars, restList, barsList, b
             
             Object.values(counts).forEach(r => {
                 const li = document.createElement("li");
-                li.style.flexDirection = "column";
-                li.style.alignItems = "flex-start";
-                li.style.gap = "0.25rem";
+                li.className = "horizontal-card";
                 
-                const qtyText = r.qty > 1 ? ` <span class="badge-qty" style="color: var(--accent); font-weight: bold; margin-left: 4px;">x${r.qty}</span>` : "";
+                const qtyText = r.qty > 1 ? ` <span class="badge-qty" style="color: var(--accent); font-weight: bold;">x${r.qty}</span>` : "";
                 
                 let enrichHtml = "";
                 if (r.enrichment) {
                     enrichHtml = `
-                        <div class="enrich-desc" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.3;">${r.enrichment.description}</div>
-                        <div class="enrich-meta" style="font-size: 0.75rem; color: #4B5563; font-style: italic; margin-top: 0.1rem;">
-                            Vibe: ${r.enrichment.vibe} | Try: ${r.enrichment.extra_tips}
+                        <div class="enrich-desc" style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.35; flex: 1;">${r.enrichment.description}</div>
+                        <div class="enrich-meta" style="font-size: 0.7rem; color: #4B5563; font-style: italic; margin-top: 0.15rem; line-height: 1.25;">
+                            Vibe: ${r.enrichment.vibe}<br>Try: ${r.enrichment.extra_tips}
                         </div>
                     `;
+                } else {
+                    enrichHtml = `<div style="flex: 1;"></div>`;
                 }
 
                 const isHearted = isVenueFavorite(r.name);
                 const heartIcon = isHearted ? "❤️" : "🤍";
                 
                 li.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                        <div style="display:flex; align-items:center; gap:0.25rem; overflow:hidden; flex:1;">
-                            <span class="opt-item-name" style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${r.name}${qtyText}</span>
-                            <button onclick="toggleFavoriteVenue('${r.name.replace(/'/g, "\\'")}', 'restaurant', '🍔', ${r.lat}, ${r.lon})" style="background:none; border:none; cursor:pointer; font-size:0.85rem; padding:0.1rem;">${heartIcon}</button>
+                    ${renderVenueImageHtml(r.name, 'restaurant')}
+                    <div style="display: flex; flex-direction: column; flex: 1; justify-content: space-between; gap: 0.35rem; width: 100%;">
+                        <div>
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.25rem;">
+                                <h5 style="margin:0; font-size:0.85rem; font-weight:700; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.2;">${r.name}${qtyText}</h5>
+                                <button onclick="toggleFavoriteVenue('${r.name.replace(/'/g, "\\'")}', 'restaurant', '🍔', ${r.lat}, ${r.lon})" style="background:none; border:none; cursor:pointer; font-size:0.95rem; padding:0.1rem; line-height:1;">${heartIcon}</button>
+                            </div>
+                            <span class="opt-item-cost" style="font-size:0.78rem; font-weight:700; color:var(--accent); display:block; margin-top:0.15rem;">₹${formatCost(r.cost * r.qty)}</span>
                         </div>
-                        <span class="opt-item-cost">₹${formatCost(r.cost * r.qty)}</span>
+                        ${enrichHtml}
+                        ${getVotingTagsHtml(r.name)}
                     </div>
-                    ${enrichHtml}
-                    ${getVotingTagsHtml(r.name)}
                 `;
                 restList.appendChild(li);
             });
@@ -831,6 +923,7 @@ function renderFoodAndNightlifeElements(restaurants, bars, restList, barsList, b
     }
 
     if (barsList) {
+        barsList.className = "horizontal-card-deck";
         barsList.innerHTML = "";
         if (!bars || bars.length === 0) {
             if (barsContainer) barsContainer.classList.add("hidden");
@@ -838,33 +931,36 @@ function renderFoodAndNightlifeElements(restaurants, bars, restList, barsList, b
             if (barsContainer) barsContainer.classList.remove("hidden");
             bars.forEach(b => {
                 const li = document.createElement("li");
-                li.style.flexDirection = "column";
-                li.style.alignItems = "flex-start";
-                li.style.gap = "0.25rem";
+                li.className = "horizontal-card";
                 
                 let enrichHtml = "";
                 if (b.enrichment) {
                     enrichHtml = `
-                        <div class="enrich-desc" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.3;">${b.enrichment.description}</div>
-                        <div class="enrich-meta" style="font-size: 0.75rem; color: #4B5563; font-style: italic; margin-top: 0.1rem;">
-                            Vibe: ${b.enrichment.vibe} | Recommendation: ${b.enrichment.extra_tips}
+                        <div class="enrich-desc" style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.35; flex: 1;">${b.enrichment.description}</div>
+                        <div class="enrich-meta" style="font-size: 0.7rem; color: #4B5563; font-style: italic; margin-top: 0.15rem; line-height: 1.25;">
+                            Vibe: ${b.enrichment.vibe}<br>Rec: ${b.enrichment.extra_tips}
                         </div>
                     `;
+                } else {
+                    enrichHtml = `<div style="flex: 1;"></div>`;
                 }
 
                 const isHearted = isVenueFavorite(b.name);
                 const heartIcon = isHearted ? "❤️" : "🤍";
                 
                 li.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                        <div style="display:flex; align-items:center; gap:0.25rem; overflow:hidden; flex:1;">
-                            <span class="opt-item-name" style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${b.name}</span>
-                            <button onclick="toggleFavoriteVenue('${b.name.replace(/'/g, "\\'")}', 'bar', '🍻', ${b.lat}, ${b.lon})" style="background:none; border:none; cursor:pointer; font-size:0.85rem; padding:0.1rem;">${heartIcon}</button>
+                    ${renderVenueImageHtml(b.name, 'bar')}
+                    <div style="display: flex; flex-direction: column; flex: 1; justify-content: space-between; gap: 0.35rem; width: 100%;">
+                        <div>
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.25rem;">
+                                <h5 style="margin:0; font-size:0.85rem; font-weight:700; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.2;">${b.name}</h5>
+                                <button onclick="toggleFavoriteVenue('${b.name.replace(/'/g, "\\'")}', 'bar', '🍻', ${b.lat}, ${b.lon})" style="background:none; border:none; cursor:pointer; font-size:0.95rem; padding:0.1rem; line-height:1;">${heartIcon}</button>
+                            </div>
+                            <span class="opt-item-cost" style="font-size:0.78rem; font-weight:700; color:var(--accent); display:block; margin-top:0.15rem;">${b.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(b.cost)}</span>
                         </div>
-                        <span class="opt-item-cost">${b.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(b.cost)}</span>
+                        ${enrichHtml}
+                        ${getVotingTagsHtml(b.name)}
                     </div>
-                    ${enrichHtml}
-                    ${getVotingTagsHtml(b.name)}
                 `;
                 barsList.appendChild(li);
             });
@@ -903,43 +999,45 @@ function renderExplorationZonesElements(zones, container, zonesSection) {
             group.className = "sub-zone-group popular";
             
             const list = document.createElement("ul");
-            list.className = "zone-list";
+            list.className = "horizontal-card-deck";
             
             zone.popular_places.forEach(item => {
                 const li = document.createElement("li");
-                li.className = "zone-item";
-                li.style.flexDirection = "column";
-                li.style.alignItems = "flex-start";
-                li.style.gap = "0.25rem";
+                li.className = "horizontal-card";
                 
                 let enrichHtml = "";
                 if (item.enrichment) {
                     enrichHtml = `
-                        <div class="enrich-desc" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; width: 100%; line-height: 1.3;">${item.enrichment.description}</div>
-                        <div class="enrich-meta" style="font-size: 0.75rem; color: #4B5563; margin-top: 0.15rem;">
-                            Vibe: ${item.enrichment.vibe} | Tips: ${item.enrichment.extra_tips}
+                        <div class="enrich-desc" style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.35; flex: 1;">${item.enrichment.description}</div>
+                        <div class="enrich-meta" style="font-size: 0.7rem; color: #4B5563; margin-top: 0.15rem; line-height: 1.25;">
+                            Vibe: ${item.enrichment.vibe}<br>Tips: ${item.enrichment.extra_tips}
                         </div>
                     `;
+                } else {
+                    enrichHtml = `<div style="flex: 1;"></div>`;
                 }
 
                 const isHearted = isVenueFavorite(item.name);
                 const heartIcon = isHearted ? "❤️" : "🤍";
 
                 li.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                        <div style="display:flex; align-items:center; gap:0.25rem; overflow:hidden; flex:1;">
-                            <span class="zone-item-name" style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${item.name}</span>
-                            <button onclick="toggleFavoriteVenue('${item.name.replace(/'/g, "\\'")}', 'attraction', '🏛️', ${item.lat}, ${item.lon})" style="background:none; border:none; cursor:pointer; font-size:0.85rem; padding:0.1rem;">${heartIcon}</button>
+                    ${renderVenueImageHtml(item.name, 'attraction')}
+                    <div style="display: flex; flex-direction: column; flex: 1; justify-content: space-between; gap: 0.35rem; width: 100%;">
+                        <div>
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.25rem;">
+                                <h5 style="margin:0; font-size:0.85rem; font-weight:700; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.2;">${item.name}</h5>
+                                <button onclick="toggleFavoriteVenue('${item.name.replace(/'/g, "\\'")}', 'attraction', '🏛️', ${item.lat}, ${item.lon})" style="background:none; border:none; cursor:pointer; font-size:0.95rem; padding:0.1rem; line-height:1;">${heartIcon}</button>
+                            </div>
+                            <span class="zone-item-cost" style="font-size:0.78rem; font-weight:700; color:var(--accent); display:block; margin-top:0.15rem;">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
                         </div>
-                        <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
+                        ${enrichHtml}
+                        ${getVotingTagsHtml(item.name)}
                     </div>
-                    ${enrichHtml}
-                    ${getVotingTagsHtml(item.name)}
                 `;
                 list.appendChild(li);
             });
 
-            group.innerHTML = "<h5>Popular Sights</h5>";
+            group.innerHTML = "<h5 style='margin-bottom:0.25rem; font-size:0.9rem; font-weight:700;'>Popular Sights</h5>";
             group.appendChild(list);
             content.appendChild(group);
         }
@@ -949,43 +1047,45 @@ function renderExplorationZonesElements(zones, container, zonesSection) {
             group.className = "sub-zone-group underrated";
             
             const list = document.createElement("ul");
-            list.className = "zone-list";
+            list.className = "horizontal-card-deck";
             
             zone.underrated_gems.forEach(item => {
                 const li = document.createElement("li");
-                li.className = "zone-item";
-                li.style.flexDirection = "column";
-                li.style.alignItems = "flex-start";
-                li.style.gap = "0.25rem";
+                li.className = "horizontal-card";
                 
                 let enrichHtml = "";
                 if (item.enrichment) {
                     enrichHtml = `
-                        <div class="enrich-desc" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; width: 100%; line-height: 1.3;">${item.enrichment.description}</div>
-                        <div class="enrich-meta" style="font-size: 0.75rem; color: #4B5563; margin-top: 0.15rem;">
-                            Vibe: ${item.enrichment.vibe} | Tips: ${item.enrichment.extra_tips}
+                        <div class="enrich-desc" style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.35; flex: 1;">${item.enrichment.description}</div>
+                        <div class="enrich-meta" style="font-size: 0.7rem; color: #4B5563; margin-top: 0.15rem; line-height: 1.25;">
+                            Vibe: ${item.enrichment.vibe}<br>Tips: ${item.enrichment.extra_tips}
                         </div>
                     `;
+                } else {
+                    enrichHtml = `<div style="flex: 1;"></div>`;
                 }
 
                 const isHearted = isVenueFavorite(item.name);
                 const heartIcon = isHearted ? "❤️" : "🤍";
 
                 li.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                        <div style="display:flex; align-items:center; gap:0.25rem; overflow:hidden; flex:1;">
-                            <span class="zone-item-name" style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${item.name}</span>
-                            <button onclick="toggleFavoriteVenue('${item.name.replace(/'/g, "\\'")}', 'attraction', '🏛️', ${item.lat}, ${item.lon})" style="background:none; border:none; cursor:pointer; font-size:0.85rem; padding:0.1rem;">${heartIcon}</button>
+                    ${renderVenueImageHtml(item.name, 'attraction')}
+                    <div style="display: flex; flex-direction: column; flex: 1; justify-content: space-between; gap: 0.35rem; width: 100%;">
+                        <div>
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.25rem;">
+                                <h5 style="margin:0; font-size:0.85rem; font-weight:700; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.2;">${item.name}</h5>
+                                <button onclick="toggleFavoriteVenue('${item.name.replace(/'/g, "\\'")}', 'attraction', '🏛️', ${item.lat}, ${item.lon})" style="background:none; border:none; cursor:pointer; font-size:0.95rem; padding:0.1rem; line-height:1;">${heartIcon}</button>
+                            </div>
+                            <span class="zone-item-cost" style="font-size:0.78rem; font-weight:700; color:var(--accent); display:block; margin-top:0.15rem;">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
                         </div>
-                        <span class="zone-item-cost">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
+                        ${enrichHtml}
+                        ${getVotingTagsHtml(item.name)}
                     </div>
-                    ${enrichHtml}
-                    ${getVotingTagsHtml(item.name)}
                 `;
                 list.appendChild(li);
             });
 
-            group.innerHTML = "<h5>Underrated Gems</h5>";
+            group.innerHTML = "<h5 style='margin-bottom:0.25rem; font-size:0.9rem; font-weight:700; margin-top:1rem;'>Underrated Gems</h5>";
             group.appendChild(list);
             content.appendChild(group);
         }
@@ -2012,8 +2112,30 @@ function setupAssistantChat() {
     const chatBtn = document.getElementById("assistant-chat-btn");
     const chatInput = document.getElementById("assistant-chat-input");
     const chatBox = document.getElementById("assistant-chat-box");
+    const chatContainer = document.getElementById("floating-chat-container");
+    const chatBadge = document.getElementById("floating-chat-badge");
+    const minimizeBtn = document.getElementById("minimize-chat-btn");
 
-    if (!chatBtn || !chatInput || !chatBox) return;
+    if (!chatBtn || !chatInput || !chatBox || !chatContainer || !chatBadge) return;
+
+    // Toggle Floating Panel
+    window.toggleFloatingChat = function(show) {
+        if (show === true) {
+            chatContainer.style.display = "flex";
+            chatBadge.style.display = "none";
+        } else if (show === false) {
+            chatContainer.style.display = "none";
+            chatBadge.style.display = "flex";
+        } else {
+            const isHidden = chatContainer.style.display === "none";
+            toggleFloatingChat(isHidden);
+        }
+    };
+
+    if (minimizeBtn) {
+        minimizeBtn.addEventListener("click", () => toggleFloatingChat(false));
+    }
+    chatBadge.addEventListener("click", () => toggleFloatingChat(true));
 
     async function sendChatQuery() {
         const query = chatInput.value.trim();
