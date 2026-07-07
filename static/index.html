@@ -133,6 +133,14 @@
                         </button>
                     </div>
                 </section>
+
+                <section class="card history-panel" id="history-card" style="margin-top: 1.5rem;">
+                    <h2>Saved Itineraries</h2>
+                    <div id="history-list-placeholder" style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 0.5rem 0;">
+                        No itineraries saved yet.
+                    </div>
+                    <ul id="history-list" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.5rem; max-height: 200px; overflow-y: auto;"></ul>
+                </section>
             </div>
 
             <!-- Right Panel: Map & Summary -->
@@ -216,6 +224,11 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                        
+                        <div class="plan-actions-row hidden" style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem; justify-content: flex-end;">
+                            <button id="toggle-backup-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 0.45rem 0.9rem; background: var(--bg-card); border: 1.5px solid var(--border); border-radius: 6px; cursor: pointer; color: var(--text); font-weight: 600; transition: all 0.2s ease;">Switch to Economy Option</button>
+                            <button id="export-pdf-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 0.45rem 0.9rem; background: var(--bg-card); border: 1.5px solid var(--border); border-radius: 6px; cursor: pointer; color: var(--text); font-weight: 600; transition: all 0.2s ease;">Export to PDF</button>
                         </div>
                         
                         <div id="plan-details-wrapper">

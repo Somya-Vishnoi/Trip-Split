@@ -352,7 +352,8 @@ def optimize_trip_budget(
                 "hotel": backup_res["hotel"],
                 "restaurants": backup_res["restaurants"],
                 "attractions": backup_res["attractions"],
-                "total_cost": backup_res["total_cost"]
+                "total_cost": backup_res["total_cost"],
+                "utility": backup_res["utility"]
             }
         else:
             primary_res["backup"] = None

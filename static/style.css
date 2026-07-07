@@ -891,3 +891,40 @@ input:focus, select.custom-select:focus {
     color: var(--accent);
     font-size: 0.85rem;
 }
+
+/* Print CSS */
+@media print {
+    body {
+        background: #ffffff !important;
+        color: #000000 !important;
+    }
+    .input-panel, .tab-header, .plan-actions-row, #map, .plan-placeholder, #backup-plan-section, #loader {
+        display: none !important;
+    }
+    .output-panel {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-shadow: none !important;
+        border: none !important;
+        background: transparent !important;
+    }
+    .optimized-layout-grid {
+        display: block !important;
+    }
+    .opt-card {
+        margin-bottom: 2rem !important;
+        border: 1px solid #ddd !important;
+        page-break-inside: avoid !important;
+        background: #fff !important;
+        color: #000 !important;
+    }
+    .plan-summary-card {
+        border: 2px solid #000 !important;
+        padding: 1.5rem !important;
+        background: #f9f9f9 !important;
+        color: #000 !important;
+    }
+    h2, h3, h4, h5, span, strong, div, li, p {
+        color: #000000 !important;
+    }
+}

@@ -204,8 +204,11 @@ def plan_trip(req: PlanRequest):
 
     # 7. Optimize each city stop
     stops_plans = []
+    stops_backup_plans = []
     total_local_cost = 0.0
+    total_local_backup_cost = 0.0
     total_utility = 0.0
+    total_backup_utility = 0.0
     
     for i, (city_name, lat, lon, bbox) in enumerate(sorted_cities):
         cache_key = f"overpass_{city_name.lower().strip().replace(' ', '_')}"
@@ -252,6 +255,26 @@ def plan_trip(req: PlanRequest):
         total_local_cost += res["total_cost"]
         total_utility += res["utility"]
 
+        if res.get("backup"):
+            b_res = res["backup"]
+            b_attractions = b_res.get("attractions", [])
+            b_bars = [a for a in b_attractions if a.get("sub_type") == "bar"]
+            b_sightseeing = [a for a in b_attractions if a.get("sub_type") != "bar"]
+            b_zones = cluster_attractions_by_location(b_sightseeing, k=days_alloc[i])
+            
+            b_stop_plan = {
+                "city": city_name,
+                "days": days_alloc[i],
+                "hotel": b_res["hotel"],
+                "restaurants": b_res.get("restaurants", []),
+                "bars": b_bars,
+                "zones": b_zones,
+                "local_cost": b_res["total_cost"]
+            }
+            stops_backup_plans.append(b_stop_plan)
+            total_local_backup_cost += b_res["total_cost"]
+            total_backup_utility += b_res.get("utility", 0.0)
+
     # 8. Build full multi-city trip plan
     full_plan = {
         "multi_city": True,
@@ -268,10 +291,29 @@ def plan_trip(req: PlanRequest):
         "backup": None
     }
 
-    # 9. Run Gemini enrichment on all stops
+    if len(stops_backup_plans) == N:
+        full_plan["backup"] = {
+            "multi_city": True,
+            "stops": stops_backup_plans,
+            "legs": legs,
+            "total_cost": total_local_backup_cost + total_travel_cost,
+            "local_trip_cost": total_local_backup_cost,
+            "travel_cost": total_travel_cost,
+            "travel_mode": req.travel_mode if total_travel_cost > 0 else None,
+            "origin_city": req.origin_city if total_travel_cost > 0 else None,
+            "distance_km": total_distance_km,
+            "utility": total_backup_utility,
+            "cost_per_person": (total_local_backup_cost + total_travel_cost) / req.people,
+            "backup": None
+        }
+
+    # 9. Run Gemini enrichment on all stops (primary and backup)
     try:
         for stop in full_plan["stops"]:
             enrich_trip_plan(stop, stop["city"])
+        if full_plan["backup"]:
+            for stop in full_plan["backup"]["stops"]:
+                enrich_trip_plan(stop, stop["city"])
     except Exception as e:
         print(f"[Enrichment Warning] Failed to run Gemini enrichment on multi-city plan: {e}")
 

@@ -2,6 +2,8 @@
 let map = null;
 let mapLayers = [];
 let currentSearchData = null; // Store last searched candidate venues globally
+let lastPlanResult = null;    // Store last primary optimized plan result
+let activePlanType = "primary"; // "primary" or "backup"
 
 // Currency Exchange Rates to INR (₹)
 const EXCHANGE_RATES = {
@@ -16,6 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
     initTabs();
     setupForm();
     initCurrencyConverter();
+    setupActionButtons();
+    renderHistoryList();
     
     // Toggle Intercity Travel Fields
     const travelCheckbox = document.getElementById("add-intercity-travel");
@@ -110,6 +114,39 @@ function initCurrencyConverter() {
     updateConversion(); // Initial run
 }
 
+// Action Buttons Event Handlers (Backup switch, PDF print)
+function setupActionButtons() {
+    const toggleBtn = document.getElementById("toggle-backup-btn");
+    if (toggleBtn) {
+        toggleBtn.addEventListener("click", () => {
+            if (!lastPlanResult) return;
+            const backupPlan = lastPlanResult.backup;
+            if (!backupPlan) return;
+
+            if (activePlanType === "primary") {
+                activePlanType = "backup";
+                toggleBtn.textContent = "Switch to Primary Option";
+                toggleBtn.style.background = "var(--accent)";
+                toggleBtn.style.color = "#ffffff";
+                renderPlanItinerary(backupPlan);
+            } else {
+                activePlanType = "primary";
+                toggleBtn.textContent = "Switch to Economy Option";
+                toggleBtn.style.background = "var(--bg-card)";
+                toggleBtn.style.color = "var(--text)";
+                renderPlanItinerary(lastPlanResult);
+            }
+        });
+    }
+
+    const exportBtn = document.getElementById("export-pdf-btn");
+    if (exportBtn) {
+        exportBtn.addEventListener("click", () => {
+            window.print();
+        });
+    }
+}
+
 // Map Initialization (Strictly Light Mode Map)
 function initializeLeafletMap(lat, lon, bbox) {
     if (map) {
@@ -170,6 +207,7 @@ function setupForm() {
     const planTab = document.getElementById("plan-tab");
     const planData = document.getElementById("plan-data");
     const planPlaceholder = planTab ? planTab.querySelector(".plan-placeholder") : null;
+    const planActions = document.querySelector(".plan-actions-row");
 
     if (!form || !loader || !searchBtn) return;
 
@@ -195,6 +233,8 @@ function setupForm() {
         loader.classList.remove("hidden");
         loaderText.textContent = "Geocoding & fetching venues from OpenStreetMap...";
         searchBtn.disabled = true;
+
+        if (planActions) planActions.classList.add("hidden");
 
         try {
             // STEP 1: Search & Fetch Candidates
@@ -260,269 +300,41 @@ function setupForm() {
                 }
                 if (planData) planData.classList.add("hidden");
             } else {
-                const plan = planResult.plan;
-                
-                // Populate Plan Summary
-                const totalCostEl = document.getElementById("plan-total-cost");
-                if (totalCostEl) totalCostEl.textContent = `₹${formatCost(plan.total_cost)}`;
-                const personCostEl = document.getElementById("plan-person-cost");
-                if (personCostEl) personCostEl.textContent = `₹${formatCost(plan.cost_per_person)}`;
-                
-                const statusBadge = document.getElementById("plan-status");
-                if (statusBadge) {
-                    statusBadge.textContent = "Within Budget";
-                    statusBadge.className = "plan-status-badge";
-                }
+                lastPlanResult = planResult.plan;
+                activePlanType = "primary";
 
-                // Render Travel Breakdown details if active
-                const travelContainer = document.getElementById("travel-breakdown-container");
-                const travelDetails = document.getElementById("travel-breakdown-details");
-                if (plan.travel_cost && plan.travel_cost > 0) {
-                    if (travelContainer) travelContainer.classList.remove("hidden");
-                    if (travelDetails) {
-                        const modeName = plan.travel_mode === "flight" ? "Flight" : 
-                                         plan.travel_mode === "train_3ac" ? "Train (3AC)" : 
-                                         plan.travel_mode === "train_sleeper" ? "Train (Sleeper)" : "Bus";
-                        
-                        let routeLabels = "";
-                        if (plan.multi_city && plan.legs) {
-                            routeLabels = plan.legs.map(l => l.from).join(" ➔ ") + " ➔ " + plan.legs[plan.legs.length - 1].to;
-                        } else {
-                            const destName = plan.hotel && plan.hotel.id !== "virtual_depot" ? plan.hotel.name : "City Center";
-                            routeLabels = `${plan.origin_city} ➔ ${destName}`;
-                        }
+                // Render plan details
+                renderPlanItinerary(lastPlanResult);
 
-                        travelDetails.innerHTML = `
-                            <div style="margin-bottom: 0.25rem;"><strong>Roundtrip Route:</strong> ${routeLabels}</div>
-                            <div>Distance: ${plan.distance_km.toFixed(1)} km | Mode: ${modeName}</div>
-                            <div style="margin-top: 0.35rem; font-size: 0.85rem; border-top: 1.5px dashed var(--border); padding-top: 0.35rem;">
-                                Travel Cost: <strong>₹${formatCost(plan.travel_cost)}</strong> | 
-                                Local Stops Budget: <strong>₹${formatCost(plan.local_trip_cost)}</strong>
-                            </div>
-                        `;
-                    }
-                } else {
-                    if (travelContainer) travelContainer.classList.add("hidden");
-                }
+                // Save to history
+                saveTripToHistory(city, lastPlanResult, currentSearchData);
 
-                // STEP 3: Render Itinerary Details Card Layout
-                const wrapper = document.getElementById("plan-details-wrapper");
-                if (wrapper) {
-                    wrapper.innerHTML = ""; // Clear for fresh draw
-
-                    if (plan.multi_city) {
-                        // RENDER MULTI-STOP TRIP
-                        plan.stops.forEach((stop, i) => {
-                            const stopSection = document.createElement("div");
-                            stopSection.className = "multi-stop-section";
-                            stopSection.style.marginTop = "2rem";
-                            stopSection.style.borderTop = "2.5px solid var(--border)";
-                            stopSection.style.paddingTop = "1.5rem";
-                            
-                            stopSection.innerHTML = `
-                                <h2 style="font-size: 1.3rem; font-weight: 800; color: var(--accent); margin-bottom: 1rem;">
-                                    Stop ${i + 1}: ${stop.city.toUpperCase()} (${stop.days} Days) — Est. Cost: ₹${formatCost(stop.local_cost)}
-                                </h2>
-                                <div class="optimized-layout-grid">
-                                    <!-- Left: Accommodation Card -->
-                                    <div class="opt-card opt-hotel-card stop-hotel-card-${i}">
-                                        <h3>Accommodation</h3>
-                                        <div class="stop-hotel-detail-${i} opt-detail"></div>
-                                    </div>
-                                    
-                                    <!-- Right: Food, Nightlife & Zones -->
-                                    <div class="opt-card opt-itinerary-card">
-                                        <!-- Food & Nightlife Section -->
-                                        <div class="plan-sub-section">
-                                            <div class="food-nightlife-container">
-                                                <div class="food-block">
-                                                    <h4>Selected Restaurants</h4>
-                                                    <ul class="stop-restaurants-list-${i} opt-list"></ul>
-                                                </div>
-                                                <div class="nightlife-block stop-bars-container-${i}">
-                                                    <h4>Selected Bars & Clubs</h4>
-                                                    <ul class="stop-bars-list-${i} opt-list"></ul>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Exploration Zones -->
-                                        <div class="plan-sub-section stop-zones-section-${i}" style="margin-top: 1.75rem;">
-                                            <h3>Exploration Zones (Clustered by Location)</h3>
-                                            <div class="stop-zones-container-${i} zones-timeline"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                            wrapper.appendChild(stopSection);
-
-                            // Populate Accommodation details & alternative stays
-                            const hotelCardContainer = stopSection.querySelector(`.stop-hotel-card-${i}`);
-                            const hotelDetail = stopSection.querySelector(`.stop-hotel-detail-${i}`);
-                            if (stop.hotel && stop.hotel.id !== "virtual_depot") {
-                                const starsText = stop.hotel.stars ? ` (${stop.hotel.stars} Star)` : "";
-                                const hotelType = stop.hotel.sub_type ? stop.hotel.sub_type.toUpperCase() : "HOTEL";
-                                
-                                let enrichHtml = "";
-                                if (stop.hotel.enrichment) {
-                                    enrichHtml = `
-                                        <div class="enrich-desc" style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.5rem; line-height: 1.4;">${stop.hotel.enrichment.description}</div>
-                                        <div class="enrich-meta" style="font-size: 0.78rem; margin-top: 0.35rem;">
-                                            <span style="background: #F3E8FF; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 700; color: #7E22CE;">Vibe: ${stop.hotel.enrichment.vibe}</span>
-                                        </div>
-                                        <div class="enrich-tip" style="font-size: 0.78rem; color: #4B5563; font-style: italic; margin-top: 0.35rem;">Tip: ${stop.hotel.enrichment.extra_tips}</div>
-                                    `;
-                                }
-
-                                // Alternative accommodation list to respect user choices
-                                let altHtml = "";
-                                if (currentSearchData && currentSearchData.sample_venues && currentSearchData.sample_venues.hotels) {
-                                    const alts = currentSearchData.sample_venues.hotels.filter(name => name !== stop.hotel.name).slice(0, 3);
-                                    if (alts.length > 0) {
-                                        altHtml = `
-                                            <div class="alt-hotels" style="margin-top: 0.75rem; border-top: 1px dashed var(--border); padding-top: 0.5rem;">
-                                                <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem;">Alternative Accommodations:</div>
-                                                <ul style="margin: 0; padding-left: 1rem; font-size: 0.75rem; color: #4B5563; line-height: 1.4; list-style-type: disc;">
-                                                    ${alts.map(a => `<li>${a}</li>`).join("")}
-                                                </ul>
-                                            </div>
-                                        `;
-                                    }
-                                }
-
-                                hotelDetail.innerHTML = `
-                                    <div class="hotel-details-block">
-                                        <div class="hotel-name" style="font-weight: 700;">${stop.hotel.name}</div>
-                                        <div class="hotel-meta">${hotelType} ${starsText}</div>
-                                        <div class="hotel-cost">Est. Total: ₹${formatCost(stop.hotel.cost)}</div>
-                                        ${enrichHtml}
-                                        ${altHtml}
-                                    </div>
-                                `;
-                            } else {
-                                if (hotelCardContainer) hotelCardContainer.classList.add("hidden");
-                            }
-
-                            // Render local food/bars
-                            const rList = stopSection.querySelector(`.stop-restaurants-list-${i}`);
-                            const bList = stopSection.querySelector(`.stop-bars-list-${i}`);
-                            const bCont = stopSection.querySelector(`.stop-bars-container-${i}`);
-                            renderFoodAndNightlifeElements(stop.restaurants, stop.bars, rList, bList, bCont);
-
-                            // Render local zones
-                            const zList = stopSection.querySelector(`.stop-zones-container-${i}`);
-                            const zSect = stopSection.querySelector(`.stop-zones-section-${i}`);
-                            renderExplorationZonesElements(stop.zones, zList, zSect);
-                        });
-
-                        // Draw stops and intercity route lines on Leaflet Map
-                        plotMultiCityOnMap(plan.stops, plan.legs);
-
+                // Show backup action button if a backup plan exists
+                const toggleBtn = document.getElementById("toggle-backup-btn");
+                if (toggleBtn) {
+                    if (lastPlanResult.backup) {
+                        toggleBtn.classList.remove("hidden");
+                        toggleBtn.textContent = "Switch to Economy Option";
+                        toggleBtn.style.background = "var(--bg-card)";
+                        toggleBtn.style.color = "var(--text)";
                     } else {
-                        // RENDER SINGLE CITY (Standard original block layout)
-                        wrapper.innerHTML = `
-                            <div class="optimized-layout-grid">
-                                <!-- Left: Accommodation Card -->
-                                <div class="opt-card opt-hotel-card" id="opt-hotel-card-container">
-                                    <h3>Accommodation</h3>
-                                    <div id="opt-hotel-detail" class="opt-detail"></div>
-                                </div>
-                                
-                                <!-- Right: Food, Nightlife & Zones -->
-                                <div class="opt-card opt-itinerary-card">
-                                    <div class="plan-sub-section">
-                                        <div class="food-nightlife-container">
-                                            <div class="food-block">
-                                                <h4>Selected Restaurants</h4>
-                                                <ul id="opt-restaurants-list" class="opt-list"></ul>
-                                            </div>
-                                            <div class="nightlife-block" id="opt-bars-container">
-                                                <h4>Selected Bars & Clubs</h4>
-                                                <ul id="opt-bars-list" class="opt-list"></ul>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="plan-sub-section" id="opt-zones-section" style="margin-top: 1.75rem;">
-                                        <h3>Exploration Zones (Clustered by Location)</h3>
-                                        <div id="opt-zones-container" class="zones-timeline"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-
-                        const hotelCardContainer = document.getElementById("opt-hotel-card-container");
-                        const hotelDetail = document.getElementById("opt-hotel-detail");
-                        
-                        if (plan.hotel && plan.hotel.id !== "virtual_depot") {
-                            const starsText = plan.hotel.stars ? ` (${plan.hotel.stars} Star)` : "";
-                            const hotelType = plan.hotel.sub_type ? plan.hotel.sub_type.toUpperCase() : "HOTEL";
-                            
-                            let enrichHtml = "";
-                            if (plan.hotel.enrichment) {
-                                enrichHtml = `
-                                    <div class="enrich-desc" style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.5rem; line-height: 1.4;">${plan.hotel.enrichment.description}</div>
-                                    <div class="enrich-meta" style="font-size: 0.78rem; margin-top: 0.35rem;">
-                                        <span style="background: #F3E8FF; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 700; color: #7E22CE;">Vibe: ${plan.hotel.enrichment.vibe}</span>
-                                    </div>
-                                    <div class="enrich-tip" style="font-size: 0.78rem; color: #4B5563; font-style: italic; margin-top: 0.35rem;">Tip: ${plan.hotel.enrichment.extra_tips}</div>
-                                `;
-                            }
-
-                            // Suggest alternative stays under accommodation card
-                            let altHtml = "";
-                            if (currentSearchData && currentSearchData.sample_venues && currentSearchData.sample_venues.hotels) {
-                                const alts = currentSearchData.sample_venues.hotels.filter(name => name !== plan.hotel.name).slice(0, 3);
-                                if (alts.length > 0) {
-                                    altHtml = `
-                                        <div class="alt-hotels" style="margin-top: 0.75rem; border-top: 1px dashed var(--border); padding-top: 0.5rem;">
-                                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem;">Alternative Accommodations:</div>
-                                            <ul style="margin: 0; padding-left: 1rem; font-size: 0.75rem; color: #4B5563; line-height: 1.4; list-style-type: disc;">
-                                                ${alts.map(a => `<li>${a}</li>`).join("")}
-                                            </ul>
-                                        </div>
-                                    `;
-                                }
-                            }
-
-                            hotelDetail.innerHTML = `
-                                <div class="hotel-details-block">
-                                    <div class="hotel-name" style="font-weight: 700;">${plan.hotel.name}</div>
-                                    <div class="hotel-meta">${hotelType} ${starsText}</div>
-                                    <div class="hotel-cost">Est. Total: ₹${formatCost(plan.hotel.cost)}</div>
-                                    ${enrichHtml}
-                                    ${altHtml}
-                                </div>
-                            `;
-                        } else {
-                            if (hotelCardContainer) hotelCardContainer.classList.add("hidden");
-                        }
-
-                        // Render Food and Zones
-                        const rList = document.getElementById("opt-restaurants-list");
-                        const bList = document.getElementById("opt-bars-list");
-                        const bCont = document.getElementById("opt-bars-container");
-                        renderFoodAndNightlifeElements(plan.restaurants, plan.bars, rList, bList, bCont);
-
-                        const zList = document.getElementById("opt-zones-container");
-                        const zSect = document.getElementById("opt-zones-section");
-                        renderExplorationZonesElements(plan.zones, zList, zSect);
-
-                        // Draw Map
-                        plotZonesOnMap(plan.zones, plan.hotel, plan.restaurants, plan.bars);
+                        toggleBtn.classList.add("hidden");
                     }
                 }
 
-                // Populate Backup Plan
+                // Show action bar
+                if (planActions) planActions.classList.remove("hidden");
+
+                // Populate Backup Plan Section footer
                 const backupSection = document.getElementById("backup-plan-section");
                 if (backupSection) {
-                    if (plan.backup) {
+                    if (lastPlanResult.backup) {
                         const backupCostBadge = document.getElementById("backup-cost-badge");
-                        if (backupCostBadge) backupCostBadge.textContent = `₹${formatCost(plan.backup.total_cost)}`;
+                        if (backupCostBadge) backupCostBadge.textContent = `₹${formatCost(lastPlanResult.backup.total_cost)}`;
                         const backupHotelName = document.getElementById("backup-hotel-name");
                         if (backupHotelName) {
-                            backupHotelName.textContent = plan.backup.hotel && plan.backup.hotel.id !== "virtual_depot" 
-                                ? plan.backup.hotel.name 
+                            backupHotelName.textContent = lastPlanResult.backup.stops && lastPlanResult.backup.stops[0].hotel && lastPlanResult.backup.stops[0].hotel.id !== "virtual_depot" 
+                                ? lastPlanResult.backup.stops[0].hotel.name 
                                 : "No accommodation (local trip)";
                         }
                         backupSection.classList.remove("hidden");
@@ -568,6 +380,270 @@ function populateList(elementId, items, emptyMessage) {
         li.title = name;
         list.appendChild(li);
     });
+}
+
+// Modular rendering function for a plan (primary or backup)
+function renderPlanItinerary(plan) {
+    if (!plan) return;
+
+    // Populate Plan Summary
+    const totalCostEl = document.getElementById("plan-total-cost");
+    if (totalCostEl) totalCostEl.textContent = `₹${formatCost(plan.total_cost)}`;
+    const personCostEl = document.getElementById("plan-person-cost");
+    if (personCostEl) personCostEl.textContent = `₹${formatCost(plan.cost_per_person)}`;
+    
+    const statusBadge = document.getElementById("plan-status");
+    if (statusBadge) {
+        statusBadge.textContent = activePlanType === "backup" ? "Economy Backup Plan" : "Optimal Plan (Within Budget)";
+        statusBadge.className = activePlanType === "backup" ? "plan-status-badge backup" : "plan-status-badge";
+        if (activePlanType === "backup") {
+            statusBadge.style.background = "#FEF3C7";
+            statusBadge.style.color = "#D97706";
+        } else {
+            statusBadge.style.background = "var(--success-light)";
+            statusBadge.style.color = "var(--success)";
+        }
+    }
+
+    // Render Travel Breakdown details if active
+    const travelContainer = document.getElementById("travel-breakdown-container");
+    const travelDetails = document.getElementById("travel-breakdown-details");
+    if (plan.travel_cost && plan.travel_cost > 0) {
+        if (travelContainer) travelContainer.classList.remove("hidden");
+        if (travelDetails) {
+            const modeName = plan.travel_mode === "flight" ? "Flight" : 
+                             plan.travel_mode === "train_3ac" ? "Train (3AC)" : 
+                             plan.travel_mode === "train_sleeper" ? "Train (Sleeper)" : "Bus";
+            
+            let routeLabels = "";
+            if (plan.multi_city && plan.legs) {
+                routeLabels = plan.legs.map(l => l.from).join(" ➔ ") + " ➔ " + plan.legs[plan.legs.length - 1].to;
+            } else {
+                const destName = plan.hotel && plan.hotel.id !== "virtual_depot" ? plan.hotel.name : "City Center";
+                routeLabels = `${plan.origin_city} ➔ ${destName}`;
+            }
+
+            travelDetails.innerHTML = `
+                <div style="margin-bottom: 0.25rem;"><strong>Roundtrip Route:</strong> ${routeLabels}</div>
+                <div>Distance: ${plan.distance_km.toFixed(1)} km | Mode: ${modeName}</div>
+                <div style="margin-top: 0.35rem; font-size: 0.85rem; border-top: 1.5px dashed var(--border); padding-top: 0.35rem;">
+                    Travel Cost: <strong>₹${formatCost(plan.travel_cost)}</strong> | 
+                    Local Stops Budget: <strong>₹${formatCost(plan.local_trip_cost)}</strong>
+                </div>
+            `;
+        }
+    } else {
+        if (travelContainer) travelContainer.classList.add("hidden");
+    }
+
+    // STEP 3: Render Itinerary Details Card Layout
+    const wrapper = document.getElementById("plan-details-wrapper");
+    if (wrapper) {
+        wrapper.innerHTML = ""; // Clear for fresh draw
+
+        if (plan.multi_city) {
+            // RENDER MULTI-STOP TRIP
+            plan.stops.forEach((stop, i) => {
+                const stopSection = document.createElement("div");
+                stopSection.className = "multi-stop-section";
+                stopSection.style.marginTop = "2rem";
+                stopSection.style.borderTop = "2.5px solid var(--border)";
+                stopSection.style.paddingTop = "1.5rem";
+                
+                stopSection.innerHTML = `
+                    <h2 style="font-size: 1.3rem; font-weight: 800; color: var(--accent); margin-bottom: 1rem;">
+                        Stop ${i + 1}: ${stop.city.toUpperCase()} (${stop.days} Days) — Est. Cost: ₹${formatCost(stop.local_cost)}
+                    </h2>
+                    <div class="optimized-layout-grid">
+                        <!-- Left: Accommodation Card -->
+                        <div class="opt-card opt-hotel-card stop-hotel-card-${i}">
+                            <h3>Accommodation</h3>
+                            <div class="stop-hotel-detail-${i} opt-detail"></div>
+                        </div>
+                        
+                        <!-- Right: Food, Nightlife & Zones -->
+                        <div class="opt-card opt-itinerary-card">
+                            <!-- Food & Nightlife Section -->
+                            <div class="plan-sub-section">
+                                <div class="food-nightlife-container">
+                                    <div class="food-block">
+                                        <h4>Selected Restaurants</h4>
+                                        <ul class="stop-restaurants-list-${i} opt-list"></ul>
+                                    </div>
+                                    <div class="nightlife-block stop-bars-container-${i}">
+                                        <h4>Selected Bars & Clubs</h4>
+                                        <ul class="stop-bars-list-${i} opt-list"></ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Exploration Zones -->
+                            <div class="plan-sub-section stop-zones-section-${i}" style="margin-top: 1.75rem;">
+                                <h3>Exploration Zones (Clustered by Location)</h3>
+                                <div class="stop-zones-container-${i} zones-timeline"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                wrapper.appendChild(stopSection);
+
+                // Populate Accommodation details & alternative stays
+                const hotelCardContainer = stopSection.querySelector(`.stop-hotel-card-${i}`);
+                const hotelDetail = stopSection.querySelector(`.stop-hotel-detail-${i}`);
+                if (stop.hotel && stop.hotel.id !== "virtual_depot") {
+                    const starsText = stop.hotel.stars ? ` (${stop.hotel.stars} Star)` : "";
+                    const hotelType = stop.hotel.sub_type ? stop.hotel.sub_type.toUpperCase() : "HOTEL";
+                    
+                    let enrichHtml = "";
+                    if (stop.hotel.enrichment) {
+                        enrichHtml = `
+                            <div class="enrich-desc" style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.5rem; line-height: 1.4;">${stop.hotel.enrichment.description}</div>
+                            <div class="enrich-meta" style="font-size: 0.78rem; margin-top: 0.35rem;">
+                                <span style="background: #F3E8FF; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 700; color: #7E22CE;">Vibe: ${stop.hotel.enrichment.vibe}</span>
+                            </div>
+                            <div class="enrich-tip" style="font-size: 0.78rem; color: #4B5563; font-style: italic; margin-top: 0.35rem;">Tip: ${stop.hotel.enrichment.extra_tips}</div>
+                        `;
+                    }
+
+                    // Alternative accommodation list to respect user choices
+                    let altHtml = "";
+                    if (currentSearchData && currentSearchData.sample_venues && currentSearchData.sample_venues.hotels) {
+                        const alts = currentSearchData.sample_venues.hotels.filter(name => name !== stop.hotel.name).slice(0, 3);
+                        if (alts.length > 0) {
+                            altHtml = `
+                                <div class="alt-hotels" style="margin-top: 0.75rem; border-top: 1px dashed var(--border); padding-top: 0.5rem;">
+                                    <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem;">Alternative Accommodations:</div>
+                                    <ul style="margin: 0; padding-left: 1rem; font-size: 0.75rem; color: #4B5563; line-height: 1.4; list-style-type: disc;">
+                                        ${alts.map(a => `<li>${a}</li>`).join("")}
+                                    </ul>
+                                </div>
+                            `;
+                        }
+                    }
+
+                    hotelDetail.innerHTML = `
+                        <div class="hotel-details-block">
+                            <div class="hotel-name" style="font-weight: 700;">${stop.hotel.name}</div>
+                            <div class="hotel-meta">${hotelType} ${starsText}</div>
+                            <div class="hotel-cost">Est. Total: ₹${formatCost(stop.hotel.cost)}</div>
+                            ${enrichHtml}
+                            ${altHtml}
+                        </div>
+                    `;
+                } else {
+                    if (hotelCardContainer) hotelCardContainer.classList.add("hidden");
+                }
+
+                // Render local food/bars
+                const rList = stopSection.querySelector(`.stop-restaurants-list-${i}`);
+                const bList = stopSection.querySelector(`.stop-bars-list-${i}`);
+                const bCont = stopSection.querySelector(`.stop-bars-container-${i}`);
+                renderFoodAndNightlifeElements(stop.restaurants, stop.bars, rList, bList, bCont);
+
+                // Render local zones
+                const zList = stopSection.querySelector(`.stop-zones-container-${i}`);
+                const zSect = stopSection.querySelector(`.stop-zones-section-${i}`);
+                renderExplorationZonesElements(stop.zones, zList, zSect);
+            });
+
+            // Draw stops and intercity route lines on Leaflet Map
+            plotMultiCityOnMap(plan.stops, plan.legs);
+
+        } else {
+            // RENDER SINGLE CITY (Standard original block layout)
+            const stop = plan.stops[0];
+            wrapper.innerHTML = `
+                <div class="optimized-layout-grid">
+                    <!-- Left: Accommodation Card -->
+                    <div class="opt-card opt-hotel-card" id="opt-hotel-card-container">
+                        <h3>Accommodation</h3>
+                        <div id="opt-hotel-detail" class="opt-detail"></div>
+                    </div>
+                    
+                    <!-- Right: Food, Nightlife & Zones -->
+                    <div class="opt-card opt-itinerary-card">
+                        <div class="plan-sub-section">
+                            <div class="food-nightlife-container">
+                                <div class="food-block">
+                                    <h4>Selected Restaurants</h4>
+                                    <ul id="opt-restaurants-list" class="opt-list"></ul>
+                                </div>
+                                <div class="nightlife-block" id="opt-bars-container">
+                                    <h4>Selected Bars & Clubs</h4>
+                                    <ul id="opt-bars-list" class="opt-list"></ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="plan-sub-section" id="opt-zones-section" style="margin-top: 1.75rem;">
+                            <h3>Exploration Zones (Clustered by Location)</h3>
+                            <div id="opt-zones-container" class="zones-timeline"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const hotelCardContainer = document.getElementById("opt-hotel-card-container");
+            const hotelDetail = document.getElementById("opt-hotel-detail");
+            
+            if (stop.hotel && stop.hotel.id !== "virtual_depot") {
+                const starsText = stop.hotel.stars ? ` (${stop.hotel.stars} Star)` : "";
+                const hotelType = stop.hotel.sub_type ? stop.hotel.sub_type.toUpperCase() : "HOTEL";
+                
+                let enrichHtml = "";
+                if (stop.hotel.enrichment) {
+                    enrichHtml = `
+                        <div class="enrich-desc" style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.5rem; line-height: 1.4;">${stop.hotel.enrichment.description}</div>
+                        <div class="enrich-meta" style="font-size: 0.78rem; margin-top: 0.35rem;">
+                            <span style="background: #F3E8FF; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 700; color: #7E22CE;">Vibe: ${stop.hotel.enrichment.vibe}</span>
+                        </div>
+                        <div class="enrich-tip" style="font-size: 0.78rem; color: #4B5563; font-style: italic; margin-top: 0.35rem;">Tip: ${stop.hotel.enrichment.extra_tips}</div>
+                    `;
+                }
+
+                // Suggest alternative stays under accommodation card
+                let altHtml = "";
+                if (currentSearchData && currentSearchData.sample_venues && currentSearchData.sample_venues.hotels) {
+                    const alts = currentSearchData.sample_venues.hotels.filter(name => name !== stop.hotel.name).slice(0, 3);
+                    if (alts.length > 0) {
+                        altHtml = `
+                            <div class="alt-hotels" style="margin-top: 0.75rem; border-top: 1px dashed var(--border); padding-top: 0.5rem;">
+                                <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem;">Alternative Accommodations:</div>
+                                <ul style="margin: 0; padding-left: 1rem; font-size: 0.75rem; color: #4B5563; line-height: 1.4; list-style-type: disc;">
+                                    ${alts.map(a => `<li>${a}</li>`).join("")}
+                                </ul>
+                            </div>
+                        `;
+                    }
+                }
+
+                hotelDetail.innerHTML = `
+                    <div class="hotel-details-block">
+                        <div class="hotel-name" style="font-weight: 700;">${stop.hotel.name}</div>
+                        <div class="hotel-meta">${hotelType} ${starsText}</div>
+                        <div class="hotel-cost">Est. Total: ₹${formatCost(stop.hotel.cost)}</div>
+                        ${enrichHtml}
+                        ${altHtml}
+                    </div>
+                `;
+            } else {
+                if (hotelCardContainer) hotelCardContainer.classList.add("hidden");
+            }
+
+            // Render Food and Zones
+            const rList = document.getElementById("opt-restaurants-list");
+            const bList = document.getElementById("opt-bars-list");
+            const bCont = document.getElementById("opt-bars-container");
+            renderFoodAndNightlifeElements(stop.restaurants, stop.bars, rList, bList, bCont);
+
+            const zList = document.getElementById("opt-zones-container");
+            const zSect = document.getElementById("opt-zones-section");
+            renderExplorationZonesElements(stop.zones, zList, zSect);
+
+            // Draw Map
+            plotZonesOnMap(stop.zones, stop.hotel, stop.restaurants, stop.bars);
+        }
+    }
 }
 
 // Modular food and drinks rendering helper
@@ -1003,5 +1079,193 @@ function plotMultiCityOnMap(stops, legs) {
 
     if (allLatLngs.length > 0) {
         map.fitBounds(allLatLngs, { padding: [60, 60] });
+    }
+}
+
+// LocalStorage History Helpers
+function saveTripToHistory(city, plan, searchData) {
+    try {
+        let history = JSON.parse(localStorage.getItem("tripsplit_history")) || [];
+        // Prevent duplicate entries
+        history = history.filter(item => item.city.toLowerCase() !== city.toLowerCase());
+        
+        // Add new entry to the front
+        history.unshift({
+            city: city,
+            plan: plan,
+            searchData: searchData,
+            timestamp: new Date().toLocaleString()
+        });
+        
+        // Cap history at 5 items
+        if (history.length > 5) history.pop();
+        
+        localStorage.setItem("tripsplit_history", JSON.stringify(history));
+        renderHistoryList();
+    } catch (e) {
+        console.error("Failed to save trip to history:", e);
+    }
+}
+
+function renderHistoryList() {
+    const list = document.getElementById("history-list");
+    const placeholder = document.getElementById("history-list-placeholder");
+    if (!list) return;
+    list.innerHTML = "";
+
+    try {
+        const history = JSON.parse(localStorage.getItem("tripsplit_history")) || [];
+        if (history.length === 0) {
+            if (placeholder) placeholder.classList.remove("hidden");
+            list.classList.add("hidden");
+            return;
+        }
+
+        if (placeholder) placeholder.classList.add("hidden");
+        list.classList.remove("hidden");
+
+        history.forEach((item, index) => {
+            const li = document.createElement("li");
+            li.style.display = "flex";
+            li.style.justifyContent = "space-between";
+            li.style.alignItems = "center";
+            li.style.padding = "0.5rem";
+            li.style.border = "1px solid var(--border)";
+            li.style.borderRadius = "6px";
+            li.style.background = "var(--surface-light)";
+            li.style.fontSize = "0.82rem";
+
+            const info = document.createElement("div");
+            info.style.display = "flex";
+            info.style.flexDirection = "column";
+            info.style.gap = "0.15rem";
+            
+            const title = document.createElement("strong");
+            title.textContent = item.city.toUpperCase();
+            title.style.color = "var(--accent)";
+            
+            const subtitle = document.createElement("span");
+            subtitle.textContent = `Cost: ₹${formatCost(item.plan.total_cost)}`;
+            subtitle.style.fontSize = "0.75rem";
+            subtitle.style.color = "var(--text-secondary)";
+
+            info.appendChild(title);
+            info.appendChild(subtitle);
+
+            const actions = document.createElement("div");
+            actions.style.display = "flex";
+            actions.style.gap = "0.35rem";
+
+            const loadBtn = document.createElement("button");
+            loadBtn.textContent = "Load";
+            loadBtn.style.padding = "0.2rem 0.4rem";
+            loadBtn.style.fontSize = "0.75rem";
+            loadBtn.style.borderRadius = "4px";
+            loadBtn.style.cursor = "pointer";
+            loadBtn.style.background = "var(--accent)";
+            loadBtn.style.color = "#fff";
+            loadBtn.style.border = "none";
+            loadBtn.addEventListener("click", () => {
+                loadHistoryItem(item);
+            });
+
+            const delBtn = document.createElement("button");
+            delBtn.innerHTML = "🗑️";
+            delBtn.style.padding = "0.2rem 0.3rem";
+            delBtn.style.fontSize = "0.75rem";
+            delBtn.style.borderRadius = "4px";
+            delBtn.style.cursor = "pointer";
+            delBtn.style.background = "transparent";
+            delBtn.style.border = "1px solid var(--border)";
+            delBtn.addEventListener("click", () => {
+                deleteHistoryItem(index);
+            });
+
+            actions.appendChild(loadBtn);
+            actions.appendChild(delBtn);
+
+            li.appendChild(info);
+            li.appendChild(actions);
+            list.appendChild(li);
+        });
+    } catch (e) {
+        console.error("Failed to render history list:", e);
+    }
+}
+
+function loadHistoryItem(item) {
+    try {
+        lastPlanResult = item.plan;
+        activePlanType = "primary";
+        currentSearchData = item.searchData;
+
+        // Restore form input values
+        document.getElementById("destination").value = item.city;
+        
+        // Show and populate candidate lists
+        const venuesTab = document.getElementById("venues-tab");
+        const venuesData = document.getElementById("venues-data");
+        const placeholder = venuesTab ? venuesTab.querySelector(".summary-placeholder") : null;
+        if (placeholder) placeholder.classList.add("hidden");
+        if (venuesData) venuesData.classList.remove("hidden");
+
+        const hotelCountEl = document.getElementById("hotel-count");
+        if (hotelCountEl) hotelCountEl.textContent = currentSearchData.venue_counts.hotels;
+        const restCountEl = document.getElementById("rest-count");
+        if (restCountEl) restCountEl.textContent = currentSearchData.venue_counts.restaurants;
+        const attrCountEl = document.getElementById("attr-count");
+        if (attrCountEl) attrCountEl.textContent = currentSearchData.venue_counts.attractions;
+
+        populateList("sample-hotels", currentSearchData.sample_venues.hotels, "No hotels found");
+        populateList("sample-restaurants", currentSearchData.sample_venues.restaurants, "No restaurants found");
+        populateList("sample-attractions", currentSearchData.sample_venues.attractions, "No attractions found");
+
+        // Initialize Map
+        initializeLeafletMap(currentSearchData.geocoding.lat, currentSearchData.geocoding.lon, currentSearchData.geocoding.bbox);
+
+        // Render plan details
+        renderPlanItinerary(lastPlanResult);
+
+        // Update toggle buttons and container states
+        const toggleBtn = document.getElementById("toggle-backup-btn");
+        if (toggleBtn) {
+            if (lastPlanResult.backup) {
+                toggleBtn.classList.remove("hidden");
+                toggleBtn.textContent = "Switch to Economy Option";
+                toggleBtn.style.background = "var(--bg-card)";
+                toggleBtn.style.color = "var(--text)";
+            } else {
+                toggleBtn.classList.add("hidden");
+            }
+        }
+
+        const planActions = document.querySelector(".plan-actions-row");
+        if (planActions) planActions.classList.remove("hidden");
+
+        const planTab = document.getElementById("plan-tab");
+        const planData = document.getElementById("plan-data");
+        const planPlaceholder = planTab ? planTab.querySelector(".plan-placeholder") : null;
+        if (planPlaceholder) planPlaceholder.classList.add("hidden");
+        if (planData) planData.classList.remove("hidden");
+
+        // Focus Tab
+        const planTabBtn = document.querySelector('[data-tab="plan-tab"]');
+        if (planTabBtn) planTabBtn.click();
+        
+        alert(`Loaded saved itinerary for "${item.city.toUpperCase()}"!`);
+    } catch (e) {
+        alert("Failed to load history item.");
+        console.error(e);
+    }
+}
+
+function deleteHistoryItem(index) {
+    try {
+        let history = JSON.parse(localStorage.getItem("tripsplit_history")) || [];
+        history.splice(index, 1);
+        localStorage.setItem("tripsplit_history", JSON.stringify(history));
+        renderHistoryList();
+    } catch (e) {
+        console.error("Failed to delete history item:", e);
     }
 }

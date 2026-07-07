@@ -106,15 +106,33 @@ Do not return any markdown codeblocks or text outside the JSON. Return only the 
             }
         }
         
+        import time
+        max_retries = 3
+        backoff = 2.0
+        parsed = {}
+        
         try:
-            res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=25)
-            res.raise_for_status()
-            res_json = res.json()
-            
-            # Parse text contents
-            text = res_json["candidates"][0]["content"]["parts"][0]["text"]
-            parsed = json.loads(text)
-            
+            for attempt in range(max_retries):
+                try:
+                    res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=25)
+                    if res.status_code == 429:
+                        if attempt < max_retries - 1:
+                            print(f"[Gemini 429] Rate limit hit. Retrying in {backoff}s...")
+                            time.sleep(backoff)
+                            backoff *= 2.0
+                            continue
+                    res.raise_for_status()
+                    res_json = res.json()
+                    text = res_json["candidates"][0]["content"]["parts"][0]["text"]
+                    parsed = json.loads(text)
+                    break
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise e
+                    print(f"[Gemini Retry] Attempt {attempt + 1} failed: {e}. Retrying in {backoff}s...")
+                    time.sleep(backoff)
+                    backoff *= 2.0
+                
             # Cache the newly fetched enrichments
             for item in parsed.get("venues", []):
                 name = item["name"]
