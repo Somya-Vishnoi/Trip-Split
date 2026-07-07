@@ -162,6 +162,21 @@ def run_budget_knapsack(
         a["original_cost"] = c_visit
         a["utility"] = u
 
+    # Balanced filtering helper
+    def get_balanced_subset(items, key_ratio, key_cost, limit=35):
+        if not items:
+            return []
+        by_cost = sorted(items, key=key_cost)
+        by_ratio = sorted(items, key=key_ratio, reverse=True)
+        selected = {}
+        for item in by_cost[:limit // 2]:
+            selected[item["id"]] = item
+        for item in by_ratio:
+            if len(selected) >= limit:
+                break
+            selected[item["id"]] = item
+        return list(selected.values())
+
     # Filter candidates
     hotels_filtered = get_balanced_subset(hotels, lambda x: x["utility"], lambda x: x["cost"], 25)
     restaurants_filtered = get_balanced_subset(restaurants, lambda x: x["utility"] / max(x["cost"], 1.0), lambda x: x["cost"], 35)
