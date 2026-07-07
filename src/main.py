@@ -78,9 +78,18 @@ def search_city(req: SearchRequest):
             "attractions": len(venues["attractions"])
         },
         "sample_venues": {
-            "hotels": [h["name"] for h in venues["hotels"][:5]],
-            "restaurants": [r["name"] for r in venues["restaurants"][:5]],
-            "attractions": [a["name"] for a in venues["attractions"][:5]]
+            "hotels": [h["name"] for h in venues["hotels"][:8]],
+            "restaurants": [r["name"] for r in venues["restaurants"][:8]],
+            "attractions": [
+                a["name"] for a in sorted(
+                    venues["attractions"],
+                    key=lambda x: (
+                        100.0 if "marine drive" in x["name"].lower() or "chowpatty" in x["name"].lower() or "hawa mahal" in x["name"].lower() or "fort" in x["name"].lower() or "palace" in x["name"].lower() or "beach" in x["name"].lower()
+                        else (70.0 if x.get("sub_type") in ["museum", "viewpoint"] else 30.0)
+                    ),
+                    reverse=True
+                )[:15]
+            ]
         }
     }
 

@@ -81,64 +81,53 @@ def cluster_attractions_by_location(
     k: int
 ) -> List[Dict[str, Any]]:
     """
-    Clusters selected attractions geographically and names the zones.
+    Combines all attractions into a single unified list of popular spots first (no geographic region splitting),
+    per user request.
     """
     if not attractions:
         return []
 
-    # Filter out any bars/pubs from attractions (we list them separately as nightlife)
+    # Filter out bars (nightlife)
     sightseeing_attractions = [a for a in attractions if a.get("sub_type") != "bar"]
-    
     if not sightseeing_attractions:
         return []
 
-    k = max(1, min(k, len(sightseeing_attractions)))
-    clusters = simple_kmeans(sightseeing_attractions, k)
-    
-    # Calculate overall center
-    overall_lat = sum(a["lat"] for a in sightseeing_attractions) / len(sightseeing_attractions)
-    overall_lon = sum(a["lon"] for a in sightseeing_attractions) / len(sightseeing_attractions)
+    # Sort all sightseeing spots by utility (popularity) descending
+    sightseeing_attractions = sorted(sightseeing_attractions, key=lambda x: x.get("utility", 0.0), reverse=True)
 
-    clustered_data = []
-    zone_names_used = set()
+    popular_places = []
+    underrated_gems = []
 
-    for idx, cluster in enumerate(clusters):
-        if not cluster:
-            continue
-            
-        avg_lat = sum(a["lat"] for a in cluster) / len(cluster)
-        avg_lon = sum(a["lon"] for a in cluster) / len(cluster)
+    for item in sightseeing_attractions:
+        name_lower = item["name"].lower()
+        sub_type = item.get("sub_type", "other")
         
-        zone_name = get_geographic_name(avg_lat, avg_lon, overall_lat, overall_lon, idx)
-        
-        # Ensure name uniqueness
-        if zone_name in zone_names_used:
-            zone_name = f"{zone_name} {idx + 1}"
-        zone_names_used.add(zone_name)
-        
-        # Split attractions in this cluster into "Popular Places" vs "Underrated Gems"
-        # Since we will enrich them with Gemini later, we can assign a temporary tag
-        # We classify them based on utility or type for now
-        popular_places = []
-        underrated_gems = []
-        
-        for item in cluster:
-            # Mainstream: museums, monuments, and historic landmarks
-            # Underrated: scenic viewpoints, quiet parks, and generic attractions
-            is_mainstream = item.get("sub_type") in ["museum", "gallery"] or "fort" in item["name"].lower() or "temple" in item["name"].lower() or "church" in item["name"].lower()
-            if is_mainstream:
-                popular_places.append(item)
-            else:
-                underrated_gems.append(item)
-                
-        clustered_data.append({
-            "zone_id": idx + 1,
-            "name": zone_name,
-            "lat": avg_lat,
-            "lon": avg_lon,
-            "popular_places": popular_places,
-            "underrated_gems": underrated_gems,
-            "attractions_count": len(cluster)
-        })
-        
-    return clustered_data
+        # Classify key popular spots
+        is_popular = sub_type in ["museum", "gallery", "beach"] or \
+                     "fort" in name_lower or \
+                     "palace" in name_lower or \
+                     "mahal" in name_lower or \
+                     "marine drive" in name_lower or \
+                     "chowpatty" in name_lower or \
+                     "gate" in name_lower or \
+                     "temple" in name_lower or \
+                     "tomb" in name_lower or \
+                     item.get("utility", 0.0) >= 60.0
+
+        if is_popular:
+            popular_places.append(item)
+        else:
+            underrated_gems.append(item)
+
+    avg_lat = sum(a["lat"] for a in sightseeing_attractions) / len(sightseeing_attractions)
+    avg_lon = sum(a["lon"] for a in sightseeing_attractions) / len(sightseeing_attractions)
+
+    return [{
+        "zone_id": 1,
+        "name": "Popular Sightseeing & Attractions",
+        "lat": avg_lat,
+        "lon": avg_lon,
+        "popular_places": popular_places,
+        "underrated_gems": underrated_gems,
+        "attractions_count": len(sightseeing_attractions)
+    }]

@@ -79,8 +79,8 @@ def fetch_venues(
       node["leisure"~"beach"]({w_min_lat},{w_min_lon},{w_max_lat},{w_max_lon});
       way["leisure"~"beach"]({w_min_lat},{w_min_lon},{w_max_lat},{w_max_lon});
       
-      node["historic"~"monument|castle"]({min_lat},{min_lon},{max_lat},{max_lon});
-      way["historic"~"monument|castle"]({min_lat},{min_lon},{max_lat},{max_lon});
+      node["historic"~"monument|castle|fort|palace|city_gate|ruins"]({w_min_lat},{w_min_lon},{w_max_lat},{w_max_lon});
+      way["historic"~"monument|castle|fort|palace|city_gate|ruins"]({w_min_lat},{w_min_lon},{w_max_lat},{w_max_lon});
       node["leisure"~"park|garden"]({min_lat},{min_lon},{max_lat},{max_lon});
       way["leisure"~"park|garden"]({min_lat},{min_lon},{max_lat},{max_lon});
       node["amenity"~"bar|pub|nightclub"]({min_lat},{min_lon},{max_lat},{max_lon});
