@@ -491,7 +491,7 @@ function renderPlanItinerary(plan) {
                 const hotelCardContainer = stopSection.querySelector(`.stop-hotel-card-${i}`);
                 const hotelDetail = stopSection.querySelector(`.stop-hotel-detail-${i}`);
                 if (stop.hotel && stop.hotel.id !== "virtual_depot") {
-                    const starsText = stop.hotel.stars ? ` (${stop.hotel.stars} Star)` : "";
+                    const starsHtml = stop.hotel.stars ? getBubbleRatingHtml(stop.hotel.stars) : "";
                     const hotelType = stop.hotel.sub_type ? stop.hotel.sub_type.toUpperCase() : "HOTEL";
                     
                     let enrichHtml = "";
@@ -524,7 +524,7 @@ function renderPlanItinerary(plan) {
                     hotelDetail.innerHTML = `
                         <div class="hotel-details-block">
                             <div class="hotel-name" style="font-weight: 700;">${stop.hotel.name}</div>
-                            <div class="hotel-meta">${hotelType} ${starsText}</div>
+                            <div class="hotel-meta" style="display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap;">${hotelType} ${starsHtml}</div>
                             <div class="hotel-cost">Est. Total: ₹${formatCost(stop.hotel.cost)}</div>
                             ${enrichHtml}
                             ${altHtml}
@@ -589,7 +589,7 @@ function renderPlanItinerary(plan) {
             const hotelDetail = document.getElementById("opt-hotel-detail");
             
             if (stop.hotel && stop.hotel.id !== "virtual_depot") {
-                const starsText = stop.hotel.stars ? ` (${stop.hotel.stars} Star)` : "";
+                const starsHtml = stop.hotel.stars ? getBubbleRatingHtml(stop.hotel.stars) : "";
                 const hotelType = stop.hotel.sub_type ? stop.hotel.sub_type.toUpperCase() : "HOTEL";
                 
                 let enrichHtml = "";
@@ -622,7 +622,7 @@ function renderPlanItinerary(plan) {
                 hotelDetail.innerHTML = `
                     <div class="hotel-details-block">
                         <div class="hotel-name" style="font-weight: 700;">${stop.hotel.name}</div>
-                        <div class="hotel-meta">${hotelType} ${starsText}</div>
+                        <div class="hotel-meta" style="display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap;">${hotelType} ${starsHtml}</div>
                         <div class="hotel-cost">Est. Total: ₹${formatCost(stop.hotel.cost)}</div>
                         ${enrichHtml}
                         ${altHtml}
@@ -1271,3 +1271,45 @@ function deleteHistoryItem(index) {
         console.error("Failed to delete history item:", e);
     }
 }
+
+// TripAdvisor Bubble Ratings Helper
+function getBubbleRatingHtml(stars) {
+    if (!stars) return "";
+    const count = Math.min(5, Math.max(1, Math.round(stars)));
+    let bubbles = "";
+    for (let i = 0; i < 5; i++) {
+        if (i < count) {
+            bubbles += `<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#00AA6C; margin-right:3px; border:1px solid #00AA6C;"></span>`;
+        } else {
+            bubbles += `<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#E0E0E0; margin-right:3px; border:1px solid #CCCCCC;"></span>`;
+        }
+    }
+    return `<div class="tripadvisor-bubbles" style="display:inline-flex; align-items:center; margin-left:6px;" title="${count} bubbles">${bubbles}</div>`;
+}
+
+// TripAdvisor Hero Quick Filters Toggle Helper
+window.toggleHeroFilter = function(type) {
+    let checkboxId = "";
+    let btnId = "";
+    if (type === 'stay') {
+        checkboxId = "filter-stay";
+        btnId = "hero-btn-hotels";
+    } else if (type === 'transport') {
+        checkboxId = "filter-transport";
+        btnId = "hero-btn-transport";
+    } else if (type === 'attractions') {
+        checkboxId = "filter-attractions";
+        btnId = "hero-btn-sightseeing";
+    }
+
+    const checkbox = document.getElementById(checkboxId);
+    const btn = document.getElementById(btnId);
+    if (checkbox && btn) {
+        checkbox.checked = !checkbox.checked;
+        if (checkbox.checked) {
+            btn.classList.add("active");
+        } else {
+            btn.classList.remove("active");
+        }
+    }
+};

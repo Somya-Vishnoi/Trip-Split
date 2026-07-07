@@ -6,26 +6,26 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-    --bg-main: #F4F6F9;         /* Light grey page background */
+    --bg-main: #F2F2F2;         /* Light grey TripAdvisor page background */
     --surface: #FFFFFF;         /* Pure white cards */
     --surface-light: #F9FAFB;   /* Very light grey for inputs and hover list items */
     
-    --border: #E5E7EB;          /* Light grey borders */
-    --border-accent: #7C3AED;   /* Purple for highlights */
+    --border: #E2E8F0;          /* Light grey borders */
+    --border-accent: #00AA6C;   /* TripAdvisor Green for highlights */
     
-    --text-primary: #0F172A;    /* Slate-900 for high-contrast primary text */
+    --text-primary: #1E293B;    /* Slate-800 for high-contrast primary text */
     --text-secondary: #475569;  /* Slate-600 for subtext */
     --text-muted: #94A3B8;      /* Slate-400 for placeholders */
     
-    --accent: #7C3AED;          /* Vibrant purple */
-    --accent-hover: #6D28D9;    /* Darker purple for hover state */
-    --accent-gold: #F59E0B;     /* Ratings gold / yellow */
+    --accent: #00AA6C;          /* TripAdvisor Green */
+    --accent-hover: #008456;    /* Darker TripAdvisor Green for hover state */
+    --accent-gold: #F2B203;     /* TripAdvisor gold / yellow */
     --accent-red: #EF4444;      /* Red alert for warnings/backup */
     
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     
     --border-radius: 12px;
-    --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
     --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -41,6 +41,127 @@ body {
     font-family: var(--font-sans);
     line-height: 1.5;
     padding-bottom: 5rem;
+}
+
+/* TripAdvisor Navbar Styling */
+.tripadvisor-header {
+    background: #FFFFFF;
+    border-bottom: 1.5px solid var(--border);
+    padding: 0.75rem 2rem;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.header-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tripadvisor-header .logo {
+    display: flex;
+    align-items: center;
+}
+
+.tripadvisor-header .logo h1 {
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: #000000;
+    letter-spacing: -0.5px;
+}
+
+.tripadvisor-header .logo h1 span {
+    color: #00AA6C;
+}
+
+.nav-links {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    transition: var(--transition);
+}
+
+.nav-links a:hover {
+    background: var(--surface-light);
+    color: #00AA6C;
+}
+
+.nav-links a.active {
+    color: #00AA6C;
+    background: #E8F5E9;
+}
+
+/* TripAdvisor Hero Section */
+.tripadvisor-hero {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    background: #FFFFFF;
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius);
+    margin-bottom: 2rem;
+    box-shadow: var(--box-shadow);
+}
+
+.tripadvisor-hero h1 {
+    font-size: 2.75rem;
+    font-weight: 800;
+    color: #000000;
+    margin-bottom: 0.5rem;
+}
+
+.tripadvisor-hero .hero-sub {
+    font-size: 1.05rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.75rem;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.hero-quick-filters {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.quick-filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border: 1.5px solid var(--border);
+    border-radius: 30px;
+    background: #FFFFFF;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: var(--transition);
+}
+
+.quick-filter-btn:hover {
+    border-color: #00AA6C;
+    background: #F4FBF7;
+}
+
+.quick-filter-btn.active {
+    border-color: #00AA6C;
+    background: #E8F5E9;
+    color: #00AA6C;
 }
 
 .container {

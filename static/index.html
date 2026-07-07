@@ -15,16 +15,46 @@
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
-        <header>
-            <div class="logo">
-                <svg class="logo-icon-svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-                <h1>Trip<span>split</span></h1>
+        <!-- Header / TripAdvisor Navbar Clone -->
+        <header class="tripadvisor-header">
+            <div class="header-content">
+                <div class="logo">
+                    <svg class="logo-owl" width="38" height="38" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 10px;">
+                        <circle cx="50" cy="50" r="46" fill="#00AA6C"/>
+                        <circle cx="34" cy="46" r="13" fill="#FFFFFF"/>
+                        <circle cx="34" cy="46" r="5" fill="#000000"/>
+                        <circle cx="66" cy="46" r="13" fill="#FFFFFF"/>
+                        <circle cx="66" cy="46" r="5" fill="#000000"/>
+                        <polygon points="50,56 45,66 55,66" fill="#F2B203"/>
+                        <path d="M 20 28 L 34 38 L 48 38 L 50 35 L 52 38 L 66 38 L 80 28" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+                    </svg>
+                    <h1>TripAdvisor <span>Split</span></h1>
+                </div>
+                <nav class="nav-links">
+                    <a href="#" class="active">Discover</a>
+                    <a href="#" onclick="alert('TripSplit Budget Optimizer v2.0 - Loaded & Active')">Trips</a>
+                    <a href="#" onclick="alert('This TripAdvisor Clone uses Knapsack DP & Greedy TSP algorithms to optimize group itineraries!')">About Engine</a>
+                </nav>
             </div>
         </header>
+
+        <!-- TripAdvisor Hero Search Section -->
+        <div class="tripadvisor-hero">
+            <h1>Where to?</h1>
+            <div class="hero-sub">Enter destination details and budget constraint in our optimizer card to calculate your optimal trip!</div>
+            
+            <div class="hero-quick-filters">
+                <button class="quick-filter-btn active" id="hero-btn-hotels" onclick="toggleHeroFilter('stay')">
+                    <span class="icon">🏨</span> Hotels
+                </button>
+                <button class="quick-filter-btn active" id="hero-btn-transport" onclick="toggleHeroFilter('transport')">
+                    <span class="icon">🚗</span> Local Transport
+                </button>
+                <button class="quick-filter-btn active" id="hero-btn-sightseeing" onclick="toggleHeroFilter('attractions')">
+                    <span class="icon">🏛️</span> Things to Do
+                </button>
+            </div>
+        </div>
 
         <!-- Main Dashboard Layout -->
         <div class="dashboard-grid">
