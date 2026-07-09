@@ -940,7 +940,7 @@ function openPartnerComparisonDrawer(name) {
         { brand: "Booking.com", mult: 1 },
         { brand: "Agoda.com", mult: 0.96 },
         { brand: "MakeMyTrip", mult: 1.05 },
-        { brand: "TripAdvisor Deals", mult: 0.98 }
+        { brand: "TripSplit Deals", mult: 0.98 }
     ];
     
     plist.innerHTML = partners.map(p => {
@@ -1850,7 +1850,7 @@ async function triggerDestTripOptimizer() {
                 const totalCost = formatCost(data.total_cost || budget);
                 const splitCost = formatCost(data.cost_per_person || (budget/people));
                 
-                alert(`🎉 TripAdvisor TripSplit Optimizer Result:\n\n- Recommended Lodging Choice: ${optimizedHotel}\n- Optimized Total Estimated Cost: ${totalCost}\n- Split Cost (Per Person): ${splitCost}\n\nWe have saved this optimal route in your profile saved trips!`);
+                alert(`🎉 TripSplit Optimizer Result:\n\n- Recommended Lodging Choice: ${optimizedHotel}\n- Optimized Total Estimated Cost: ${totalCost}\n- Split Cost (Per Person): ${splitCost}\n\nWe have saved this optimal route in your profile saved trips!`);
                 
                 // Save optimized trip
                 if (state.user) {
@@ -1871,7 +1871,7 @@ async function triggerDestTripOptimizer() {
         }
     } catch(e) {
         alert("Failed to connect to TripSplit optimizer backend solver. Running mock local solver instead...");
-        alert(`🎉 TripAdvisor TripSplit Optimizer Result:\n\n- Recommended Lodging Choice: Pearl Palace Heritage\n- Optimized Total Estimated Cost: ${formatCost(budget * 0.8)}\n- Split Cost (Per Person): ${formatCost((budget * 0.8)/people)}\n\nSaved to profile.`);
+        alert(`🎉 TripSplit Optimizer Result:\n\n- Recommended Lodging Choice: Pearl Palace Heritage\n- Optimized Total Estimated Cost: ${formatCost(budget * 0.8)}\n- Split Cost (Per Person): ${formatCost((budget * 0.8)/people)}\n\nSaved to profile.`);
     } finally {
         hidePageLoader();
     }
@@ -1906,6 +1906,7 @@ function toggleFavoriteVenue(name, type, icon, lat, lon) {
     localStorage.setItem('ta_favorites', JSON.stringify(state.favorites));
 }
 
+// Favorites local storage check
 function isVenueFavorite(name) {
     return state.favorites.includes(name);
 }
@@ -1917,7 +1918,7 @@ function showPageLoader() {
         loader = document.createElement('div');
         loader.id = 'global-page-loader';
         loader.style = 'position:fixed; top:0; bottom:0; left:0; right:0; background:rgba(255,255,255,0.7); z-index:9999; display:flex; align-items:center; justify-content:center; flex-direction:column; font-weight:700; font-family:var(--font-heading);';
-        loader.innerHTML = `<div style="border:4px solid #f3f3f3; border-top:4px solid var(--accent); border-radius:50%; width:50px; height:50px; animation:spin 1s linear infinite; margin-bottom:1rem;"></div>Loading TripAdvisor databases...`;
+        loader.innerHTML = `<div style="border:4px solid #f3f3f3; border-top:4px solid var(--accent); border-radius:50%; width:50px; height:50px; animation:spin 1s linear infinite; margin-bottom:1rem;"></div>Loading TripSplit databases...`;
         
         // Add animation stylesheet dynamically
         const style = document.createElement('style');
