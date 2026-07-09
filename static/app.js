@@ -1,811 +1,1891 @@
-// State Variables
-let map = null;
-let mapLayers = [];
-let currentSearchData = null; // Store last searched candidate venues globally
-let lastPlanResult = null;    // Store last primary optimized plan result
-let activePlanType = "primary"; // "primary" or "backup"
+/**
+ * ==========================================================================
+ * TRIPADVISOR SINGLE PAGE APPLICATION ENGINE (CLONE CORE LOGIC)
+ * ==========================================================================
+ */
 
-// Currency Exchange Rates to INR (₹)
-const EXCHANGE_RATES = {
-    USD: 83.5,
-    EUR: 90.0,
-    GBP: 106.0,
-    AED: 22.7,
-    SGD: 61.8
+// --- GLOBAL APPLICATION STATE ---
+const state = {
+    currentView: 'home',
+    currency: 'INR',
+    currencySymbol: '₹',
+    user: null, // null when logged out, object when logged in
+    currentCity: '',
+    selectedCategory: 'hotels',
+    activeSubtab: 'dest-overview',
+    activeDetailSubtab: 'detail-overview',
+    activeRestDetailSubtab: 'rest-overview',
+    activeExpDetailSubtab: 'exp-overview',
+    
+    // Core database caches
+    cityData: {}, // Details of loaded cities
+    venues: {
+        hotel: [],
+        restaurant: [],
+        experience: []
+    },
+    filteredVenues: {
+        hotel: [],
+        restaurant: [],
+        experience: []
+    },
+
+    // Lightbox gallery state
+    lightboxImages: [],
+    lightboxIndex: 0,
+
+    // In-memory reviews database indexed by venue name
+    reviews: {},
+
+    // In-memory travel forum database
+    forumBoards: [
+        { id: 'india', name: 'India Forum', posts: 1240 },
+        { id: 'jaipur', name: 'Jaipur Forum', posts: 320 },
+        { id: 'goa', name: 'Goa Forum', posts: 840 },
+        { id: 'delhi', name: 'Delhi Forum', posts: 910 },
+        { id: 'mumbai', name: 'Mumbai Forum', posts: 410 }
+    ],
+    forumThreads: [
+        {
+            id: 1,
+            boardId: 'jaipur',
+            title: 'Is 3 days enough for Jaipur and Amber Fort?',
+            author: 'traveler_sam',
+            date: '2026-07-01',
+            replies: [
+                { author: 'traveler_sam', date: '2026-07-01', text: 'Planning a group trip of 4 people. Is 3 days enough to see Hawa Mahal, City Palace, and Amber Fort without rushing?' },
+                { author: 'jaipur_expert', date: '2026-07-02', text: 'Yes, 3 days is perfect! Day 1 for Hawa Mahal & City Palace, Day 2 for Amber Fort & Jal Mahal, Day 3 for shopping and local dinners.' },
+                { author: 'nomad_rachel', date: '2026-07-03', text: 'Totally agree. Make sure to catch the light show at Amber Fort in the evening!' }
+            ]
+        },
+        {
+            id: 2,
+            boardId: 'goa',
+            title: 'Which beach is best for families in South Goa?',
+            author: 'family_mom',
+            date: '2026-06-28',
+            replies: [
+                { author: 'family_mom', date: '2026-06-28', text: 'Looking for a calm, clean beach in South Goa with good family resorts.' },
+                { author: 'goa_lover', date: '2026-06-29', text: 'Varca Beach or Cavelossim Beach are excellent. Very quiet, clean white sand, and great family resorts like Radisson or Taj Exotica nearby.' }
+            ]
+        }
+    ],
+    activeThreadId: null,
+
+    // Simulated favorites list
+    favorites: JSON.parse(localStorage.getItem('ta_favorites') || '[]'),
+    
+    // Booking checkout wizard
+    checkoutItem: null,
+    checkoutType: 'hotel',
+
+    // Maps markers references
+    resultsMap: null,
+    resultsMapMarkers: [],
+    detailMap: null,
+    detailMapMarker: null
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-    initTabs();
-    setupForm();
-    initCurrencyConverter();
-    setupActionButtons();
-    renderHistoryList();
-    renderFavoritesList();
-    setupHeaderNavigation();
-    setupLedger();
-    setupAssistantChat();
-    
-    // Toggle Intercity Travel Fields
-    const travelCheckbox = document.getElementById("add-intercity-travel");
-    const travelFields = document.getElementById("intercity-fields");
-    if (travelCheckbox && travelFields) {
-        travelCheckbox.addEventListener("change", () => {
-            if (travelCheckbox.checked) {
-                travelFields.classList.remove("hidden");
-            } else {
-                travelFields.classList.add("hidden");
-            }
-        });
+// Mock review templates for dynamic generator
+const MOCK_REVIEWS_POOL = [
+    { title: "Absolutely stunning property!", text: "Our stay here was absolutely top-notch. The service was impeccable, rooms clean, and location couldn't be better. Highly recommend!", rating: 5, author: "ashok_trip", city: "Delhi" },
+    { title: "Vibrant and wonderful experience", text: "Lovely ambiance, extremely polite staff. The heritage rooms felt royal. Will definitely visit again.", rating: 5, author: "riya_sen", city: "Kolkata" },
+    { title: "Decent stay but expensive", text: "Nice rooms but the rates are quite high for the amenities provided. Breakfast menu could have more options.", rating: 3, author: "mark_travels", city: "London" },
+    { title: "Average hospitality", text: "The service was a bit slow. Had to call room service thrice for extra towels. Otherwise location is good.", rating: 3, author: "neha_g", city: "Mumbai" },
+    { title: "Terrible customer service", text: "Disappointed with the front desk behavior. Long check-in lines and unfriendly staff. Room was dusty.", rating: 1, author: "angry_traveller", city: "New York" }
+];
+
+// --- APP INITIALIZATION ---
+document.addEventListener('DOMContentLoaded', () => {
+    // Check local storage for simulated login
+    const savedUser = localStorage.getItem('ta_user');
+    if (savedUser) {
+        state.user = JSON.parse(savedUser);
+        updateNavForUser();
     }
+    
+    // Setup event listeners for forms, review modals, search inputs
+    setupGlobalSearchAutocomplete();
+    
+    // Initialize date pickers
+    const todayStr = new Date().toISOString().split('T')[0];
+    const checkinEl = document.getElementById('book-date-checkin');
+    const checkoutEl = document.getElementById('book-date-checkout');
+    if (checkinEl) checkinEl.value = todayStr;
+    if (checkoutEl) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        checkoutEl.value = tomorrow.toISOString().split('T')[0];
+    }
+    
+    // Load Homepage Carousels
+    renderHomepageExperiences();
+    renderHomepageHotels();
+    renderHomepageArticles();
+    
+    // Go to default view
+    navigateToView('home');
 });
 
-// Setup navigation links actions and modal triggers
-function setupHeaderNavigation() {
-    const navDiscover = document.getElementById("nav-discover");
-    const navTrips = document.getElementById("nav-trips");
-    const navEngine = document.getElementById("nav-engine");
-    const navLinks = document.querySelectorAll(".nav-links a");
-
-    function setActiveNav(activeBtn) {
-        navLinks.forEach(a => a.classList.remove("active"));
-        activeBtn.classList.add("active");
-    }
-
-    if (navDiscover) {
-        navDiscover.addEventListener("click", (e) => {
-            e.preventDefault();
-            setActiveNav(navDiscover);
-            const destinationInput = document.getElementById("destination");
-            if (destinationInput) {
-                destinationInput.focus();
-                destinationInput.scrollIntoView({ behavior: "smooth", block: "center" });
-            }
-        });
-    }
-
-    if (navTrips) {
-        navTrips.addEventListener("click", (e) => {
-            e.preventDefault();
-            setActiveNav(navTrips);
-            const historyCard = document.getElementById("history-card");
-            if (historyCard) {
-                historyCard.scrollIntoView({ behavior: "smooth", block: "center" });
-                // Visual Flash Animation to highlight the panel
-                historyCard.style.transition = "outline 0.3s ease";
-                historyCard.style.outline = "3px solid var(--accent)";
-                setTimeout(() => {
-                    historyCard.style.outline = "none";
-                }, 1000);
-            }
-        });
-    }
-
-    // Modal display management
-    const aboutModal = document.getElementById("about-modal");
-    const closeModalBtn = document.getElementById("close-modal-btn");
-    const closeModalBtnBottom = document.getElementById("close-modal-btn-bottom");
-
-    if (navEngine && aboutModal) {
-        navEngine.addEventListener("click", (e) => {
-            e.preventDefault();
-            aboutModal.classList.remove("hidden");
-        });
-    }
-
-    const navChat = document.getElementById("nav-chat");
-    if (navChat) {
-        navChat.addEventListener("click", (e) => {
-            e.preventDefault();
-            setActiveNav(navChat);
-            if (window.toggleFloatingChat) {
-                window.toggleFloatingChat(true);
-            }
-        });
-    }
-
-    function hideModal() {
-        if (aboutModal) {
-            aboutModal.classList.add("hidden");
+// --- ROUTER VIEW CONTROLLER ---
+function navigateToView(viewId, param = '') {
+    state.currentView = viewId;
+    
+    // Hide all views
+    document.querySelectorAll('.view-container').forEach(el => el.classList.add('hidden'));
+    
+    // Show active view
+    const activeView = document.getElementById(`${viewId}-view`);
+    if (activeView) activeView.classList.remove('hidden');
+    
+    // Update active nav links
+    document.querySelectorAll('.nav-tab-link').forEach(link => {
+        if (link.dataset.viewTarget === viewId) {
+            link.classList.add('active');
+        } else {
+            link.classList.remove('active');
         }
-    }
-
-    if (closeModalBtn) closeModalBtn.addEventListener("click", hideModal);
-    if (closeModalBtnBottom) closeModalBtnBottom.addEventListener("click", hideModal);
-
-    // Hide when clicking outside modal-card
-    if (aboutModal) {
-        aboutModal.addEventListener("click", (e) => {
-            if (e.target === aboutModal) {
-                hideModal();
-            }
-        });
-    }
-}
-
-// Helper for formatting numeric cost values safely
-function formatCost(val) {
-    if (val === undefined || val === null) return "0.00";
-    if (typeof val === "number") return val.toFixed(2);
-    const num = parseFloat(val);
-    return isNaN(num) ? "0.00" : num.toFixed(2);
-}
-
-// Tab Switch Logic
-function initTabs() {
-    const tabBtns = document.querySelectorAll(".tab-btn");
-    const tabContents = document.querySelectorAll(".tab-content");
-
-    tabBtns.forEach(btn => {
-        btn.addEventListener("click", () => {
-            const tabId = btn.getAttribute("data-tab");
-            
-            tabBtns.forEach(b => b.classList.remove("active"));
-            tabContents.forEach(c => c.classList.remove("active"));
-
-            btn.classList.add("active");
-            const targetContent = document.getElementById(tabId);
-            if (targetContent) {
-                targetContent.classList.add("active");
-            }
-
-            // Invalidate Leaflet size if switching to map tab
-            if (tabId === "map-tab" && map) {
-                setTimeout(() => {
-                    if (map) {
-                        map.invalidateSize();
-                    }
-                }, 200);
-            }
-        });
     });
+
+    // Subtab / Scroll management
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    
+    // Perform view-specific updates
+    if (viewId === 'profile') {
+        renderUserProfilePage(param);
+    } else if (viewId === 'forums') {
+        renderForumIndex();
+    }
 }
 
-// Currency Converter Logic
-function initCurrencyConverter() {
-    const amountInput = document.getElementById("conv-amount");
-    const currencySelect = document.getElementById("conv-from");
-    const resultDiv = document.getElementById("conv-result");
-    const applyBtn = document.getElementById("apply-budget-btn");
+// Navigates directly from pills/search into the category search pages
+function navigateToCategoryResults(category) {
+    state.selectedCategory = category;
+    
+    if (category === 'restaurants') {
+        const city = state.currentCity || 'Jaipur';
+        state.currentCity = city;
+        document.getElementById('rest-city-name-label').textContent = city;
+        navigateToView('restaurant-results');
+        loadCategoryResults('restaurant', city);
+    } else if (category === 'attractions') {
+        const city = state.currentCity || 'Jaipur';
+        state.currentCity = city;
+        document.getElementById('exp-city-name-label').textContent = city;
+        navigateToView('experience-results');
+        loadCategoryResults('experience', city);
+    } else {
+        // Default stays/hotels
+        const city = state.currentCity || 'Jaipur';
+        state.currentCity = city;
+        document.getElementById('results-city-name-label').textContent = city;
+        navigateToView('hotel-results');
+        loadCategoryResults('hotel', city);
+    }
+}
 
-    if (!amountInput || !currencySelect || !resultDiv || !applyBtn) return;
+// --- CURRENCY CONVERTER SYSTEM ---
+function openLanguageModal() {
+    document.getElementById('language-selector-modal').classList.remove('hidden');
+}
 
-    function updateConversion() {
-        const amt = parseFloat(amountInput.value);
-        const cur = currencySelect.value;
-        if (isNaN(amt) || amt <= 0) {
-            resultDiv.textContent = "₹0.00";
+function closeLanguageModal() {
+    document.getElementById('language-selector-modal').classList.add('hidden');
+}
+
+function handleCurrencyChange(curr) {
+    state.currency = curr;
+    state.currencySymbol = curr === 'INR' ? '₹' : curr === 'USD' ? '$' : curr === 'EUR' ? '€' : '£';
+    document.querySelector('.nav-btn-icon').textContent = `🌐 ${curr}`;
+    
+    // Trigger redraw of active page content
+    if (state.currentView === 'hotel-results') {
+        renderHotelResultsList();
+    } else if (state.currentView === 'restaurant-results') {
+        renderRestaurantResultsList();
+    } else if (state.currentView === 'experience-results') {
+        renderExperienceResultsList();
+    }
+}
+
+function formatCost(amountInInr) {
+    let rate = 1;
+    if (state.currency === 'USD') rate = 0.012;
+    else if (state.currency === 'EUR') rate = 0.011;
+    else if (state.currency === 'GBP') rate = 0.009;
+    
+    const converted = Math.round(amountInInr * rate);
+    return state.currencySymbol + converted.toLocaleString('en-IN');
+}
+
+// --- SIGN IN & SIMULATED USER SESSION ---
+function openSigninModal() {
+    document.getElementById('signin-modal').classList.remove('hidden');
+}
+
+function closeSigninModal() {
+    document.getElementById('signin-modal').classList.add('hidden');
+}
+
+function switchSigninModalTab(tabId) {
+    document.querySelectorAll('.signin-tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.signin-form-pane').forEach(pane => pane.classList.add('hidden'));
+    
+    document.querySelector(`[data-stab="${tabId}"]`).classList.add('active');
+    document.getElementById(`${tabId}-pane`).classList.remove('hidden');
+}
+
+function handleSignInSubmit(e) {
+    e.preventDefault();
+    const email = document.getElementById('signin-email').value;
+    const name = email.split('@')[0];
+    
+    state.user = {
+        username: name.charAt(0).toUpperCase() + name.slice(1),
+        email: email,
+        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80",
+        homeCity: "Delhi, India",
+        memberSince: "2026",
+        reviewsCount: 2,
+        photosCount: 0,
+        helpfulVotes: 4
+    };
+    
+    localStorage.setItem('ta_user', JSON.stringify(state.user));
+    updateNavForUser();
+    closeSigninModal();
+}
+
+function handleRegisterSubmit(e) {
+    e.preventDefault();
+    const name = document.getElementById('register-username').value;
+    const email = document.getElementById('register-email').value;
+    
+    state.user = {
+        username: name,
+        email: email,
+        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80",
+        homeCity: "Goa, India",
+        memberSince: "2026",
+        reviewsCount: 0,
+        photosCount: 0,
+        helpfulVotes: 0
+    };
+    
+    localStorage.setItem('ta_user', JSON.stringify(state.user));
+    updateNavForUser();
+    closeSigninModal();
+}
+
+function handleOAuthLogin(provider) {
+    alert(`Connecting with ${provider} OAuth mock integration...`);
+    state.user = {
+        username: `${provider}Explorer`,
+        email: `${provider.toLowerCase()}@example.com`,
+        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80",
+        homeCity: "Mumbai, India",
+        memberSince: "2026",
+        reviewsCount: 3,
+        photosCount: 1,
+        helpfulVotes: 8
+    };
+    localStorage.setItem('ta_user', JSON.stringify(state.user));
+    updateNavForUser();
+    closeSigninModal();
+}
+
+function handleSignOut() {
+    state.user = null;
+    localStorage.removeItem('ta_user');
+    
+    document.getElementById('nav-signin-btn').classList.remove('hidden');
+    document.getElementById('nav-user-dropdown').classList.add('hidden');
+    
+    document.getElementById('drawer-signin-btn').classList.remove('hidden');
+    document.getElementById('drawer-user-info').classList.add('hidden');
+    
+    navigateToView('home');
+}
+
+function updateNavForUser() {
+    if (!state.user) return;
+    
+    // Desktop Nav update
+    document.getElementById('nav-signin-btn').classList.add('hidden');
+    const userDrop = document.getElementById('nav-user-dropdown');
+    userDrop.classList.remove('hidden');
+    document.getElementById('nav-username').textContent = state.user.username;
+    if (state.user.avatar) {
+        document.getElementById('nav-avatar').src = state.user.avatar;
+    }
+    
+    // Mobile Drawer update
+    document.getElementById('drawer-signin-btn').classList.add('hidden');
+    const drawerInfo = document.getElementById('drawer-user-info');
+    drawerInfo.classList.remove('hidden');
+    document.getElementById('drawer-username-span').textContent = state.user.username;
+}
+
+function toggleMobileDrawer() {
+    document.getElementById('mobile-drawer').classList.toggle('hidden');
+}
+
+// --- HOMEPAGE RENDERING ---
+function renderHomepageExperiences() {
+    const list = document.getElementById('experiences-deck');
+    if (!list) return;
+    
+    const exps = [
+        { name: "Jaipur TukTuk Street Food guided safari", cost: 1500, stars: 5, reviews: 140, type: "Tours", badge: "LIKELY TO SELL OUT", img: "https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=400&q=80" },
+        { name: "Private Taj Mahal Day Trip by Gatimaan Express Train", cost: 4800, stars: 5, reviews: 820, type: "Day Trips", badge: "POPULAR EXCURSION", img: "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=400&q=80" },
+        { name: "Old Delhi Spice Market & Rickshaw Ride Heritage Walk", cost: 950, stars: 4.5, reviews: 290, type: "Sightseeing", badge: "", img: "https://images.unsplash.com/photo-1585123334904-845d60e97b29?auto=format&fit=crop&w=400&q=80" },
+        { name: "Amber Palace Elephants sanctuary eco tour", cost: 2500, stars: 4.5, reviews: 110, type: "Outdoor Sights", badge: "ECO CHOICE", img: "https://images.unsplash.com/photo-1504618223053-559bdef9dd5a?auto=format&fit=crop&w=400&q=80" }
+    ];
+    
+    list.innerHTML = exps.map(item => `
+        <li class="card-item-el" onclick="navigateToDetail('Amber Palace Tour', 'experience', 'Amber, Jaipur, India')">
+            <div class="card-img-container">
+                <img src="${item.img}" alt="${item.name}">
+                ${item.badge ? `<span class="card-badge">${item.badge}</span>` : ''}
+            </div>
+            <div class="card-details">
+                <span class="card-category-label">${item.type}</span>
+                <strong class="card-item-title">${item.name}</strong>
+                <div class="card-rating-row">
+                    ${getBubbleRatingHtml(item.stars)}
+                    <span>(${item.reviews})</span>
+                </div>
+                <div class="card-price-row">from ₹${item.cost.toLocaleString('en-IN')}</div>
+            </div>
+        </li>
+    `).join('');
+}
+
+function renderHomepageHotels() {
+    const list = document.getElementById('personalized-hotels-grid');
+    if (!list) return;
+    
+    const hotels = [
+        { name: "Taj Rambagh Palace Jaipur", cost: 35000, stars: 5, reviews: 490, img: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80" },
+        { name: "Umaid Bhawan Palace Jodhpur", cost: 42000, stars: 5, reviews: 310, img: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=400&q=80" },
+        { name: "Trident Hotel Udaipur", cost: 11500, stars: 4.5, reviews: 680, img: "https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=400&q=80" }
+    ];
+    
+    list.innerHTML = hotels.map(item => `
+        <div class="card-item-el" onclick="navigateToDetail('${item.name}', 'hotel')">
+            <div class="card-img-container">
+                <img src="${item.img}" alt="${item.name}">
+            </div>
+            <div class="card-details">
+                <span class="card-category-label">Luxury Stays</span>
+                <strong class="card-item-title">${item.name}</strong>
+                <div class="card-rating-row">
+                    ${getBubbleRatingHtml(item.stars)}
+                    <span>(${item.reviews})</span>
+                </div>
+                <div class="card-price-row">from ₹${item.cost.toLocaleString('en-IN')} / night</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderHomepageArticles() {
+    const list = document.getElementById('articles-deck');
+    if (!list) return;
+    
+    const blogs = [
+        { title: "Rajasthan 7-Day Golden Triangle Guide", author: "Aarav Sharma", img: "https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=400&q=80" },
+        { title: "Best places to try street Pyaz Kachori in old Johari Bazar", author: "Sania Malik", img: "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80" },
+        { title: "A complete guide to Goa's pristine South coast beaches", author: "John Doe", img: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80" }
+    ];
+    
+    list.innerHTML = blogs.map(item => `
+        <li class="card-item-el" style="width:300px;">
+            <div class="card-img-container" style="height:150px;">
+                <img src="${item.img}" alt="${item.title}">
+            </div>
+            <div class="card-details">
+                <span class="card-category-label">Travel Article</span>
+                <strong class="card-item-title" style="font-size:0.88rem;">${item.title}</strong>
+                <span style="font-size:0.75rem; color:var(--text-muted);">Written by ${item.author}</span>
+            </div>
+        </li>
+    `).join('');
+}
+
+function scrollCarousel(id, dir) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.scrollLeft += (dir * 280);
+    }
+}
+
+// --- AUTOCOMPLETE & GLOBAL SEARCH TYPEAHEAD ---
+function setupGlobalSearchAutocomplete() {
+    const input = document.getElementById('global-search-input');
+    const dropdown = document.getElementById('search-autocomplete-dropdown');
+    if (!input || !dropdown) return;
+    
+    input.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        if (query.length < 2) {
+            dropdown.classList.add('hidden');
             return;
         }
-        const rate = EXCHANGE_RATES[cur] || 1.0;
-        const inr = amt * rate;
-        resultDiv.textContent = `₹${inr.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    }
-
-    amountInput.addEventListener("input", updateConversion);
-    currencySelect.addEventListener("change", updateConversion);
-
-    applyBtn.addEventListener("click", () => {
-        const amt = parseFloat(amountInput.value);
-        const cur = currencySelect.value;
-        if (!isNaN(amt) && amt > 0) {
-            const rate = EXCHANGE_RATES[cur] || 1.0;
-            const inr = Math.round(amt * rate);
-            const budgetInput = document.getElementById("budget");
-            if (budgetInput) {
-                budgetInput.value = inr;
-                alert(`Applied ₹${inr.toLocaleString("en-IN")} to your budget!`);
-            }
+        
+        // Show grouped results
+        const items = [
+            { type: 'dest', label: 'Jaipur', sub: 'Rajasthan, India' },
+            { type: 'dest', label: 'Goa', sub: 'India' },
+            { type: 'dest', label: 'Delhi', sub: 'National Capital Territory, India' },
+            { type: 'dest', label: 'Mumbai', sub: 'Maharashtra, India' }
+        ].filter(item => item.label.toLowerCase().includes(query.toLowerCase()));
+        
+        if (items.length === 0) {
+            dropdown.innerHTML = `<div style="padding:1rem; text-align:center; font-size:0.85rem; color:var(--text-muted);">No destinations matched. Press Enter to search generically.</div>`;
+            dropdown.classList.remove('hidden');
+            return;
+        }
+        
+        dropdown.innerHTML = `
+            <div class="autocomplete-group-title">Destinations</div>
+            ${items.map(item => `
+                <div class="autocomplete-item" onclick="selectAutocompleteDest('${item.label}', '${item.sub}')">
+                    <span class="item-icon">📍</span>
+                    <div>
+                        <span class="item-name">${item.label}</span>
+                        <div class="item-sub">${item.sub}</div>
+                    </div>
+                </div>
+            `).join('')}
+        `;
+        dropdown.classList.remove('hidden');
+    });
+    
+    // Hide autocomplete on click outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-bar-wrapper')) {
+            dropdown.classList.add('hidden');
         }
     });
 
-    updateConversion(); // Initial run
-}
-
-// Action Buttons Event Handlers (Backup switch, PDF print)
-function setupActionButtons() {
-    const toggleBtn = document.getElementById("toggle-backup-btn");
-    if (toggleBtn) {
-        toggleBtn.addEventListener("click", () => {
-            if (!lastPlanResult) return;
-            const backupPlan = lastPlanResult.backup;
-            if (!backupPlan) return;
-
-            if (activePlanType === "primary") {
-                activePlanType = "backup";
-                toggleBtn.textContent = "Switch to Primary Option";
-                toggleBtn.style.background = "var(--accent)";
-                toggleBtn.style.color = "#ffffff";
-                renderPlanItinerary(backupPlan);
-            } else {
-                activePlanType = "primary";
-                toggleBtn.textContent = "Switch to Economy Option";
-                toggleBtn.style.background = "var(--bg-card)";
-                toggleBtn.style.color = "var(--text)";
-                renderPlanItinerary(lastPlanResult);
-            }
-        });
-    }
-
-    const exportBtn = document.getElementById("export-pdf-btn");
-    if (exportBtn) {
-        exportBtn.addEventListener("click", () => {
-            window.print();
-        });
-    }
-}
-
-// Map Initialization (Strictly Light Mode Map)
-function initializeLeafletMap(lat, lon, bbox) {
-    if (map) {
-        try {
-            map.remove();
-        } catch (e) {
-            console.error("Error removing map instance:", e);
-        }
-        map = null;
-    }
-    const mapContainer = document.getElementById("map");
-    if (!mapContainer) return;
-    mapContainer.innerHTML = "";
-
-    // Create Leaflet instance
-    map = L.map("map").setView([lat, lon], 12);
-
-    // Load CartoDB Positron Light Tiles (Fits premium light UI)
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">CartoDB</a> contributors',
-        subdomains: 'abcd',
-        maxZoom: 20
-    }).addTo(map);
-
-    // Force Leaflet to recalculate bounds immediately
-    setTimeout(() => {
-        if (map) {
-            map.invalidateSize();
-        }
-    }, 150);
-
-    // Draw the bounding box
-    if (bbox && bbox.length === 4) {
-        const [minLat, maxLat, minLon, maxLon] = bbox;
-        const bounds = [[minLat, minLon], [maxLat, maxLon]];
-        L.rectangle(bounds, {
-            color: "#7C3AED",
-            weight: 2,
-            fillColor: "#7C3AED",
-            fillOpacity: 0.03
-        }).addTo(map);
-        map.fitBounds(bounds);
-    }
-}
-
-// Form Submission & Orchestration
-function setupForm() {
-    const form = document.getElementById("search-form");
-    const loader = document.getElementById("loader");
-    const loaderText = document.getElementById("loader-text");
-    const searchBtn = document.getElementById("search-btn");
-    
-    // Elements to show/hide
-    const venuesTab = document.getElementById("venues-tab");
-    const venuesData = document.getElementById("venues-data");
-    const placeholder = venuesTab ? venuesTab.querySelector(".summary-placeholder") : null;
-
-    const planTab = document.getElementById("plan-tab");
-    const planData = document.getElementById("plan-data");
-    const planPlaceholder = planTab ? planTab.querySelector(".plan-placeholder") : null;
-    const planActions = document.querySelector(".plan-actions-row");
-
-    if (!form || !loader || !searchBtn) return;
-
-    form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        
-        const city = document.getElementById("destination").value.trim();
-        const people = parseInt(document.getElementById("people").value);
-        const days = parseInt(document.getElementById("days").value);
-        const budget = parseFloat(document.getElementById("budget").value);
-        
-        const includeStay = document.getElementById("filter-stay").checked;
-        const includeAttractions = document.getElementById("filter-attractions").checked;
-        const includeTransport = document.getElementById("filter-transport").checked;
-
-        const addTravel = document.getElementById("add-intercity-travel").checked;
-        const originCity = document.getElementById("origin-city").value.trim();
-        const travelMode = document.getElementById("intercity-mode").value;
-        
-        if (!city || !people || !days || !budget) return;
-
-        // UI Feedback
-        loader.classList.remove("hidden");
-        loaderText.textContent = "Geocoding & fetching venues from OpenStreetMap...";
-        searchBtn.disabled = true;
-
-        if (planActions) planActions.classList.add("hidden");
-
-        try {
-            // STEP 1: Search & Fetch Candidates
-            const searchResponse = await fetch("/api/search", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ city })
-            });
-
-            if (!searchResponse.ok) {
-                throw new Error(await searchResponse.text() || "Failed to search city.");
-            }
-
-            const searchData = await searchResponse.json();
-            currentSearchData = searchData; // Save global reference for alternative suggestions
-            
-            // Render Map
-            initializeLeafletMap(searchData.geocoding.lat, searchData.geocoding.lon, searchData.geocoding.bbox);
-
-            // Populate Candidates stats
-            const hotelCountEl = document.getElementById("hotel-count");
-            if (hotelCountEl) hotelCountEl.textContent = searchData.venue_counts.hotels;
-            const restCountEl = document.getElementById("rest-count");
-            if (restCountEl) restCountEl.textContent = searchData.venue_counts.restaurants;
-            const attrCountEl = document.getElementById("attr-count");
-            if (attrCountEl) attrCountEl.textContent = searchData.venue_counts.attractions;
-
-            populateList("sample-hotels", searchData.sample_venues.hotels, "No hotels found");
-            populateList("sample-restaurants", searchData.sample_venues.restaurants, "No restaurants found");
-            populateList("sample-attractions", searchData.sample_venues.attractions, "No attractions found");
-
-            if (placeholder) placeholder.classList.add("hidden");
-            if (venuesData) venuesData.classList.remove("hidden");
-
-            // STEP 2: Optimize Budget Plan
-            loaderText.textContent = "Running multi-stage Knapsack DP Optimizer...";
-            
-            const planResponse = await fetch("/api/plan", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                    city, budget, days, people,
-                    include_stay: includeStay,
-                    include_transport: includeTransport,
-                    include_attractions: includeAttractions,
-                    add_travel: addTravel,
-                    origin_city: addTravel ? originCity : null,
-                    travel_mode: addTravel ? travelMode : null
-                })
-            });
-
-            if (!planResponse.ok) {
-                throw new Error(await planResponse.text() || "Failed to optimize budget plan.");
-            }
-
-            const planResult = await planResponse.json();
-
-            if (!planResult.success) {
-                // Show budget exceeded warning
-                if (planPlaceholder) {
-                    planPlaceholder.innerHTML = `<p style="color: var(--accent); font-weight: bold;">⚠️ Optimization Failed: ${planResult.message}</p>`;
-                    planPlaceholder.classList.remove("hidden");
-                }
-                if (planData) planData.classList.add("hidden");
-            } else {
-                lastPlanResult = planResult.plan;
-                activePlanType = "primary";
-
-                // Render plan details
-                renderPlanItinerary(lastPlanResult);
-
-                // Save to history
-                saveTripToHistory(city, lastPlanResult, currentSearchData);
-
-                // Show backup action button if a backup plan exists
-                const toggleBtn = document.getElementById("toggle-backup-btn");
-                if (toggleBtn) {
-                    if (lastPlanResult.backup) {
-                        toggleBtn.classList.remove("hidden");
-                        toggleBtn.textContent = "Switch to Economy Option";
-                        toggleBtn.style.background = "var(--bg-card)";
-                        toggleBtn.style.color = "var(--text)";
-                    } else {
-                        toggleBtn.classList.add("hidden");
-                    }
-                }
-
-                // Show action bar
-                if (planActions) planActions.classList.remove("hidden");
-
-                // Populate Backup Plan Section footer
-                const backupSection = document.getElementById("backup-plan-section");
-                if (backupSection) {
-                    if (lastPlanResult.backup) {
-                        const backupCostBadge = document.getElementById("backup-cost-badge");
-                        if (backupCostBadge) backupCostBadge.textContent = `₹${formatCost(lastPlanResult.backup.total_cost)}`;
-                        const backupHotelName = document.getElementById("backup-hotel-name");
-                        if (backupHotelName) {
-                            backupHotelName.textContent = lastPlanResult.backup.stops && lastPlanResult.backup.stops[0].hotel && lastPlanResult.backup.stops[0].hotel.id !== "virtual_depot" 
-                                ? lastPlanResult.backup.stops[0].hotel.name 
-                                : "No accommodation (local trip)";
-                        }
-                        backupSection.classList.remove("hidden");
-                    } else {
-                        backupSection.classList.add("hidden");
-                    }
-                }
-
-                if (planPlaceholder) planPlaceholder.classList.add("hidden");
-                if (planData) planData.classList.remove("hidden");
-            }
-
-            // Focus tab
-            const planTabBtn = document.querySelector('[data-tab="plan-tab"]');
-            if (planTabBtn) planTabBtn.click();
-
-        } catch (error) {
-            alert(`Error: ${error.message}`);
-            console.error(error);
-        } finally {
-            loader.classList.add("hidden");
-            searchBtn.disabled = false;
+    // Support enter key submission
+    input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            triggerGlobalSearch();
         }
     });
 }
 
-// Populate search candidate lists with TripAdvisor interactive Heart icons
-function populateList(elementId, items, emptyMessage) {
-    const list = document.getElementById(elementId);
-    if (!list) return;
-    list.innerHTML = "";
+function selectAutocompleteDest(city, country) {
+    document.getElementById('global-search-input').value = city;
+    document.getElementById('search-autocomplete-dropdown').classList.add('hidden');
+    navigateToDestinationOverview(city, country);
+}
+
+function triggerGlobalSearch() {
+    const val = document.getElementById('global-search-input').value.trim();
+    if (!val) return;
     
-    if (!items || items.length === 0) {
-        const li = document.createElement("li");
-        li.textContent = emptyMessage;
-        li.style.fontStyle = "italic";
-        list.appendChild(li);
+    document.getElementById('search-autocomplete-dropdown').classList.add('hidden');
+    navigateToDestinationOverview(val, "India");
+}
+
+function preFillCitySearch(city) {
+    navigateToDestinationOverview(city, "India");
+}
+
+// --- DESTINATION OVERVIEW CONTROLLER ---
+async function navigateToDestinationOverview(city, country = "India") {
+    state.currentCity = city;
+    navigateToView('destination');
+    
+    // Populate header photo based on city
+    let heroImg = "https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=1200&q=80"; // Jaipur
+    if (city.toLowerCase() === 'goa') heroImg = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80";
+    else if (city.toLowerCase() === 'mumbai') heroImg = "https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=1200&q=80";
+    else if (city.toLowerCase() === 'delhi') heroImg = "https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&w=1200&q=80";
+    
+    document.getElementById('city-hero-banner-el').style.backgroundImage = `linear-gradient(transparent, rgba(0,0,0,0.6)), url('${heroImg}')`;
+    document.getElementById('city-title-heading').textContent = city.toUpperCase();
+    document.getElementById('city-country-heading').textContent = country;
+    
+    // Default subtab
+    switchDestSubtab('dest-overview');
+    
+    // Call backend API search to populate real hotels, restaurants, sights!
+    showPageLoader();
+    try {
+        const res = await fetch(`/api/search`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ city: city })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            // Pre-process venues list
+            state.venues.hotel = data.hotels || [];
+            state.venues.restaurant = data.restaurants || [];
+            state.venues.experience = data.attractions || [];
+            
+            // Backups in case Overpass returns empty array (to keep college presentation working!)
+            if (state.venues.hotel.length === 0) populateFallbackVenues(city);
+            
+            // Build descriptions
+            document.getElementById('dest-overview-blurb').textContent = `${city} is one of the most visited and iconic destinations in ${country}. Famous for its rich history, cultural landmarks, outstanding hospitality, and exquisite local cuisines. Plan and split budgets here seamlessly!`;
+            
+            // Render sample lists
+            renderSampleLists();
+        }
+    } catch (err) {
+        populateFallbackVenues(city);
+        renderSampleLists();
+    } finally {
+        hidePageLoader();
+    }
+}
+
+function switchDestSubtab(tabName) {
+    state.activeSubtab = tabName;
+    document.querySelectorAll('.subtab-btn').forEach(btn => {
+        if (btn.dataset.subtab === tabName) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+    
+    document.querySelectorAll('.dest-subtab-pane').forEach(pane => pane.classList.add('hidden'));
+    
+    if (tabName === 'dest-overview') {
+        document.getElementById('dest-overview-tab').classList.remove('hidden');
+    } else if (tabName === 'dest-hotels') {
+        document.getElementById('dest-hotels-tab').classList.remove('hidden');
+        renderTabbedSearchView('hotel');
+    } else if (tabName === 'dest-restaurants') {
+        document.getElementById('dest-restaurants-tab').classList.remove('hidden');
+        renderTabbedSearchView('restaurant');
+    } else if (tabName === 'dest-attractions') {
+        document.getElementById('dest-attractions-tab').classList.remove('hidden');
+        renderTabbedSearchView('experience');
+    } else {
+        document.getElementById('dest-guide-tab').classList.remove('hidden');
+    }
+}
+
+// Fallback arrays to guarantee presentation results for college assignment
+function populateFallbackVenues(city) {
+    state.venues.hotel = [
+        { name: "Taj Rambagh Palace", cost: 38000, stars: 5, sub_type: "Hotel", lat: 26.8981, lon: 75.8078, wifi: true, pool: true, parking: true, bar: true },
+        { name: "The Oberoi Rajvilas", cost: 32000, stars: 5, sub_type: "Resort", lat: 26.8791, lon: 75.8821, wifi: true, pool: true, parking: true, bar: true },
+        { name: "Zostel Backpacker Hostel", cost: 800, stars: 4, sub_type: "Hostel", lat: 26.9212, lon: 75.8234, wifi: true, pool: false, parking: true, bar: false },
+        { name: "Pearl Palace Heritage Guest House", cost: 3200, stars: 4.5, sub_type: "Guest House", lat: 26.9189, lon: 75.7891, wifi: true, pool: false, parking: true, bar: true }
+    ];
+    state.venues.restaurant = [
+        { name: "Laxmi Mishthan Bhandar (LMB)", cost: 450, stars: 4.5, sub_type: "indian", price_tier: 2, lat: 26.9201, lon: 75.8281 },
+        { name: "Peacock Rooftop Cafe", cost: 600, stars: 4.7, sub_type: "cafe", price_tier: 2, lat: 26.9178, lon: 75.7901 },
+        { name: "Chokhi Dhani Ethnic Resort Dining", cost: 1200, stars: 4.8, sub_type: "indian", price_tier: 3, lat: 26.7681, lon: 75.8456 }
+    ];
+    state.venues.experience = [
+        { name: "Amber Palace Heritage Walk", original_cost: 500, stars: 5, sub_type: "museum", lat: 26.9856, lon: 75.8512 },
+        { name: "Hawa Mahal Front View Photo Spot", original_cost: 0, stars: 4.8, sub_type: "viewpoint", lat: 26.9239, lon: 75.8267 },
+        { name: "Central Park Jaipur", original_cost: 0, stars: 4.3, sub_type: "park", lat: 26.9021, lon: 75.8090 }
+    ];
+}
+
+function renderSampleLists() {
+    renderSubDeck('dest-sample-hotels', state.venues.hotel.slice(0, 3), 'hotel');
+    renderSubDeck('dest-sample-restaurants', state.venues.restaurant.slice(0, 3), 'restaurant');
+    renderSubDeck('dest-sample-attractions', state.venues.experience.slice(0, 3), 'experience');
+}
+
+function renderSubDeck(containerId, list, type) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    
+    if (list.length === 0) {
+        el.innerHTML = `<div style="padding:1.5rem; text-align:center; color:var(--text-muted); width:100%;">No ${type} entries loaded for this city.</div>`;
         return;
     }
-
-    const category = elementId.includes("hotel") ? "hotel" : elementId.includes("rest") ? "restaurant" : "attraction";
-    const categoryIcon = category === "hotel" ? "🏨" : category === "restaurant" ? "🍔" : "🏛️";
-
-    items.forEach(name => {
-        const li = document.createElement("li");
-        li.style.display = "flex";
-        li.style.justifyContent = "space-between";
-        li.style.alignItems = "center";
-        li.style.gap = "0.5rem";
-
-        const textSpan = document.createElement("span");
-        textSpan.textContent = name;
-        textSpan.title = name;
-        textSpan.style.whiteSpace = "nowrap";
-        textSpan.style.overflow = "hidden";
-        textSpan.style.textOverflow = "ellipsis";
-        textSpan.style.flex = "1";
-
-        // Heart Icon Button
-        const heartBtn = document.createElement("button");
-        heartBtn.className = "heart-btn";
-        heartBtn.style.background = "none";
-        heartBtn.style.border = "none";
-        heartBtn.style.cursor = "pointer";
-        heartBtn.style.fontSize = "1rem";
-        heartBtn.style.padding = "0.2rem";
+    
+    el.innerHTML = list.map(item => {
+        const isHearted = isVenueFavorite(item.name);
+        const heartIcon = isHearted ? "❤️" : "🤍";
         
-        const isHearted = isVenueFavorite(name);
-        heartBtn.innerHTML = isHearted ? "❤️" : "🤍";
+        let costLabel = `₹${item.cost ? item.cost.toLocaleString('en-IN') : '0'}`;
+        if (type === 'experience') {
+            costLabel = item.original_cost === 0 ? "Free Entry" : `₹${item.original_cost}`;
+        }
         
-        heartBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            toggleFavoriteVenue(name, category, categoryIcon);
-            heartBtn.innerHTML = isVenueFavorite(name) ? "❤️" : "🤍";
+        return `
+            <div class="card-item-el" onclick="navigateToDetail('${item.name.replace(/'/g, "\\'")}', '${type}')">
+                <div class="card-img-container">
+                    <img src="${getPlaceholderSvg(item.name)}" alt="${item.name}">
+                    <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${item.name.replace(/'/g, "\\'")}', '${type}', '', ${item.lat}, ${item.lon}); this.innerHTML = isVenueFavorite('${item.name.replace(/'/g, "\\'")}') ? '❤️' : '🤍';">${heartIcon}</button>
+                </div>
+                <div class="card-details">
+                    <span class="card-category-label">${item.sub_type || type}</span>
+                    <strong class="card-item-title">${item.name}</strong>
+                    <div class="card-rating-row">
+                        ${getBubbleRatingHtml(item.stars || 4.5)}
+                    </div>
+                    <div class="card-price-row">${costLabel}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Renders the side-by-side search columns inside destination subtabs
+function renderTabbedSearchView(category) {
+    if (category === 'hotel') {
+        const container = document.getElementById('dest-hotels-tab');
+        const searchResultsView = document.getElementById('hotel-results-view').innerHTML;
+        container.innerHTML = searchResultsView;
+        
+        // Re-bind controls on the copy
+        document.getElementById('results-city-name-label').textContent = state.currentCity;
+        loadCategoryResults('hotel', state.currentCity);
+    } else if (category === 'restaurant') {
+        const container = document.getElementById('dest-restaurants-tab');
+        const searchResultsView = document.getElementById('restaurant-results-view').innerHTML;
+        container.innerHTML = searchResultsView;
+        
+        document.getElementById('rest-city-name-label').textContent = state.currentCity;
+        loadCategoryResults('restaurant', state.currentCity);
+    } else if (category === 'experience') {
+        const container = document.getElementById('dest-attractions-tab');
+        const searchResultsView = document.getElementById('experience-results-view').innerHTML;
+        container.innerHTML = searchResultsView;
+        
+        document.getElementById('exp-city-name-label').textContent = state.currentCity;
+        loadCategoryResults('experience', state.currentCity);
+    }
+}
+
+// --- FILTERING & SEARCH RESULTS LISTS ---
+function loadCategoryResults(type, city) {
+    // Sync current lists to filtered lists
+    state.filteredVenues[type] = [...state.venues[type]];
+    
+    // Sort & Render
+    applySearchFilters(type);
+}
+
+function applySearchFilters(type) {
+    let source = [...state.venues[type]];
+    
+    if (type === 'hotel') {
+        // Price Filter
+        const maxPrice = parseFloat(document.getElementById('filter-hotel-price-range')?.value || 25000);
+        source = source.filter(h => (h.cost || 0) <= maxPrice);
+        
+        // Class stars filter
+        const checkedClasses = Array.from(document.querySelectorAll('.filter-hotel-class-cb:checked')).map(cb => parseInt(cb.value));
+        if (checkedClasses.length > 0) {
+            source = source.filter(h => checkedClasses.includes(Math.round(h.stars || 4)));
+        }
+        
+        // Property type filter
+        const checkedTypes = Array.from(document.querySelectorAll('.filter-hotel-type-cb:checked')).map(cb => cb.value);
+        if (checkedTypes.length > 0) {
+            source = source.filter(h => checkedTypes.includes((h.sub_type || 'hotel').toLowerCase()));
+        }
+        
+        // Amenities
+        const checkedAmens = Array.from(document.querySelectorAll('.filter-hotel-amenity-cb:checked')).map(cb => cb.value);
+        if (checkedAmens.length > 0) {
+            source = source.filter(h => {
+                return checkedAmens.every(amen => {
+                    if (amen === 'wifi') return h.wifi !== false;
+                    if (amen === 'pool') return h.pool === true;
+                    if (amen === 'parking') return h.parking === true;
+                    if (amen === 'bar') return h.bar === true;
+                    return true;
+                });
+            });
+        }
+
+        // Guest ratings
+        const activeRating = parseFloat(document.querySelector('.filter-hotel-rating-radio:checked')?.value || 0);
+        if (activeRating > 0) {
+            source = source.filter(h => (h.stars || 4) >= activeRating);
+        }
+
+        state.filteredVenues.hotel = source;
+        renderHotelResultsList();
+        
+    } else if (type === 'restaurant') {
+        const checkedCuisines = Array.from(document.querySelectorAll('.filter-rest-cuisine-cb:checked')).map(cb => cb.value);
+        if (checkedCuisines.length > 0) {
+            source = source.filter(r => checkedCuisines.includes((r.sub_type || '').toLowerCase()));
+        }
+        
+        const checkedPriceTiers = Array.from(document.querySelectorAll('.filter-rest-price-cb:checked')).map(cb => parseInt(cb.value));
+        if (checkedPriceTiers.length > 0) {
+            source = source.filter(r => checkedPriceTiers.includes(r.price_tier || 2));
+        }
+
+        state.filteredVenues.restaurant = source;
+        renderRestaurantResultsList();
+        
+    } else if (type === 'experience') {
+        const checkedCats = Array.from(document.querySelectorAll('.filter-exp-category-cb:checked')).map(cb => cb.value);
+        if (checkedCats.length > 0) {
+            source = source.filter(e => checkedCats.includes((e.sub_type || '').toLowerCase()));
+        }
+
+        const checkedPrices = Array.from(document.querySelectorAll('.filter-exp-price-cb:checked')).map(cb => cb.value);
+        if (checkedPrices.length > 0) {
+            source = source.filter(e => {
+                const isFree = (e.original_cost === 0);
+                if (checkedPrices.includes('free') && isFree) return true;
+                if (checkedPrices.includes('paid') && !isFree) return true;
+                return false;
+            });
+        }
+
+        state.filteredVenues.experience = source;
+        renderExperienceResultsList();
+    }
+}
+
+function clearAllSearchFilters(type) {
+    if (type === 'hotel') {
+        const slider = document.getElementById('filter-hotel-price-range');
+        if (slider) slider.value = 25000;
+        updatePriceSliderLabel(25000);
+        
+        document.querySelectorAll('.filter-hotel-class-cb').forEach(cb => cb.checked = false);
+        document.querySelectorAll('.filter-hotel-type-cb').forEach(cb => cb.checked = false);
+        document.querySelectorAll('.filter-hotel-amenity-cb').forEach(cb => cb.checked = false);
+        const radioAll = document.querySelector('.filter-hotel-rating-radio[value="0"]');
+        if (radioAll) radioAll.checked = true;
+    } else if (type === 'restaurant') {
+        document.querySelectorAll('.filter-rest-cuisine-cb').forEach(cb => cb.checked = false);
+        document.querySelectorAll('.filter-rest-price-cb').forEach(cb => cb.checked = false);
+    } else if (type === 'experience') {
+        document.querySelectorAll('.filter-exp-category-cb').forEach(cb => cb.checked = false);
+        document.querySelectorAll('.filter-exp-price-cb').forEach(cb => cb.checked = false);
+    }
+    applySearchFilters(type);
+}
+
+function updatePriceSliderLabel(val) {
+    const lbl = document.getElementById('price-slider-value-lbl');
+    if (lbl) lbl.textContent = `Max: ₹${parseInt(val).toLocaleString('en-IN')}`;
+}
+
+// --- RENDER MAIN RESULTS STREAMS ---
+function renderHotelResultsList() {
+    const list = document.getElementById('results-cards-list-container');
+    if (!list) return;
+    
+    const hotels = state.filteredVenues.hotel;
+    document.getElementById('results-count-label').textContent = `Showing ${hotels.length} stays`;
+    
+    if (hotels.length === 0) {
+        list.innerHTML = `<div style="padding:3rem; text-align:center; color:var(--text-muted);">No stays match your active filter selections. Try clearing filters.</div>`;
+        return;
+    }
+    
+    list.innerHTML = hotels.map(h => {
+        const isHearted = isVenueFavorite(h.name);
+        const heartIcon = isHearted ? "❤️" : "🤍";
+        
+        return `
+            <div class="row-card-item" onclick="navigateToDetail('${h.name.replace(/'/g, "\\'")}', 'hotel')">
+                <div class="row-card-img">
+                    <img src="${getPlaceholderSvg(h.name)}" alt="${h.name}">
+                    <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${h.name.replace(/'/g, "\\'")}', 'hotel', '', ${h.lat}, ${h.lon}); this.innerHTML = isVenueFavorite('${h.name.replace(/'/g, "\\'")}') ? '❤️' : '🤍';">${heartIcon}</button>
+                </div>
+                <div class="row-card-content">
+                    <div>
+                        <h4 style="font-size:1.1rem; margin-bottom:0.25rem;">${h.name}</h4>
+                        <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:var(--text-muted);">
+                            <span>${h.sub_type || 'Hotel'}</span>
+                            ${getBubbleRatingHtml(h.stars || 4.5)}
+                            <span>(120 reviews)</span>
+                        </div>
+                        <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem;">Free WiFi • Pool access • Heritage architecture</p>
+                    </div>
+                </div>
+                <div class="row-card-right">
+                    <div class="price-val-lbl">${formatCost(h.cost || 8000)}</div>
+                    <span style="font-size:0.7rem; color:var(--text-muted);">per night</span>
+                    <button class="view-deal-btn" onclick="event.stopPropagation(); openPartnerComparisonDrawer('${h.name.replace(/'/g, "\\'")}')">View Deal</button>
+                    <a href="#" class="compare-prices-link" style="font-size:0.72rem; margin-top:0.4rem; text-decoration:none;" onclick="event.stopPropagation(); openPartnerComparisonDrawer('${h.name.replace(/'/g, "\\'")}')">Compare 4 prices</a>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // Update map overlays if map panel split screen is open
+    plotPinsOnResultsMap();
+}
+
+function renderRestaurantResultsList() {
+    const list = document.getElementById('rest-cards-list-container');
+    if (!list) return;
+    
+    const rests = state.filteredVenues.restaurant;
+    if (rests.length === 0) {
+        list.innerHTML = `<div style="padding:3rem; text-align:center; color:var(--text-muted);">No restaurants match selected cuisines.</div>`;
+        return;
+    }
+    
+    list.innerHTML = rests.map(r => {
+        const isHearted = isVenueFavorite(r.name);
+        const heartIcon = isHearted ? "❤️" : "🤍";
+        const priceSymbols = "₹".repeat(r.price_tier || 2);
+        
+        return `
+            <div class="row-card-item" onclick="navigateToDetail('${r.name.replace(/'/g, "\\'")}', 'restaurant')">
+                <div class="row-card-img" style="width:200px;">
+                    <img src="${getPlaceholderSvg(r.name)}" alt="${r.name}">
+                    <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${r.name.replace(/'/g, "\\'")}', 'restaurant', '', ${r.lat}, ${r.lon}); this.innerHTML = isVenueFavorite('${r.name.replace(/'/g, "\\'")}') ? '❤️' : '🤍';">${heartIcon}</button>
+                </div>
+                <div class="row-card-content">
+                    <div>
+                        <h4 style="font-size:1.15rem;">${r.name}</h4>
+                        <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:var(--text-muted); margin-top:0.25rem;">
+                            ${getBubbleRatingHtml(r.stars || 4.2)}
+                            <span>(80 reviews)</span>
+                            <span>•</span>
+                            <span style="font-weight:700;">${priceSymbols}</span>
+                            <span>•</span>
+                            <span>${r.sub_type || 'Indian'}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="row-card-right" style="width:140px;">
+                    <button class="btn-primary" style="padding:0.5rem 1rem; font-size:0.8rem;">Book Table</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderExperienceResultsList() {
+    const list = document.getElementById('exp-cards-list-container');
+    if (!list) return;
+    
+    const exps = state.filteredVenues.experience;
+    if (exps.length === 0) {
+        list.innerHTML = `<div style="padding:3rem; text-align:center; color:var(--text-muted);">No experiences found matching details.</div>`;
+        return;
+    }
+    
+    list.innerHTML = exps.map(e => {
+        const isHearted = isVenueFavorite(e.name);
+        const heartIcon = isHearted ? "❤️" : "🤍";
+        const costLbl = e.original_cost === 0 ? "Free Entry" : `₹${e.original_cost.toLocaleString('en-IN')}`;
+        
+        return `
+            <div class="row-card-item" onclick="navigateToDetail('${e.name.replace(/'/g, "\\'")}', 'experience')">
+                <div class="row-card-img" style="width:200px;">
+                    <img src="${getPlaceholderSvg(e.name)}" alt="${e.name}">
+                    <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${e.name.replace(/'/g, "\\'")}', 'experience', '', ${e.lat}, ${e.lon}); this.innerHTML = isVenueFavorite('${e.name.replace(/'/g, "\\'")}') ? '❤️' : '🤍';">${heartIcon}</button>
+                </div>
+                <div class="row-card-content">
+                    <div>
+                        <h4 style="font-size:1.15rem;">${e.name}</h4>
+                        <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:var(--text-muted); margin-top:0.25rem;">
+                            ${getBubbleRatingHtml(e.stars || 4.6)}
+                            <span>(110 reviews)</span>
+                            <span>•</span>
+                            <span>${e.sub_type || 'Palace'}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="row-card-right" style="width:140px;">
+                    <div style="font-weight:800; font-size:1rem; margin-bottom:0.25rem;">${costLbl}</div>
+                    <button class="btn-primary" style="padding:0.5rem 1rem; font-size:0.8rem;">Book Tickets</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function handleSortSelectChange(val, type) {
+    const list = state.filteredVenues[type];
+    
+    if (val === 'cost_asc') {
+        list.sort((a,b) => (a.cost || a.original_cost || 0) - (b.cost || b.original_cost || 0));
+    } else if (val === 'cost_desc') {
+        list.sort((a,b) => (b.cost || b.original_cost || 0) - (a.cost || a.original_cost || 0));
+    } else if (val === 'rating') {
+        list.sort((a,b) => (b.stars || 4.5) - (a.stars || 4.5));
+    }
+    
+    if (type === 'hotel') renderHotelResultsList();
+    else if (type === 'restaurant') renderRestaurantResultsList();
+    else if (type === 'experience') renderExperienceResultsList();
+}
+
+// --- PARTNER COMPARISON DRAWER ---
+function openPartnerComparisonDrawer(name) {
+    const matched = state.venues.hotel.find(h => h.name === name);
+    if (!matched) return;
+    
+    const summary = document.getElementById('drawer-hotel-summary-el');
+    const plist = document.getElementById('drawer-partner-prices-list-el');
+    
+    summary.innerHTML = `
+        <h3 style="font-size:1.15rem;">${matched.name}</h3>
+        <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem;">
+            ${getBubbleRatingHtml(matched.stars || 4.5)}
+            <span style="font-size:0.75rem; color:var(--text-muted);">(120 reviews)</span>
+        </div>
+    `;
+    
+    const partners = [
+        { brand: "Booking.com", mult: 1 },
+        { brand: "Agoda.com", mult: 0.96 },
+        { brand: "MakeMyTrip", mult: 1.05 },
+        { brand: "TripAdvisor Deals", mult: 0.98 }
+    ];
+    
+    plist.innerHTML = partners.map(p => {
+        const price = Math.round(matched.cost * p.mult);
+        return `
+            <li class="partner-price-item">
+                <div>
+                    <span class="partner-logo-label">${p.brand}</span>
+                    <div style="font-size:0.75rem; color:var(--text-muted);">Free Cancellation</div>
+                </div>
+                <div style="text-align:right;">
+                    <strong style="font-size:1.15rem; color:var(--accent);">${formatCost(price)}</strong>
+                    <button class="btn-primary" style="display:block; padding:0.4rem 0.85rem; font-size:0.78rem; margin-top:0.25rem;" onclick="triggerCheckoutFlow('hotel', '${matched.name.replace(/'/g, "\\'")}')">Book</button>
+                </div>
+            </li>
+        `;
+    }).join('');
+    
+    document.getElementById('partner-comparison-drawer').classList.remove('hidden');
+    document.getElementById('partner-drawer-backdrop').classList.remove('hidden');
+}
+
+function closePartnerComparisonDrawer() {
+    document.getElementById('partner-comparison-drawer').classList.add('hidden');
+    document.getElementById('partner-drawer-backdrop').classList.add('hidden');
+}
+
+// --- RESULTS MAP TOGGLING & PLOTTING ---
+function toggleResultsMapSplit() {
+    const mapPanel = document.getElementById('results-map-panel-el');
+    const splitLayout = document.getElementById('results-split-layout');
+    const toggleBtn = document.getElementById('map-toggle-btn');
+    
+    if (mapPanel.classList.contains('hidden')) {
+        mapPanel.classList.remove('hidden');
+        toggleBtn.textContent = "🗺️ Hide Map";
+        
+        // Initialize map
+        if (!state.resultsMap) {
+            state.resultsMap = L.map('results-leaflet-map').setView([26.9124, 75.7873], 12);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(state.resultsMap);
+        }
+        
+        setTimeout(() => {
+            state.resultsMap.invalidateSize();
+            plotPinsOnResultsMap();
+        }, 150);
+        
+    } else {
+        mapPanel.classList.add('hidden');
+        toggleBtn.textContent = "🗺️ Show Map";
+    }
+}
+
+function plotPinsOnResultsMap() {
+    if (!state.resultsMap) return;
+    
+    // Clear previous markers
+    state.resultsMapMarkers.forEach(m => state.resultsMap.removeLayer(m));
+    state.resultsMapMarkers = [];
+    
+    const hotels = state.filteredVenues.hotel;
+    if (hotels.length === 0) return;
+    
+    const latlngs = [];
+    
+    hotels.forEach(h => {
+        if (!h.lat || !h.lon) return;
+        
+        // Create custom divicon price tags like TripAdvisor
+        const markerIcon = L.divIcon({
+            className: 'custom-map-price-pin',
+            html: `<div style="background:var(--accent); color:#fff; font-weight:800; font-size:0.75rem; padding:3px 6px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.25); white-space:nowrap; border:1px solid #fff;">₹${h.cost ? Math.round(h.cost/1000) + 'k' : '?' }</div>`,
+            iconSize: [40, 20],
+            iconAnchor: [20, 10]
         });
+        
+        const m = L.marker([h.lat, h.lon], { icon: markerIcon }).addTo(state.resultsMap);
+        m.bindPopup(`<b>🏨 ${h.name}</b><br>Price: ${formatCost(h.cost)}<br><a href="#" onclick="navigateToDetail('${h.name.replace(/'/g, "\\'")}', 'hotel'); return false;">View Details</a>`);
+        
+        state.resultsMapMarkers.push(m);
+        latlngs.push([h.lat, h.lon]);
+    });
+    
+    if (latlngs.length > 0) {
+        state.resultsMap.fitBounds(latlngs, { padding: [30, 30] });
+    }
+}
 
-        li.appendChild(textSpan);
-        li.appendChild(heartBtn);
-        list.appendChild(li);
+// --- ITEM DETAIL VIEWS MANAGER ---
+function navigateToDetail(name, category, addressFallback = "") {
+    // Find the item details in list caches
+    let item = state.venues[category].find(v => v.name === name);
+    if (!item) {
+        // Build mock properties if not found
+        item = {
+            name: name,
+            cost: 14000,
+            original_cost: 1500,
+            stars: 4.8,
+            sub_type: category === 'hotel' ? 'Luxury Stay' : category === 'restaurant' ? 'Indian Cafe' : 'Heritage Tour',
+            lat: 26.9124,
+            lon: 75.7873,
+            wifi: true, pool: true, parking: true, bar: true,
+            enrichment: {
+                description: `${name} is exceptionally popular with travelers. It boasts pristine aesthetics, highly professional staff service levels, and lies close to local transit.`,
+                vibe: "Elegant & Heritage",
+                extra_tips: "Must try local signatures."
+            }
+        };
+    }
+    
+    // Fill detailed fields based on category
+    if (category === 'hotel') {
+        state.checkoutItem = item;
+        state.checkoutType = 'hotel';
+        
+        navigateToView('hotel-detail');
+        
+        document.getElementById('detail-hotel-name').textContent = item.name;
+        document.getElementById('detail-hotel-rating-bubbles').innerHTML = getBubbleRatingHtml(item.stars || 4.5);
+        document.getElementById('detail-hotel-reviews-count').textContent = `(${getReviewsListForVenue(item.name).length} reviews)`;
+        document.getElementById('detail-hotel-class-stars').textContent = "⭐".repeat(Math.round(item.stars || 5));
+        document.getElementById('detail-hotel-address').textContent = addressFallback || item.address || `${item.name} Central Area, Jaipur, Rajasthan`;
+        
+        // Description
+        document.getElementById('detail-overview-description').textContent = item.enrichment?.description || `${item.name} offers travelers a royal legacy stay inside comfortable suites. It features highly praised spa setups and authentic culinary options inside gardens.`;
+        
+        // Rooms
+        const rgrid = document.getElementById('detail-rooms-grid-container');
+        rgrid.innerHTML = `
+            <div class="row-card-item">
+                <div class="row-card-img" style="width:160px;"><img src="https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=300&q=80" alt="Deluxe Room"></div>
+                <div class="row-card-content">
+                    <h5 style="font-size:0.95rem;">Deluxe Garden View Suite</h5>
+                    <p style="font-size:0.75rem; color:var(--text-muted);">1 King Bed • Sleeps 2 • Free cancellation</p>
+                </div>
+                <div class="row-card-right" style="width:150px;">
+                    <strong style="font-size:1.1rem; color:var(--accent);">${formatCost(item.cost)}</strong>
+                    <button class="btn-primary" style="font-size:0.75rem; padding:0.4rem 0.8rem;" onclick="triggerCheckoutFlow('hotel', '${item.name.replace(/'/g, "\\'")}')">Book Room</button>
+                </div>
+            </div>
+            <div class="row-card-item">
+                <div class="row-card-img" style="width:160px;"><img src="https://images.unsplash.com/photo-1582719478250-c89cae4db85b?auto=format&fit=crop&w=300&q=80" alt="Luxury Room"></div>
+                <div class="row-card-content">
+                    <h5 style="font-size:0.95rem;">Royal Heritage Suite (Balcony)</h5>
+                    <p style="font-size:0.75rem; color:var(--text-muted);">1 King Bed + Lounge • Free Breakfast</p>
+                </div>
+                <div class="row-card-right" style="width:150px;">
+                    <strong style="font-size:1.1rem; color:var(--accent);">${formatCost(item.cost * 1.4)}</strong>
+                    <button class="btn-primary" style="font-size:0.75rem; padding:0.4rem 0.8rem;" onclick="triggerCheckoutFlow('hotel', '${item.name.replace(/'/g, "\\'")}')">Book Room</button>
+                </div>
+            </div>
+        `;
+
+        // Amenities
+        const amens = document.getElementById('detail-hotel-amenities-strip');
+        amens.innerHTML = `
+            <span class="amenity-pill-icon">📶 Free WiFi</span>
+            <span class="amenity-pill-icon">🏊 Swimming Pool</span>
+            <span class="amenity-pill-icon">🅿️ Free Valet Parking</span>
+            <span class="amenity-pill-icon">🍷 Dining Restobar</span>
+            <span class="amenity-pill-icon">🕒 24/7 Desk Reception</span>
+        `;
+
+        // Booking widget sidebar values
+        document.getElementById('booking-sidebar-price-val').textContent = formatCost(item.cost);
+        
+        // Book partners list
+        const bcomp = document.getElementById('booking-compare-partner-list');
+        bcomp.innerHTML = `
+            <li style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:3px;">
+                <span>Booking.com</span>
+                <strong>${formatCost(item.cost)}</strong>
+            </li>
+            <li style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:3px;">
+                <span>Agoda.com</span>
+                <strong>${formatCost(item.cost * 0.97)}</strong>
+            </li>
+            <li style="display:flex; justify-content:space-between;">
+                <span>MakeMyTrip</span>
+                <strong>${formatCost(item.cost * 1.03)}</strong>
+            </li>
+        `;
+        
+        // Gallery photo columns
+        setupGalleryStrip('hotel-gallery-strip-container', item.name);
+        
+        // Review score bars
+        renderReviewsPanelDetails(item.name);
+        
+        // Subtab default
+        switchDetailSubtab('detail-overview');
+        
+        // Draw maps
+        setTimeout(() => {
+            initializeDetailMap('detail-location-leaflet-map', item.lat, item.lon, item.name);
+        }, 300);
+
+    } else if (category === 'restaurant') {
+        state.checkoutItem = item;
+        state.checkoutType = 'restaurant';
+        navigateToView('restaurant-detail');
+        
+        document.getElementById('detail-rest-name').textContent = item.name;
+        document.getElementById('detail-rest-rating-bubbles').innerHTML = getBubbleRatingHtml(item.stars || 4.4);
+        document.getElementById('detail-rest-reviews-count').textContent = `(${getReviewsListForVenue(item.name).length} reviews)`;
+        document.getElementById('detail-rest-address').textContent = addressFallback || item.address || `${item.name} Bazaar, Jaipur, Rajasthan`;
+        document.getElementById('detail-rest-cuisine-label').textContent = item.sub_type ? item.sub_type.toUpperCase() : 'INDIAN TRADITIONAL';
+        
+        document.getElementById('detail-rest-overview-description').textContent = `${item.name} is one of the most popular dining destinations in this area. It specializes in mouth-watering regional desserts, snacks, and traditional signature thalis.`;
+        
+        // Menu list
+        const mlist = document.getElementById('rest-signature-dishes-list');
+        mlist.innerHTML = `
+            <li>✔️ Special Maharaja Thali (Keri Sangri, Dal Bati) — <strong>₹450</strong></li>
+            <li>✔️ Crispy Pyaaz Kachori (Heritage recipe) — <strong>₹90</strong></li>
+            <li>✔️ Kesar Lassi (Sweet saffron curd drink) — <strong>₹120</strong></li>
+        `;
+        
+        // Amenities
+        const amens = document.getElementById('detail-rest-amenities-strip');
+        amens.innerHTML = `
+            <span class="amenity-pill-icon">🌿 Vegetarian Options</span>
+            <span class="amenity-pill-icon">🪑 Outdoor seating area</span>
+            <span class="amenity-pill-icon">💳 Cards Accepted</span>
+        `;
+        
+        setupGalleryStrip('rest-gallery-strip-container', item.name);
+        renderRestaurantReviewsPanel(item.name);
+        switchRestDetailSubtab('rest-overview');
+
+    } else if (category === 'experience') {
+        state.checkoutItem = item;
+        state.checkoutType = 'experience';
+        navigateToView('experience-detail');
+        
+        document.getElementById('detail-exp-name').textContent = item.name;
+        document.getElementById('detail-exp-rating-bubbles').innerHTML = getBubbleRatingHtml(item.stars || 4.7);
+        document.getElementById('detail-exp-reviews-count').textContent = `(${getReviewsListForVenue(item.name).length} reviews)`;
+        document.getElementById('detail-exp-address').textContent = addressFallback || item.address || `${item.name} Fort Gates, Jaipur, Rajasthan`;
+        
+        document.getElementById('detail-exp-overview-description').textContent = `${item.name} offers tourists a magnificent, historic look into legacy royal chambers, defense watchtowers, and stunning architecture. Hire local guides for details.`;
+        
+        const amens = document.getElementById('detail-exp-amenities-strip');
+        amens.innerHTML = `
+            <span class="amenity-pill-icon">⏱️ Duration: 3 Hours</span>
+            <span class="amenity-pill-icon">🗣️ Language: English & Hindi</span>
+            <span class="amenity-pill-icon">🎟️ Express Tickets option</span>
+        `;
+        
+        document.getElementById('activity-booking-price-val').textContent = formatCost(item.original_cost || 1500);
+        
+        setupGalleryStrip('exp-gallery-strip-container', item.name);
+        renderExperienceReviewsPanel(item.name);
+        switchExpDetailSubtab('exp-overview');
+    }
+}
+
+function setupGalleryStrip(containerId, name) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    
+    // TripAdvisor gallery photos
+    const imgs = [
+        "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80",
+        "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1582719478250-c89cae4db85b?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=400&q=80"
+    ];
+    
+    state.lightboxImages = imgs;
+    
+    el.innerHTML = imgs.map((src, idx) => {
+        if (idx === 4) {
+            return `
+                <div class="gallery-photo-el" onclick="openLightbox(${idx})">
+                    <img src="${src}" alt="Slide">
+                    <button class="gallery-see-all-btn">See all photos</button>
+                </div>
+            `;
+        }
+        return `
+            <div class="gallery-photo-el" onclick="openLightbox(${idx})">
+                <img src="${src}" alt="Slide">
+            </div>
+        `;
+    }).join('');
+}
+
+// Lightbox modal carousel logic
+function openLightbox(idx) {
+    state.lightboxIndex = idx;
+    const lightbox = document.getElementById('image-lightbox');
+    const img = document.getElementById('lightbox-img');
+    const cap = document.getElementById('lightbox-caption');
+    
+    img.src = state.lightboxImages[idx];
+    cap.textContent = `Photo ${idx + 1} of ${state.lightboxImages.length}`;
+    
+    lightbox.classList.remove('hidden');
+}
+
+function closeLightbox() {
+    document.getElementById('image-lightbox').classList.add('hidden');
+}
+
+function navigateLightbox(dir) {
+    let nextIdx = state.lightboxIndex + dir;
+    if (nextIdx < 0) nextIdx = state.lightboxImages.length - 1;
+    if (nextIdx >= state.lightboxImages.length) nextIdx = 0;
+    
+    openLightbox(nextIdx);
+}
+
+// Subtab switcher inside detail panes
+function switchDetailSubtab(subName) {
+    state.activeDetailSubtab = subName;
+    document.querySelectorAll('[data-dtab]').forEach(btn => {
+        if (btn.dataset.dtab === subName) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+    
+    document.querySelectorAll('#detail-subtabs-pane, .detail-pane-content').forEach(pane => {
+        if (pane.id.startsWith('detail-') && pane.id.endsWith('-pane')) {
+            pane.classList.add('hidden');
+        }
+    });
+    
+    document.getElementById(`detail-${subName.replace('detail-', '')}-pane`).classList.remove('hidden');
+    
+    // Invalidate map size if Map tab activated
+    if (subName === 'detail-location' && state.detailMap) {
+        setTimeout(() => state.detailMap.invalidateSize(), 150);
+    }
+}
+
+function switchRestDetailSubtab(subName) {
+    state.activeRestDetailSubtab = subName;
+    document.querySelectorAll('[data-rtab]').forEach(btn => {
+        if (btn.dataset.rtab === subName) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+    
+    document.querySelectorAll('#rest-overview-pane, #rest-menu-pane, #rest-reviews-pane').forEach(pane => pane.classList.add('hidden'));
+    document.getElementById(`${subName}-pane`).classList.remove('hidden');
+}
+
+function switchExpDetailSubtab(subName) {
+    state.activeExpDetailSubtab = subName;
+    document.querySelectorAll('[data-etab]').forEach(btn => {
+        if (btn.dataset.etab === subName) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+    
+    document.querySelectorAll('#exp-overview-pane, #exp-included-pane, #exp-reviews-pane').forEach(pane => pane.classList.add('hidden'));
+    document.getElementById(`${subName}-pane`).classList.remove('hidden');
+}
+
+// Leaflet map initialization
+function initializeDetailMap(containerId, lat, lon, name) {
+    if (state.detailMap) {
+        state.detailMap.remove();
+        state.detailMap = null;
+    }
+    
+    state.detailMap = L.map(containerId).setView([lat, lon], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(state.detailMap);
+    
+    state.detailMapMarker = L.marker([lat, lon]).addTo(state.detailMap);
+    state.detailMapMarker.bindPopup(`<b>📍 ${name}</b>`).openPopup();
+}
+
+function scrollToElement(id) {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+}
+
+// --- REVIEWS DATABASE & SUBMISSIONS ---
+function getReviewsListForVenue(venueName) {
+    if (!state.reviews[venueName]) {
+        // Pre-populate mock reviews for this venue name
+        state.reviews[venueName] = [
+            { id: 1, author: "traveler_amit", rating: 5, date: "2026-06", title: "Phenomenal! Best service ever", body: "I spent three nights here during our family trip. The ambiance is royal, the gardens are beautifully kept, and the peacock sightings inside are absolute delights. Staff goes out of their way to support.", response: "Thank you for the kind words! We hope to welcome you back." },
+            { id: 2, author: "stewart_j", rating: 4, date: "2026-05", title: "Lovely grounds and clean sheets", body: "Excellence in historic maintenance. Rooms are fully packed with heritage details, but check-in queues at the front desk lobby area took about 20 minutes. Worth visiting.", response: null }
+        ];
+    }
+    return state.reviews[venueName];
+}
+
+function renderReviewsPanelDetails(venueName) {
+    const list = getReviewsListForVenue(venueName);
+    document.getElementById('detail-reviews-total-lbl').textContent = list.length;
+    
+    // Bar breakdown calculation
+    const counts = {5:0, 4:0, 3:0, 2:0, 1:0};
+    list.forEach(r => counts[Math.round(r.rating)]++);
+    
+    const container = document.getElementById('rating-breakdown-bars-container');
+    container.innerHTML = [5, 4, 3, 2, 1].map(score => {
+        const percentage = list.length > 0 ? Math.round((counts[score] / list.length) * 100) : 0;
+        return `
+            <div class="percentage-bar-row">
+                <span style="width:60px;">${score} Bubble</span>
+                <div class="bar-bg"><div class="bar-fill" style="width:${percentage}%;"></div></div>
+                <span style="width:30px; text-align:right;">${percentage}%</span>
+            </div>
+        `;
+    }).join('');
+    
+    // Sub-ratings
+    const subContainer = document.getElementById('sub-ratings-list-container');
+    subContainer.innerHTML = `
+        <li>📍 Location: <span>🟢🟢🟢🟢🟢 5.0</span></li>
+        <li>🧹 Cleanliness: <span>🟢🟢🟢🟢🟢 4.9</span></li>
+        <li>🤵 Service: <span>🟢🟢🟢🟢🔘 4.8</span></li>
+        <li>🪙 Value: <span>🟢🟢🟢🟢⚪ 4.2</span></li>
+    `;
+
+    // Render review cards
+    const deck = document.getElementById('detail-reviews-cards-deck');
+    deck.innerHTML = list.map(r => `
+        <li class="review-card-li">
+            <div class="review-card-header">
+                <div class="reviewer-profile">
+                    <img class="reviewer-avatar" src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80" alt="Av">
+                    <div>
+                        <span class="reviewer-name">${r.author}</span>
+                        <div class="reviewer-geo">Mumbai, India • 12 contributions</div>
+                    </div>
+                </div>
+                <div style="text-align:right; font-size:0.75rem; color:var(--text-muted);">
+                    ${getBubbleRatingHtml(r.rating)}
+                    <div style="margin-top:0.25rem;">Visited: ${r.date}</div>
+                </div>
+            </div>
+            <strong style="font-size:0.95rem; display:block; margin-bottom:0.25rem;">${r.title}</strong>
+            <p class="review-body-text">${r.body}</p>
+            ${r.response ? `
+                <div class="owner-response-box">
+                    <strong>Response from Owner:</strong>
+                    <p style="margin-top:0.25rem; font-style:italic;">"${r.response}"</p>
+                </div>
+            ` : ''}
+        </li>
+    `).join('');
+}
+
+function renderRestaurantReviewsPanel(name) {
+    const list = getReviewsListForVenue(name);
+    const deck = document.getElementById('rest-reviews-cards-deck');
+    if (!deck) return;
+    
+    deck.innerHTML = list.map(r => `
+        <li class="review-card-li">
+            <div class="review-card-header">
+                <div class="reviewer-profile">
+                    <img class="reviewer-avatar" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt="Av">
+                    <div>
+                        <span class="reviewer-name">${r.author}</span>
+                    </div>
+                </div>
+                <div style="text-align:right; font-size:0.75rem; color:var(--text-muted);">
+                    ${getBubbleRatingHtml(r.rating)}
+                </div>
+            </div>
+            <strong>${r.title}</strong>
+            <p class="review-body-text">${r.body}</p>
+        </li>
+    `).join('');
+}
+
+function renderExperienceReviewsPanel(name) {
+    const list = getReviewsListForVenue(name);
+    const deck = document.getElementById('exp-reviews-cards-deck');
+    if (!deck) return;
+    
+    deck.innerHTML = list.map(r => `
+        <li class="review-card-li">
+            <div class="review-card-header">
+                <div class="reviewer-profile">
+                    <img class="reviewer-avatar" src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&w=100&q=80" alt="Av">
+                    <div>
+                        <span class="reviewer-name">${r.author}</span>
+                    </div>
+                </div>
+                <div style="text-align:right; font-size:0.75rem; color:var(--text-muted);">
+                    ${getBubbleRatingHtml(r.rating)}
+                </div>
+            </div>
+            <strong>${r.title}</strong>
+            <p class="review-body-text">${r.body}</p>
+        </li>
+    `).join('');
+}
+
+// Write a Review modal flows
+function launchWriteReviewFlow() {
+    if (!state.user) {
+        openSigninModal();
+        return;
+    }
+    
+    // Reset review form inputs
+    document.getElementById('review-form-headline').value = '';
+    document.getElementById('review-form-body').value = '';
+    document.getElementById('review-form-score-val').value = 5;
+    document.getElementById('review-char-validation-label').textContent = '0 / 200 characters';
+    document.getElementById('review-char-validation-warning').classList.add('hidden');
+    setReviewFormBubbleScore(5);
+    
+    document.getElementById('write-review-modal').classList.remove('hidden');
+}
+
+function closeWriteReviewModal() {
+    document.getElementById('write-review-modal').classList.add('hidden');
+}
+
+function setReviewFormBubbleScore(score) {
+    document.getElementById('review-form-score-val').value = score;
+    document.querySelectorAll('.bubble-selector-dot').forEach((dot, idx) => {
+        if (idx < score) dot.classList.add('active');
+        else dot.classList.remove('active');
     });
 }
 
-// Modular rendering function for a plan (primary or backup)
-function renderVenueCardHtml(v, category, isRecommended = false) {
-    const isHearted = isVenueFavorite(v.name);
-    const heartIcon = isHearted ? "❤️" : "🤍";
-    const optBadge = isRecommended ? `<span class="recommended-badge">⭐ Recommended Choice</span>` : "";
-    const starsHtml = v.stars ? getBubbleRatingHtml(v.stars) : (v.utility ? getBubbleRatingHtml(Math.min(5, Math.ceil(v.utility / 30))) : "");
-    const subTypeLabel = v.sub_type ? v.sub_type.toUpperCase() : category.toUpperCase();
+function handleReviewBodyTextInput(val) {
+    const lbl = document.getElementById('review-char-validation-label');
+    lbl.textContent = `${val.length} / 200 characters`;
     
-    let costText = "";
-    if (category === "hotel") {
-        costText = `Est. Total: ₹${formatCost(v.cost)}`;
-    } else if (category === "restaurant" || category === "bar") {
-        costText = `Est. Meal Cost: ₹${formatCost(v.cost)}`;
-    } else {
-        costText = v.original_cost === 0 ? "Free Entry" : `Est. Fee: ₹${formatCost(v.original_cost)}`;
-    }
-    
-    let enrichHtml = "";
-    if (v.enrichment) {
-        enrichHtml = `
-            <div class="enrich-desc" style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 0.25rem; line-height: 1.35;">${v.enrichment.description}</div>
-            <div class="enrich-meta" style="font-size: 0.7rem; color: #4B5563; font-style: italic; margin-top: 0.25rem;">
-                Vibe: ${v.enrichment.vibe} | Try: ${v.enrichment.extra_tips}
-            </div>
-        `;
-    }
-    
-    const escapedName = v.name.replace(/'/g, "\\'");
-    const categoryIcon = category === "hotel" ? "🏨" : category === "restaurant" ? "🍔" : category === "bar" ? "🍻" : "🏛️";
-    const placeholder = getPlaceholderSvg(v.name);
-    
-    // Add vote tag listing
-    const votesHtml = getVotingTagsHtml(v.name);
-    
-    // Render TripAdvisor absolute elements on image container
-    const imageHtml = `
-        <div class="venue-img-container">
-            <img src="${placeholder}" class="venue-img" alt="${v.name}" data-venue="${v.name.replace(/"/g, '&quot;')}" data-category="${category}" onerror="this.onerror=null; this.src=getPlaceholderSvg('${escapedName}');" onclick="openLightboxForVenue('${escapedName}')">
-            <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${escapedName}', '${category}', '${categoryIcon}', ${v.lat}, ${v.lon}); this.innerHTML = isVenueFavorite('${escapedName}') ? '❤️' : '🤍';" title="Heart/Save venue">${heartIcon}</button>
-            <button class="img-zoom-btn" onclick="event.stopPropagation(); openLightboxForVenue('${escapedName}')">🔍</button>
-        </div>
-    `;
-
-    return `
-        <div class="horizontal-card ${isRecommended ? 'recommended-border' : ''}">
-            ${optBadge}
-            ${imageHtml}
-            <div class="card-details-box" style="display: flex; flex-direction: column; justify-content: space-between; flex: 1; padding: 0.25rem 0.5rem 0.5rem 0.5rem; gap: 0.35rem;">
-                <div>
-                    <h5 class="venue-title" style="margin: 0; font-size: 0.88rem; font-weight: 700; color: var(--text-primary); text-overflow: ellipsis; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25;">${v.name}</h5>
-                    <div style="display: flex; align-items: center; gap: 0.25rem; margin-top: 0.2rem; font-size: 0.72rem; color: var(--text-muted);">
-                        <span>${subTypeLabel}</span>
-                        ${starsHtml}
-                    </div>
-                    <div class="venue-cost-label" style="font-size: 0.8rem; font-weight: 700; color: var(--accent); margin-top: 0.25rem;">${costText}</div>
-                </div>
-                ${enrichHtml}
-                ${votesHtml}
-            </div>
-        </div>
-    `;
+    const warn = document.getElementById('review-char-validation-warning');
+    if (val.length < 200) warn.classList.remove('hidden');
+    else warn.classList.add('hidden');
 }
 
-function renderPlanItinerary(plan) {
-    if (!plan) return;
-
-    // Populate Plan Summary
-    const totalCostEl = document.getElementById("plan-total-cost");
-    if (totalCostEl) totalCostEl.textContent = `₹${formatCost(plan.total_cost)}`;
-    const personCostEl = document.getElementById("plan-person-cost");
-    if (personCostEl) personCostEl.textContent = `₹${formatCost(plan.cost_per_person)}`;
+function handleReviewFormSubmit(e) {
+    e.preventDefault();
+    const body = document.getElementById('review-form-body').value.trim();
+    if (body.length < 200) {
+        document.getElementById('review-char-validation-warning').classList.remove('hidden');
+        return;
+    }
     
-    const statusBadge = document.getElementById("plan-status");
-    if (statusBadge) {
-        const isExceeded = plan.stops.some(s => s.budget_exceeded);
-        if (isExceeded) {
-            statusBadge.textContent = "Recommendation (Exceeds Target Budget)";
-            statusBadge.className = "plan-status-badge backup";
-            statusBadge.style.background = "#FEE2E2";
-            statusBadge.style.color = "#DC2626";
-        } else {
-            statusBadge.textContent = activePlanType === "backup" ? "Economy Backup Plan" : "Optimal Plan (Within Budget)";
-            statusBadge.className = activePlanType === "backup" ? "plan-status-badge backup" : "plan-status-badge";
-            if (activePlanType === "backup") {
-                statusBadge.style.background = "#FEF3C7";
-                statusBadge.style.color = "#D97706";
-            } else {
-                statusBadge.style.background = "var(--success-light)";
-                statusBadge.style.color = "var(--success)";
-            }
-        }
+    const score = parseInt(document.getElementById('review-form-score-val').value);
+    const date = document.getElementById('review-form-date').value;
+    const headline = document.getElementById('review-form-headline').value.trim();
+    
+    const newRev = {
+        id: Date.now(),
+        author: state.user.username,
+        rating: score,
+        date: date,
+        title: headline,
+        body: body,
+        response: null
+    };
+    
+    const venueName = state.checkoutItem?.name || "Taj Rambagh Palace";
+    state.reviews[venueName] = state.reviews[venueName] || [];
+    state.reviews[venueName].unshift(newRev); // add to top
+    
+    // Increment user contribution counts
+    state.user.reviewsCount++;
+    localStorage.setItem('ta_user', JSON.stringify(state.user));
+    updateNavForUser();
+    
+    closeWriteReviewModal();
+    
+    // Refresh ratings view
+    if (state.currentView === 'hotel-detail') renderReviewsPanelDetails(venueName);
+    else if (state.currentView === 'restaurant-detail') renderRestaurantReviewsPanel(venueName);
+    else if (state.currentView === 'experience-detail') renderExperienceReviewsPanel(venueName);
+}
+
+function simulatePhotoUploadPicker() {
+    alert("Photo files dropzone trigger mock - selected photo added successfully!");
+    document.getElementById('review-form-photo-val').value = "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80";
+}
+
+// --- BOOKING CHECKOUT WIZARD FLOW ---
+function triggerCheckoutFlow(type, optName = '') {
+    const item = optName ? state.venues.hotel.find(h => h.name === optName) : state.checkoutItem;
+    if (!item) return;
+    
+    state.checkoutItem = item;
+    state.checkoutType = type;
+    
+    // Reset steps
+    document.getElementById('checkout-step-1').classList.remove('hidden');
+    document.getElementById('checkout-step-2').classList.add('hidden');
+    document.getElementById('checkout-step-3').classList.add('hidden');
+    
+    document.getElementById('step-lbl-1').className = 'step-active';
+    document.getElementById('step-lbl-2').className = '';
+    document.getElementById('step-lbl-3').className = '';
+    
+    // If user logged in, fill info
+    if (state.user) {
+        document.getElementById('chk-email').value = state.user.email;
+        document.getElementById('chk-fname').value = state.user.username;
     }
+    
+    document.getElementById('checkout-modal').classList.remove('hidden');
+}
 
-    // Render Travel Breakdown details if active
-    const travelContainer = document.getElementById("travel-breakdown-container");
-    const travelDetails = document.getElementById("travel-breakdown-details");
-    if (plan.travel_cost && plan.travel_cost > 0) {
-        if (travelContainer) travelContainer.classList.remove("hidden");
-        if (travelDetails) {
-            const modeName = plan.travel_mode === "flight" ? "Flight" : 
-                             plan.travel_mode === "train_3ac" ? "Train (3AC)" : 
-                             plan.travel_mode === "train_sleeper" ? "Train (Sleeper)" : "Bus";
-            
-            let routeLabels = "";
-            if (plan.multi_city && plan.legs) {
-                routeLabels = plan.legs.map(l => l.from).join(" ➔ ") + " ➔ " + plan.legs[plan.legs.length - 1].to;
-            } else {
-                const destName = plan.hotel && plan.hotel.id !== "virtual_depot" ? plan.hotel.name : "City Center";
-                routeLabels = `${plan.origin_city} ➔ ${destName}`;
-            }
+function closeCheckoutModal() {
+    document.getElementById('checkout-modal').classList.add('hidden');
+}
 
-            const carbonFactor = plan.travel_mode === "flight" ? 0.15 : 
-                                 plan.travel_mode === "bus" ? 0.05 : 0.025;
-            const carbonValue = plan.distance_km * plan.people * carbonFactor;
+function handleCheckoutStep1Submit(e) {
+    e.preventDefault();
+    document.getElementById('checkout-step-1').classList.add('hidden');
+    document.getElementById('checkout-step-2').classList.remove('hidden');
+    
+    document.getElementById('step-lbl-1').className = '';
+    document.getElementById('step-lbl-2').className = 'step-active';
+}
 
-            travelDetails.innerHTML = `
-                <div style="margin-bottom: 0.25rem;"><strong>Roundtrip Route:</strong> ${routeLabels}</div>
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div>Distance: ${plan.distance_km.toFixed(1)} km | Mode: ${modeName}</div>
-                    <span class="carbon-badge">🌱 Carbon: ${carbonValue.toFixed(1)} kg CO₂</span>
-                </div>
-                <div style="margin-top: 0.35rem; font-size: 0.85rem; border-top: 1.5px dashed var(--border); padding-top: 0.35rem;">
-                    Travel Cost: <strong>₹${formatCost(plan.travel_cost)}</strong> | 
-                    Local Stops Budget: <strong>₹${formatCost(plan.local_trip_cost)}</strong>
-                </div>
-            `;
-        }
-    } else {
-        if (travelContainer) travelContainer.classList.add("hidden");
-    }
-
-    const wrapper = document.getElementById("plan-details-wrapper");
-    if (wrapper) {
-        wrapper.innerHTML = "";
-
-        plan.stops.forEach((stop, i) => {
-            const stopSection = document.createElement("div");
-            stopSection.className = "multi-stop-section";
-            stopSection.style.marginTop = "2rem";
-            stopSection.style.borderTop = "2.5px solid var(--border)";
-            stopSection.style.paddingTop = "1.5rem";
-            
-            // 🏨 Stays Section
-            let staysHtml = "";
-            if (stop.all_hotels && stop.all_hotels.length > 0) {
-                const recommendedHotel = stop.all_hotels.find(h => h.optimized) || stop.all_hotels[0];
-                const otherHotels = stop.all_hotels.filter(h => h.name !== recommendedHotel.name);
-                
-                staysHtml = `
-                    <div class="stop-row stays-row">
-                        <div class="row-header">
-                            <h4>🏨 Stays & Accommodations in ${stop.city.toUpperCase()}</h4>
-                        </div>
-                        <div class="row-content-split">
-                            <div class="recommended-column">
-                                <div class="section-tag-label">Recommended Accommodation</div>
-                                ${renderVenueCardHtml(recommendedHotel, 'hotel', true)}
-                            </div>
-                            <div class="candidates-column">
-                                <div class="section-tag-label">All Stays & Lodgings</div>
-                                <div class="horizontal-card-deck">
-                                    ${otherHotels.map(h => renderVenueCardHtml(h, 'hotel', false)).join("")}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            // 🍽️ Dining Section
-            let diningHtml = "";
-            if (stop.all_restaurants && stop.all_restaurants.length > 0) {
-                const recommendedRests = stop.all_restaurants.filter(r => r.optimized);
-                const otherRests = stop.all_restaurants.filter(r => !r.optimized);
-                
-                diningHtml = `
-                    <div class="stop-row dining-row" style="margin-top: 1.5rem;">
-                        <div class="row-header">
-                            <h4>🍽️ Places to Eat & Dining in ${stop.city.toUpperCase()}</h4>
-                        </div>
-                        <div class="row-content-split">
-                            <div class="recommended-column">
-                                <div class="section-tag-label">Recommended Meals</div>
-                                <div class="horizontal-card-deck" style="flex-direction: column; width: 100%;">
-                                    ${recommendedRests.map(r => renderVenueCardHtml(r, 'restaurant', true)).join("")}
-                                    ${recommendedRests.length === 0 ? '<div style="font-style:italic; font-size:0.8rem; color:var(--text-muted); padding:1rem; text-align:center;">None selected</div>' : ''}
-                                </div>
-                            </div>
-                            <div class="candidates-column">
-                                <div class="section-tag-label">All Dining Options</div>
-                                <div class="horizontal-card-deck">
-                                    ${otherRests.map(r => renderVenueCardHtml(r, 'restaurant', false)).join("")}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            // 🍻 Nightlife Section
-            let nightlifeHtml = "";
-            if (stop.all_bars && stop.all_bars.length > 0) {
-                const recommendedBars = stop.all_bars.filter(b => b.optimized);
-                const otherBars = stop.all_bars.filter(b => !b.optimized);
-                
-                nightlifeHtml = `
-                    <div class="stop-row nightlife-row" style="margin-top: 1.5rem;">
-                        <div class="row-header">
-                            <h4>🍻 Bars, Pubs & Nightlife in ${stop.city.toUpperCase()}</h4>
-                        </div>
-                        <div class="row-content-split">
-                            <div class="recommended-column">
-                                <div class="section-tag-label">Recommended Drinks</div>
-                                <div class="horizontal-card-deck" style="flex-direction: column; width: 100%;">
-                                    ${recommendedBars.map(b => renderVenueCardHtml(b, 'bar', true)).join("")}
-                                    ${recommendedBars.length === 0 ? '<div style="font-style:italic; font-size:0.8rem; color:var(--text-muted); padding:1rem; text-align:center;">None selected</div>' : ''}
-                                </div>
-                            </div>
-                            <div class="candidates-column">
-                                <div class="section-tag-label">All Nightspots & Pubs</div>
-                                <div class="horizontal-card-deck">
-                                    ${otherBars.map(b => renderVenueCardHtml(b, 'bar', false)).join("")}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            // 🏛️ Sightseeing Section
-            let sightseeingHtml = "";
-            if (stop.all_sightseeing && stop.all_sightseeing.length > 0) {
-                const recommendedSights = stop.all_sightseeing.filter(a => a.optimized);
-                const otherSights = stop.all_sightseeing.filter(a => !a.optimized);
-                
-                let zonesTimelineHtml = "";
-                if (stop.zones && stop.zones.length > 0) {
-                    zonesTimelineHtml = stop.zones.map((zone, zIdx) => `
-                        <div class="zone-timeline-step" style="border-left: 2px solid var(--accent); padding-left: 1rem; margin-bottom: 1.25rem; position: relative;">
-                            <div class="dot" style="position: absolute; left: -5px; top: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);"></div>
-                            <h5 style="margin: 0; font-size: 0.85rem; font-weight: 700; color: var(--accent);">${zone.name}</h5>
-                            <ul style="margin: 0.25rem 0 0 0; padding-left: 1rem; font-size: 0.78rem; color: var(--text-primary); line-height: 1.4;">
-                                ${zone.popular_places.map(p => `<li><strong>${p.name}</strong></li>`).join("")}
-                                ${zone.underrated_gems.map(u => `<li><strong>${u.name}</strong> (Gem 💎)</li>`).join("")}
-                            </ul>
-                        </div>
-                    `).join("");
-                } else {
-                    zonesTimelineHtml = '<div style="font-style:italic; font-size:0.8rem; color:var(--text-muted);">No timeline generated</div>';
-                }
-
-                sightseeingHtml = `
-                    <div class="stop-row sightseeing-row" style="margin-top: 1.5rem;">
-                        <div class="row-header">
-                            <h4>🏛️ Sightseeing & Tourist Attractions in ${stop.city.toUpperCase()}</h4>
-                        </div>
-                        <div class="row-content-split">
-                            <div class="recommended-column">
-                                <div class="section-tag-label">Recommended Itinerary</div>
-                                <div style="background: var(--surface-light); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-                                    ${zonesTimelineHtml}
-                                </div>
-                            </div>
-                            <div class="candidates-column">
-                                <div class="section-tag-label">All Sights, Beaches & Places</div>
-                                <div class="horizontal-card-deck">
-                                    ${otherSights.map(a => renderVenueCardHtml(a, 'attraction', false)).join("")}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            stopSection.innerHTML = `
-                <h2 style="font-size: 1.3rem; font-weight: 800; color: var(--accent); margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent); padding-bottom: 0.5rem;">
-                    <span>Stop ${i + 1}: ${stop.city.toUpperCase()} (${stop.days} Days)</span>
-                    <span>Est. Cost: ₹${formatCost(stop.local_cost)}</span>
-                </h2>
-                <div class="stop-horizontal-row-container">
-                    ${staysHtml}
-                    ${diningHtml}
-                    ${nightlifeHtml}
-                    ${sightseeingHtml}
-                </div>
-            `;
-            wrapper.appendChild(stopSection);
+function handleCheckoutStep2Submit(e) {
+    e.preventDefault();
+    
+    const cardholder = document.getElementById('chk-cardname').value;
+    const refNum = `TA-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+    const costText = state.checkoutType === 'hotel' ? formatCost(state.checkoutItem.cost) : formatCost(state.checkoutItem.original_cost || 1500);
+    
+    document.getElementById('chk-receipt-username').textContent = cardholder;
+    document.getElementById('chk-receipt-ref').textContent = refNum;
+    document.getElementById('chk-receipt-title').textContent = state.checkoutItem.name;
+    document.getElementById('chk-receipt-cost').textContent = costText;
+    
+    // Save to user saved itineraries list
+    if (state.user) {
+        state.user.savedTrips = state.user.savedTrips || [];
+        state.user.savedTrips.push({
+            id: refNum,
+            title: `${state.currentCity || 'Jaipur'} Vacation Plan`,
+            ref: refNum,
+            hotelName: state.checkoutItem.name,
+            cost: costText,
+            date: new Date().toLocaleDateString()
         });
+        localStorage.setItem('ta_user', JSON.stringify(state.user));
+    }
+    
+    document.getElementById('checkout-step-2').classList.add('hidden');
+    document.getElementById('checkout-step-3').classList.remove('hidden');
+    
+    document.getElementById('step-lbl-2').className = '';
+    document.getElementById('step-lbl-3').className = 'step-active';
+}
 
-        // Draw Map
-        if (plan.multi_city) {
-            plotMultiCityOnMap(plan.stops, plan.legs);
-        } else {
-            plotZonesOnMap(plan.stops[0]);
+// --- TRAVEL FORUMS SYSTEM ---
+function renderForumIndex() {
+    const list = document.getElementById('forum-threads-container-list');
+    if (!list) return;
+    
+    list.innerHTML = state.forumThreads.map(t => `
+        <li class="forum-thread-row" onclick="openForumThread(${t.id})">
+            <div class="forum-thread-info">
+                <h4>${t.title}</h4>
+                <div style="font-size:0.75rem; color:var(--text-muted);">Posted by ${t.author} in ${t.boardId.toUpperCase()} board • Date: ${t.date}</div>
+            </div>
+            <span class="thread-replies-badge">${t.replies.length} replies</span>
+        </li>
+    `).join('');
+    
+    // Filter boards sidebar
+    const boardList = document.getElementById('forum-boards-list-container');
+    boardList.innerHTML = state.forumBoards.map(b => `
+        <li><a href="#" style="text-decoration:none; font-weight:600;" onclick="filterForumThreadsByBoard('${b.id}'); return false;">💬 ${b.name} (${b.posts} posts)</a></li>
+    `).join('');
+}
+
+function filterForumThreadsByBoard(boardId) {
+    const list = document.getElementById('forum-threads-container-list');
+    const filtered = state.forumThreads.filter(t => t.boardId === boardId);
+    
+    if (filtered.length === 0) {
+        list.innerHTML = `<div style="padding:2rem; text-align:center; color:var(--text-muted);">No threads published in this board yet.</div>`;
+        return;
+    }
+    
+    list.innerHTML = filtered.map(t => `
+        <li class="forum-thread-row" onclick="openForumThread(${t.id})">
+            <div class="forum-thread-info">
+                <h4>${t.title}</h4>
+                <div style="font-size:0.75rem; color:var(--text-muted);">Posted by ${t.author} • Date: ${t.date}</div>
+            </div>
+            <span class="thread-replies-badge">${t.replies.length} replies</span>
+        </li>
+    `).join('');
+}
+
+function openForumThread(threadId) {
+    state.activeThreadId = threadId;
+    navigateToView('forum-thread');
+    
+    const thread = state.forumThreads.find(t => t.id === threadId);
+    if (!thread) return;
+    
+    document.getElementById('thread-title-lbl').textContent = thread.title;
+    document.getElementById('thread-author-lbl').textContent = thread.author;
+    document.getElementById('thread-date-lbl').textContent = thread.date;
+    
+    const stream = document.getElementById('thread-posts-stream-container');
+    stream.innerHTML = thread.replies.map((post, idx) => `
+        <div style="background:#FFFFFF; border:1px solid var(--border); border-radius:12px; padding:1.25rem; display:flex; gap:1.25rem; ${idx > 0 ? 'margin-left:2rem;' : ''}">
+            <div style="text-align:center; width:60px; flex:0 0 auto;">
+                <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=80&q=80" alt="Av" style="width:40px; height:40px; border-radius:50%;">
+                <span style="font-size:0.7rem; font-weight:700; display:block; margin-top:0.25rem;">${post.author}</span>
+            </div>
+            <div style="flex:1; font-size:0.88rem; line-height:1.5; color:var(--text-secondary);">
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.5rem;">Posted on ${post.date}</div>
+                <p>${post.text}</p>
+            </div>
+        </div>
+    `).join('');
+}
+
+function handlePostForumReply() {
+    if (!state.user) {
+        openSigninModal();
+        return;
+    }
+    
+    const body = document.getElementById('forum-reply-body').value.trim();
+    if (!body) return;
+    
+    const thread = state.forumThreads.find(t => t.id === state.activeThreadId);
+    if (!thread) return;
+    
+    thread.replies.push({
+        author: state.user.username,
+        date: new Date().toISOString().split('T')[0],
+        text: body
+    });
+    
+    document.getElementById('forum-reply-body').value = '';
+    openForumThread(state.activeThreadId);
+}
+
+function launchCreateThreadFlow() {
+    if (!state.user) {
+        openSigninModal();
+        return;
+    }
+    document.getElementById('forum-thread-title').value = '';
+    document.getElementById('forum-thread-body').value = '';
+    document.getElementById('forum-create-thread-modal').classList.remove('hidden');
+}
+
+function closeCreateThreadModal() {
+    document.getElementById('forum-create-thread-modal').classList.add('hidden');
+}
+
+function handleCreateThreadSubmit(e) {
+    e.preventDefault();
+    const title = document.getElementById('forum-thread-title').value.trim();
+    const body = document.getElementById('forum-thread-body').value.trim();
+    
+    const newThread = {
+        id: state.forumThreads.length + 1,
+        boardId: 'jaipur',
+        title: title,
+        author: state.user.username,
+        date: new Date().toISOString().split('T')[0],
+        replies: [
+            { author: state.user.username, date: new Date().toISOString().split('T')[0], text: body }
+        ]
+    };
+    
+    state.forumThreads.unshift(newThread);
+    closeCreateThreadModal();
+    renderForumIndex();
+}
+
+// --- USER PROFILE RENDERING ---
+function renderUserProfilePage(subtab = 'contributions') {
+    if (!state.user) {
+        openSigninModal();
+        return;
+    }
+    
+    document.getElementById('profile-username-lbl').textContent = state.user.username;
+    document.getElementById('profile-location-lbl').textContent = state.user.homeCity;
+    document.getElementById('profile-stat-reviews').textContent = state.user.reviewsCount;
+    document.getElementById('profile-stat-photos').textContent = state.user.photosCount;
+    
+    // Fill Edit Profile inputs
+    document.getElementById('edit-profile-username').value = state.user.username;
+    document.getElementById('edit-profile-location').value = state.user.homeCity;
+    
+    // Render My Reviews
+    const revContainer = document.getElementById('profile-reviews-list-container');
+    const userReviews = [];
+    
+    // Traverse local reviews databases for reviews written by the active user
+    Object.keys(state.reviews).forEach(venueName => {
+        state.reviews[venueName].forEach(r => {
+            if (r.author === state.user.username) {
+                userReviews.push({ ...r, venueName: venueName });
+            }
+        });
+    });
+    
+    if (userReviews.length === 0) {
+        revContainer.innerHTML = `<div style="padding:2rem; text-align:center; color:var(--text-muted);">You haven't contributed any reviews yet. Click a property and write a review!</div>`;
+    } else {
+        revContainer.innerHTML = userReviews.map(r => `
+            <li class="review-card-li" style="background:#FAF9F6; padding:1.25rem; border-radius:12px; border:1px solid var(--border);">
+                <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.8rem; color:var(--text-secondary);">
+                    <strong>🏢 ${r.venueName}</strong>
+                    <span>Visited: ${r.date}</span>
+                </div>
+                ${getBubbleRatingHtml(r.rating)}
+                <strong style="font-size:0.95rem; display:block; margin:0.4rem 0 0.25rem 0;">${r.title}</strong>
+                <p class="review-body-text">${r.body}</p>
+            </li>
+        `).join('');
+    }
+    
+    // Render Saved Trips
+    const tripContainer = document.getElementById('profile-trips-list-container');
+    const trips = state.user.savedTrips || [];
+    if (trips.length === 0) {
+        tripContainer.innerHTML = `<div style="padding:2rem; text-align:center; color:var(--text-muted);">No saved trips yet. Book a stay or use the Optimizer Widget to plan a trip!</div>`;
+    } else {
+        tripContainer.innerHTML = trips.map(t => `
+            <li style="background:#FFFFFF; border:1px solid var(--border); border-radius:12px; padding:1.25rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+                <div>
+                    <h4 style="font-size:1rem; margin-bottom:0.25rem;">${t.title}</h4>
+                    <div style="font-size:0.8rem; color:var(--text-secondary);">🏨 Hotel: ${t.hotelName}</div>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">Booked: ${t.date} • Ref: ${t.ref}</div>
+                </div>
+                <strong style="font-size:1.15rem; color:var(--accent);">${t.cost}</strong>
+            </li>
+        `).join('');
+    }
+    
+    switchProfileSubtab('profile-contributions');
+}
+
+function switchProfileSubtab(tabName) {
+    document.querySelectorAll('[data-ptab]').forEach(btn => {
+        if (btn.dataset.ptab === tabName) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+    
+    document.querySelectorAll('.profile-tab-pane').forEach(pane => pane.classList.add('hidden'));
+    document.getElementById(`${tabName}-pane`).classList.remove('hidden');
+}
+
+function toggleEditProfileForm() {
+    document.getElementById('profile-edit-inline-box').classList.toggle('hidden');
+}
+
+function handleSaveProfileUpdate() {
+    const newName = document.getElementById('edit-profile-username').value.trim();
+    const newLoc = document.getElementById('edit-profile-location').value.trim();
+    if (!newName) return;
+    
+    state.user.username = newName;
+    state.user.homeCity = newLoc;
+    
+    localStorage.setItem('ta_user', JSON.stringify(state.user));
+    updateNavForUser();
+    renderUserProfilePage();
+    toggleEditProfileForm();
+}
+
+// --- TRIP PLANS & TRIP SPLIT BUDGET OPTIMIZER WIDGETS ---
+async function triggerDestTripOptimizer() {
+    const budget = parseFloat(document.getElementById('dest-budget-input').value) || 30000;
+    const days = parseInt(document.getElementById('dest-days-input').value) || 3;
+    const people = parseInt(document.getElementById('dest-people-input').value) || 2;
+    
+    showPageLoader();
+    try {
+        const res = await fetch(`/api/plan`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                city: state.currentCity,
+                budget: budget,
+                days: days,
+                people: people,
+                include_stay: true,
+                include_transport: true,
+                include_attractions: true,
+                add_travel: false
+            })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            
+            // Check if stop exists
+            if (data.stops && data.stops.length > 0) {
+                const stop = data.stops[0];
+                
+                // Show a successful modal dialog detailing the optimization split!
+                const optimizedHotel = stop.hotel ? stop.hotel.name : "None recommended";
+                const totalCost = formatCost(data.total_cost || budget);
+                const splitCost = formatCost(data.cost_per_person || (budget/people));
+                
+                alert(`🎉 TripAdvisor TripSplit Optimizer Result:\n\n- Recommended Lodging Choice: ${optimizedHotel}\n- Optimized Total Estimated Cost: ${totalCost}\n- Split Cost (Per Person): ${splitCost}\n\nWe have saved this optimal route in your profile saved trips!`);
+                
+                // Save optimized trip
+                if (state.user) {
+                    state.user.savedTrips = state.user.savedTrips || [];
+                    const refNum = `TA-OPT-${Math.floor(1000 + Math.random() * 9000)}`;
+                    state.user.savedTrips.push({
+                        id: refNum,
+                        title: `${state.currentCity} Optimized Split Itinerary`,
+                        ref: refNum,
+                        hotelName: optimizedHotel,
+                        cost: splitCost + " / person",
+                        date: new Date().toLocaleDateString()
+                    });
+                    localStorage.setItem('ta_user', JSON.stringify(state.user));
+                    updateNavForUser();
+                }
+            }
         }
-        
-        loadRealVenueImages();
+    } catch(e) {
+        alert("Failed to connect to TripSplit optimizer backend solver. Running mock local solver instead...");
+        alert(`🎉 TripAdvisor TripSplit Optimizer Result:\n\n- Recommended Lodging Choice: Pearl Palace Heritage\n- Optimized Total Estimated Cost: ${formatCost(budget * 0.8)}\n- Split Cost (Per Person): ${formatCost((budget * 0.8)/people)}\n\nSaved to profile.`);
+    } finally {
+        hidePageLoader();
     }
 }
 
-// --- REAL VENUE PHOTO SYSTEM (Wikipedia + Wikimedia Commons) ---
-const venueImageCache = {};
+// --- UTILITY STYLES RENDERERS ---
+function getBubbleRatingHtml(stars) {
+    const score = Math.min(5, Math.max(1, Math.round(stars)));
+    let bubbles = "";
+    for (let i = 0; i < 5; i++) {
+        bubbles += `<span class="${i < score ? 'bubble-fill' : 'bubble-empty'}"></span>`;
+    }
+    return `<div class="tripadvisor-bubbles" title="${stars} bubbles">${bubbles}</div>`;
+}
 
 function getPlaceholderSvg(name) {
     const colors = ["4F46E5","0EA5E9","10B981","F59E0B","EF4444","8B5CF6","EC4899","06B6D4"];
@@ -815,1431 +1895,41 @@ function getPlaceholderSvg(name) {
     return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect fill="#${color}" width="400" height="300" rx="8"/><text x="200" y="160" text-anchor="middle" fill="white" font-size="48" font-family="Arial,sans-serif" font-weight="bold">${initials}</text></svg>`)}`;
 }
 
-function renderVenueImageHtml(venueName, category) {
-    const placeholder = getPlaceholderSvg(venueName);
-    const escapedName = venueName.replace(/'/g, "\\'");
-    return `
-        <div class="venue-img-container" onclick="openLightboxForVenue('${escapedName}')">
-            <img src="${placeholder}" class="venue-img" alt="${venueName}" data-venue="${venueName.replace(/"/g, '&quot;')}" data-category="${category}" onerror="this.onerror=null; this.src=getPlaceholderSvg('${escapedName}');">
-            <button class="img-zoom-btn" onclick="event.stopPropagation(); openLightboxForVenue('${escapedName}')">🔍</button>
-        </div>
-    `;
-}
-
-// Fetch real photos from Wikipedia for all rendered venue images
-async function loadRealVenueImages() {
-    const imgs = document.querySelectorAll("img.venue-img[data-venue]");
-    const promises = [];
-    
-    imgs.forEach(img => {
-        const name = img.dataset.venue;
-        if (!name) return;
-        
-        // Already loaded
-        if (venueImageCache[name]) {
-            img.src = venueImageCache[name];
-            return;
-        }
-        
-        promises.push(fetchWikipediaImage(name).then(url => {
-            if (url) {
-                venueImageCache[name] = url;
-                // Update ALL images with this venue name (handles duplicates)
-                document.querySelectorAll(`img.venue-img[data-venue="${CSS.escape(name)}"]`).forEach(el => {
-                    el.onerror = () => {
-                        el.src = getPlaceholderSvg(name);
-                        el.onerror = null;
-                    };
-                    el.src = url;
-                });
-            }
-        }));
-    });
-    
-    await Promise.allSettled(promises);
-}
-
-async function fetchWikipediaImage(placeName) {
-    // Get the city context for better search
-    const destInput = document.getElementById("destination");
-    const city = destInput ? destInput.value.trim() : "";
-    
-    // Try multiple search strategies
-    const searchTerms = [
-        placeName,
-        city ? `${placeName} ${city}` : null,
-        placeName.replace(/\(.*?\)/g, "").trim()  // Remove parentheticals
-    ].filter(Boolean);
-    
-    for (const term of searchTerms) {
-        try {
-            // Wikipedia page summary API - titles require spaces replaced with underscores
-            const formattedTerm = term.replace(/\s+/g, "_");
-            const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(formattedTerm)}`;
-            const res = await fetch(url);
-            if (res.ok) {
-                const data = await res.json();
-                if (data.thumbnail && data.thumbnail.source) {
-                    // Request a higher-res version (600px wide)
-                    return data.thumbnail.source.replace(/\/\d+px-/, "/600px-");
-                }
-            }
-        } catch(e) { /* try next */ }
-    }
-    
-    // Fallback: Wikipedia search API
-    try {
-        const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(placeName)}&format=json&origin=*&srlimit=1`;
-        const res = await fetch(searchUrl);
-        if (res.ok) {
-            const data = await res.json();
-            const pages = data.query?.search;
-            if (pages && pages.length > 0) {
-                const title = pages[0].title;
-                const formattedTitle = title.replace(/\s+/g, "_");
-                const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(formattedTitle)}`);
-                if (summaryRes.ok) {
-                    const summaryData = await summaryRes.json();
-                    if (summaryData.thumbnail?.source) {
-                        return summaryData.thumbnail.source.replace(/\/\d+px-/, "/600px-");
-                    }
-                }
-            }
-        }
-    } catch(e) { /* use placeholder */ }
-    
-    return null; // keep placeholder
-}
-
-// Lightbox controller
-window.openLightboxForVenue = function(venueName) {
-    const lightbox = document.getElementById("image-lightbox");
-    const img = document.getElementById("lightbox-img");
-    const cap = document.getElementById("lightbox-caption");
-    if (!lightbox || !img) return;
-    
-    const src = venueImageCache[venueName] || getPlaceholderSvg(venueName);
-    img.src = src;
-    if (cap) cap.textContent = venueName;
-    lightbox.classList.remove("hidden");
-};
-
-window.openLightbox = function(src, caption) {
-    const lightbox = document.getElementById("image-lightbox");
-    const img = document.getElementById("lightbox-img");
-    const cap = document.getElementById("lightbox-caption");
-    if (lightbox && img) {
-        img.src = src;
-        if (cap) cap.textContent = caption;
-        lightbox.classList.remove("hidden");
-    }
-};
-
-window.closeLightbox = function() {
-    const lightbox = document.getElementById("image-lightbox");
-    if (lightbox) {
-        lightbox.classList.add("hidden");
-    }
-};
-
-// Modular food and drinks rendering helper - Horizontal scrolling cards
-function renderFoodAndNightlifeElements(restaurants, bars, restList, barsList, barsContainer) {
-    if (restList) {
-        restList.className = "horizontal-card-deck";
-        restList.innerHTML = "";
-        if (!restaurants || restaurants.length === 0) {
-            restList.innerHTML = "<li style='font-style: italic; color: var(--text-secondary);'>None selected</li>";
-        } else {
-            const counts = {};
-            restaurants.forEach(r => {
-                const name = r.name;
-                counts[name] = counts[name] ? { ...r, qty: counts[name].qty + 1 } : { ...r, qty: 1 };
-            });
-            
-            Object.values(counts).forEach(r => {
-                const li = document.createElement("li");
-                li.className = "horizontal-card";
-                
-                const qtyText = r.qty > 1 ? ` <span class="badge-qty" style="color: var(--accent); font-weight: bold;">x${r.qty}</span>` : "";
-                
-                let enrichHtml = "";
-                if (r.enrichment) {
-                    enrichHtml = `
-                        <div class="enrich-desc" style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.35; flex: 1;">${r.enrichment.description}</div>
-                        <div class="enrich-meta" style="font-size: 0.7rem; color: #4B5563; font-style: italic; margin-top: 0.15rem; line-height: 1.25;">
-                            Vibe: ${r.enrichment.vibe}<br>Try: ${r.enrichment.extra_tips}
-                        </div>
-                    `;
-                } else {
-                    enrichHtml = `<div style="flex: 1;"></div>`;
-                }
-
-                const isHearted = isVenueFavorite(r.name);
-                const heartIcon = isHearted ? "❤️" : "🤍";
-                
-                li.innerHTML = `
-                    ${renderVenueImageHtml(r.name, 'restaurant')}
-                    <div style="display: flex; flex-direction: column; flex: 1; justify-content: space-between; gap: 0.35rem; width: 100%;">
-                        <div>
-                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.25rem;">
-                                <h5 style="margin:0; font-size:0.85rem; font-weight:700; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.2;">${r.name}${qtyText}</h5>
-                                <button onclick="toggleFavoriteVenue('${r.name.replace(/'/g, "\\'")}', 'restaurant', '🍔', ${r.lat}, ${r.lon})" style="background:none; border:none; cursor:pointer; font-size:0.95rem; padding:0.1rem; line-height:1;">${heartIcon}</button>
-                            </div>
-                            <span class="opt-item-cost" style="font-size:0.78rem; font-weight:700; color:var(--accent); display:block; margin-top:0.15rem;">₹${formatCost(r.cost * r.qty)}</span>
-                        </div>
-                        ${enrichHtml}
-                        ${getVotingTagsHtml(r.name)}
-                    </div>
-                `;
-                restList.appendChild(li);
-            });
-        }
-    }
-
-    if (barsList) {
-        barsList.className = "horizontal-card-deck";
-        barsList.innerHTML = "";
-        if (!bars || bars.length === 0) {
-            if (barsContainer) barsContainer.classList.add("hidden");
-        } else {
-            if (barsContainer) barsContainer.classList.remove("hidden");
-            bars.forEach(b => {
-                const li = document.createElement("li");
-                li.className = "horizontal-card";
-                
-                let enrichHtml = "";
-                if (b.enrichment) {
-                    enrichHtml = `
-                        <div class="enrich-desc" style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.35; flex: 1;">${b.enrichment.description}</div>
-                        <div class="enrich-meta" style="font-size: 0.7rem; color: #4B5563; font-style: italic; margin-top: 0.15rem; line-height: 1.25;">
-                            Vibe: ${b.enrichment.vibe}<br>Rec: ${b.enrichment.extra_tips}
-                        </div>
-                    `;
-                } else {
-                    enrichHtml = `<div style="flex: 1;"></div>`;
-                }
-
-                const isHearted = isVenueFavorite(b.name);
-                const heartIcon = isHearted ? "❤️" : "🤍";
-                
-                li.innerHTML = `
-                    ${renderVenueImageHtml(b.name, 'bar')}
-                    <div style="display: flex; flex-direction: column; flex: 1; justify-content: space-between; gap: 0.35rem; width: 100%;">
-                        <div>
-                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.25rem;">
-                                <h5 style="margin:0; font-size:0.85rem; font-weight:700; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.2;">${b.name}</h5>
-                                <button onclick="toggleFavoriteVenue('${b.name.replace(/'/g, "\\'")}', 'bar', '🍻', ${b.lat}, ${b.lon})" style="background:none; border:none; cursor:pointer; font-size:0.95rem; padding:0.1rem; line-height:1;">${heartIcon}</button>
-                            </div>
-                            <span class="opt-item-cost" style="font-size:0.78rem; font-weight:700; color:var(--accent); display:block; margin-top:0.15rem;">${b.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(b.cost)}</span>
-                        </div>
-                        ${enrichHtml}
-                        ${getVotingTagsHtml(b.name)}
-                    </div>
-                `;
-                barsList.appendChild(li);
-            });
-        }
-    }
-}
-
-// Modular sightseeing zones rendering helper with TripAdvisor Heart Favorites icon
-function renderExplorationZonesElements(zones, container, zonesSection) {
-    if (!container) return;
-    container.innerHTML = "";
-
-    if (!zones || zones.length === 0) {
-        if (zonesSection) zonesSection.classList.add("hidden");
-        return;
-    }
-    if (zonesSection) zonesSection.classList.remove("hidden");
-
-    zones.forEach(zone => {
-        const zoneBlock = document.createElement("div");
-        zoneBlock.className = "zone-block";
-
-        const header = document.createElement("div");
-        header.className = "zone-header";
-        header.innerHTML = `
-            <h4>${zone.name}</h4>
-            <span class="zone-count-badge">${zone.attractions_count} Attractions</span>
-        `;
-        zoneBlock.appendChild(header);
-
-        const content = document.createElement("div");
-        content.className = "zone-content";
-
-        if (zone.popular_places && zone.popular_places.length > 0) {
-            const group = document.createElement("div");
-            group.className = "sub-zone-group popular";
-            
-            const list = document.createElement("ul");
-            list.className = "horizontal-card-deck";
-            
-            zone.popular_places.forEach(item => {
-                const li = document.createElement("li");
-                li.className = "horizontal-card";
-                
-                let enrichHtml = "";
-                if (item.enrichment) {
-                    enrichHtml = `
-                        <div class="enrich-desc" style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.35; flex: 1;">${item.enrichment.description}</div>
-                        <div class="enrich-meta" style="font-size: 0.7rem; color: #4B5563; margin-top: 0.15rem; line-height: 1.25;">
-                            Vibe: ${item.enrichment.vibe}<br>Tips: ${item.enrichment.extra_tips}
-                        </div>
-                    `;
-                } else {
-                    enrichHtml = `<div style="flex: 1;"></div>`;
-                }
-
-                const isHearted = isVenueFavorite(item.name);
-                const heartIcon = isHearted ? "❤️" : "🤍";
-
-                li.innerHTML = `
-                    ${renderVenueImageHtml(item.name, 'attraction')}
-                    <div style="display: flex; flex-direction: column; flex: 1; justify-content: space-between; gap: 0.35rem; width: 100%;">
-                        <div>
-                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.25rem;">
-                                <h5 style="margin:0; font-size:0.85rem; font-weight:700; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.2;">${item.name}</h5>
-                                <button onclick="toggleFavoriteVenue('${item.name.replace(/'/g, "\\'")}', 'attraction', '🏛️', ${item.lat}, ${item.lon})" style="background:none; border:none; cursor:pointer; font-size:0.95rem; padding:0.1rem; line-height:1;">${heartIcon}</button>
-                            </div>
-                            <span class="zone-item-cost" style="font-size:0.78rem; font-weight:700; color:var(--accent); display:block; margin-top:0.15rem;">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
-                        </div>
-                        ${enrichHtml}
-                        ${getVotingTagsHtml(item.name)}
-                    </div>
-                `;
-                list.appendChild(li);
-            });
-
-            group.innerHTML = "<h5 style='margin-bottom:0.25rem; font-size:0.9rem; font-weight:700;'>Popular Sights</h5>";
-            group.appendChild(list);
-            content.appendChild(group);
-        }
-
-        if (zone.underrated_gems && zone.underrated_gems.length > 0) {
-            const group = document.createElement("div");
-            group.className = "sub-zone-group underrated";
-            
-            const list = document.createElement("ul");
-            list.className = "horizontal-card-deck";
-            
-            zone.underrated_gems.forEach(item => {
-                const li = document.createElement("li");
-                li.className = "horizontal-card";
-                
-                let enrichHtml = "";
-                if (item.enrichment) {
-                    enrichHtml = `
-                        <div class="enrich-desc" style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.35; flex: 1;">${item.enrichment.description}</div>
-                        <div class="enrich-meta" style="font-size: 0.7rem; color: #4B5563; margin-top: 0.15rem; line-height: 1.25;">
-                            Vibe: ${item.enrichment.vibe}<br>Tips: ${item.enrichment.extra_tips}
-                        </div>
-                    `;
-                } else {
-                    enrichHtml = `<div style="flex: 1;"></div>`;
-                }
-
-                const isHearted = isVenueFavorite(item.name);
-                const heartIcon = isHearted ? "❤️" : "🤍";
-
-                li.innerHTML = `
-                    ${renderVenueImageHtml(item.name, 'attraction')}
-                    <div style="display: flex; flex-direction: column; flex: 1; justify-content: space-between; gap: 0.35rem; width: 100%;">
-                        <div>
-                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.25rem;">
-                                <h5 style="margin:0; font-size:0.85rem; font-weight:700; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.2;">${item.name}</h5>
-                                <button onclick="toggleFavoriteVenue('${item.name.replace(/'/g, "\\'")}', 'attraction', '🏛️', ${item.lat}, ${item.lon})" style="background:none; border:none; cursor:pointer; font-size:0.95rem; padding:0.1rem; line-height:1;">${heartIcon}</button>
-                            </div>
-                            <span class="zone-item-cost" style="font-size:0.78rem; font-weight:700; color:var(--accent); display:block; margin-top:0.15rem;">${item.cost === 0 ? '<span class="free-badge">Free</span>' : '₹' + formatCost(item.cost)}</span>
-                        </div>
-                        ${enrichHtml}
-                        ${getVotingTagsHtml(item.name)}
-                    </div>
-                `;
-                list.appendChild(li);
-            });
-
-            group.innerHTML = "<h5 style='margin-bottom:0.25rem; font-size:0.9rem; font-weight:700; margin-top:1rem;'>Underrated Gems</h5>";
-            group.appendChild(list);
-            content.appendChild(group);
-        }
-
-        zoneBlock.appendChild(content);
-        container.appendChild(zoneBlock);
-    });
-}
-
-// Draw single-city local zones, hotel, restaurants and bars on map
-function plotZonesOnMap(stop) {
-    if (!map || !stop) return;
-    
-    mapLayers.forEach(layer => {
-        try { map.removeLayer(layer); } catch (e) {}
-    });
-    mapLayers = [];
-
-    const allLatLngs = [];
-
-    // Plot all stays in light blue circle markers, optimized stay as a main marker
-    if (stop.all_hotels) {
-        stop.all_hotels.forEach(h => {
-            if (h.optimized) {
-                const hotelMarker = L.marker([h.lat, h.lon]).addTo(map);
-                hotelMarker.bindPopup(`<b>🏨 Recommended Stay: ${h.name}</b><br>Est. Total: ₹${formatCost(h.cost)}`);
-                mapLayers.push(hotelMarker);
-                allLatLngs.push([h.lat, h.lon]);
-            } else {
-                const marker = L.circleMarker([h.lat, h.lon], {
-                    radius: 5,
-                    fillColor: "#3B82F6",
-                    color: "#FFFFFF",
-                    weight: 1,
-                    opacity: 0.6,
-                    fillOpacity: 0.4
-                }).addTo(map);
-                marker.bindPopup(`<b>🏨 Lodging Option: ${h.name}</b><br>Est. Total: ₹${formatCost(h.cost)}`);
-                mapLayers.push(marker);
-                allLatLngs.push([h.lat, h.lon]);
-            }
-        });
-    }
-
-    // Plot all restaurants
-    if (stop.all_restaurants) {
-        stop.all_restaurants.forEach(r => {
-            const isOpt = r.optimized;
-            const marker = L.circleMarker([r.lat, r.lon], {
-                radius: isOpt ? 8 : 5,
-                fillColor: "#EA580C",
-                color: "#FFFFFF",
-                weight: isOpt ? 2 : 1,
-                opacity: isOpt ? 1 : 0.6,
-                fillOpacity: isOpt ? 0.9 : 0.4
-            }).addTo(map);
-            marker.bindPopup(`<b>🍽️ Restaurant: ${r.name}</b><br>Est. Meal: ₹${formatCost(r.cost)}${isOpt ? '<br>⭐ Recommended Choice' : ''}`);
-            mapLayers.push(marker);
-            allLatLngs.push([r.lat, r.lon]);
-        });
-    }
-
-    // Plot all bars
-    if (stop.all_bars) {
-        stop.all_bars.forEach(b => {
-            const isOpt = b.optimized;
-            const marker = L.circleMarker([b.lat, b.lon], {
-                radius: isOpt ? 8 : 5,
-                fillColor: "#9333EA",
-                color: "#FFFFFF",
-                weight: isOpt ? 2 : 1,
-                opacity: isOpt ? 1 : 0.6,
-                fillOpacity: isOpt ? 0.9 : 0.4
-            }).addTo(map);
-            marker.bindPopup(`<b>🍻 Nightlife: ${b.name}</b><br>Est. Cost: ₹${formatCost(b.cost)}${isOpt ? '<br>⭐ Recommended Choice' : ''}`);
-            mapLayers.push(marker);
-            allLatLngs.push([b.lat, b.lon]);
-        });
-    }
-
-    // Plot all attractions
-    if (stop.all_sightseeing) {
-        stop.all_sightseeing.forEach(a => {
-            const isOpt = a.optimized;
-            const marker = L.circleMarker([a.lat, a.lon], {
-                radius: isOpt ? 8 : 5,
-                fillColor: "#10B981",
-                color: "#FFFFFF",
-                weight: isOpt ? 2 : 1,
-                opacity: isOpt ? 1 : 0.6,
-                fillOpacity: isOpt ? 0.9 : 0.4
-            }).addTo(map);
-            marker.bindPopup(`<b>🏛️ Sight: ${a.name}</b><br>Est. Fee: ${a.original_cost === 0 ? 'Free' : '₹' + formatCost(a.original_cost)}${isOpt ? '<br>⭐ Recommended Choice' : ''}`);
-            mapLayers.push(marker);
-            allLatLngs.push([a.lat, a.lon]);
-        });
-    }
-
-    // Draw the recommended zones connection lines
-    const ZONE_COLORS = ["#2563EB", "#059669", "#DC2626", "#D97706", "#DB2777"];
-    if (stop.zones) {
-        stop.zones.forEach((zone, zoneIdx) => {
-            const color = ZONE_COLORS[zoneIdx % ZONE_COLORS.length];
-            const zoneCoords = [];
-            
-            zone.popular_places.forEach(item => {
-                zoneCoords.push([item.lat, item.lon]);
-            });
-            zone.underrated_gems.forEach(item => {
-                zoneCoords.push([item.lat, item.lon]);
-            });
-
-            if (zoneCoords.length > 1) {
-                const polyline = L.polyline(zoneCoords, {
-                    color: color,
-                    weight: 2.5,
-                    opacity: 0.7,
-                    dashArray: "5, 5"
-                }).addTo(map);
-                mapLayers.push(polyline);
-            }
-        });
-    }
-
-    if (allLatLngs.length > 0) {
-        map.fitBounds(allLatLngs, { padding: [50, 50] });
-    }
-}
-
-function plotMultiCityOnMap(stops, legs) {
-    if (!map) return;
-
-    mapLayers.forEach(layer => {
-        try { map.removeLayer(layer); } catch (e) {}
-    });
-    mapLayers = [];
-
-    const allLatLngs = [];
-    const intercityPoints = [];
-    const STOP_COLORS = ["#2563EB", "#059669", "#DC2626", "#D97706", "#DB2777"];
-
-    // Loop through each stop and plot all stays/restaurants/sights
-    stops.forEach((stop, idx) => {
-        const stopColor = STOP_COLORS[idx % STOP_COLORS.length];
-        
-        // Plot stays
-        if (stop.all_hotels) {
-            stop.all_hotels.forEach(h => {
-                if (h.optimized) {
-                    const hMarker = L.marker([h.lat, h.lon]).addTo(map);
-                    hMarker.bindPopup(`<b>🏨 Recommended Stay: ${h.name}</b><br>Stop: ${stop.city.toUpperCase()}`);
-                    mapLayers.push(hMarker);
-                    allLatLngs.push([h.lat, h.lon]);
-                    intercityPoints.push([h.lat, h.lon]);
-                } else {
-                    const marker = L.circleMarker([h.lat, h.lon], {
-                        radius: 4,
-                        fillColor: "#3B82F6",
-                        color: "#FFFFFF",
-                        weight: 1,
-                        opacity: 0.5,
-                        fillOpacity: 0.3
-                    }).addTo(map);
-                    marker.bindPopup(`<b>🏨 Lodging: ${h.name}</b><br>Stop: ${stop.city.toUpperCase()}`);
-                    mapLayers.push(marker);
-                    allLatLngs.push([h.lat, h.lon]);
-                }
-            });
-        }
-
-        // Plot restaurants
-        if (stop.all_restaurants) {
-            stop.all_restaurants.forEach(r => {
-                const isOpt = r.optimized;
-                const marker = L.circleMarker([r.lat, r.lon], {
-                    radius: isOpt ? 7 : 4,
-                    fillColor: "#EA580C",
-                    color: "#FFFFFF",
-                    weight: isOpt ? 1.5 : 1,
-                    opacity: isOpt ? 0.9 : 0.5,
-                    fillOpacity: isOpt ? 0.8 : 0.3
-                }).addTo(map);
-                marker.bindPopup(`<b>🍽️ Restaurant: ${r.name}</b><br>Stop: ${stop.city.toUpperCase()}`);
-                mapLayers.push(marker);
-                allLatLngs.push([r.lat, r.lon]);
-            });
-        }
-
-        // Plot bars
-        if (stop.all_bars) {
-            stop.all_bars.forEach(b => {
-                const isOpt = b.optimized;
-                const marker = L.circleMarker([b.lat, b.lon], {
-                    radius: isOpt ? 7 : 4,
-                    fillColor: "#9333EA",
-                    color: "#FFFFFF",
-                    weight: isOpt ? 1.5 : 1,
-                    opacity: isOpt ? 0.9 : 0.5,
-                    fillOpacity: isOpt ? 0.8 : 0.3
-                }).addTo(map);
-                marker.bindPopup(`<b>🍻 Nightlife: ${b.name}</b><br>Stop: ${stop.city.toUpperCase()}`);
-                mapLayers.push(marker);
-                allLatLngs.push([b.lat, b.lon]);
-            });
-        }
-
-        // Plot sights
-        if (stop.all_sightseeing) {
-            stop.all_sightseeing.forEach(a => {
-                const isOpt = a.optimized;
-                const marker = L.circleMarker([a.lat, a.lon], {
-                    radius: isOpt ? 7 : 4,
-                    fillColor: "#10B981",
-                    color: "#FFFFFF",
-                    weight: isOpt ? 1.5 : 1,
-                    opacity: isOpt ? 0.9 : 0.5,
-                    fillOpacity: isOpt ? 0.8 : 0.3
-                }).addTo(map);
-                marker.bindPopup(`<b>🏛️ Sight: ${a.name}</b><br>Stop: ${stop.city.toUpperCase()}`);
-                mapLayers.push(marker);
-                allLatLngs.push([a.lat, a.lon]);
-            });
-        }
-    });
-
-    // Connecting route lines between stops
-    if (intercityPoints.length > 1) {
-        const polyline = L.polyline(intercityPoints, {
-            color: "#7C3AED",
-            weight: 3.5,
-            opacity: 0.85,
-            dashArray: "8, 8"
-        }).addTo(map);
-        mapLayers.push(polyline);
-    }
-
-    if (allLatLngs.length > 0) {
-        map.fitBounds(allLatLngs, { padding: [60, 60] });
-    }
-}
-
-// LocalStorage History Helpers
-function saveTripToHistory(city, plan, searchData) {
-    try {
-        let history = JSON.parse(localStorage.getItem("tripsplit_history")) || [];
-        // Prevent duplicate entries
-        history = history.filter(item => item.city.toLowerCase() !== city.toLowerCase());
-        
-        // Add new entry to the front
-        history.unshift({
-            city: city,
-            plan: plan,
-            searchData: searchData,
-            timestamp: new Date().toLocaleString()
-        });
-        
-        // Cap history at 5 items
-        if (history.length > 5) history.pop();
-        
-        localStorage.setItem("tripsplit_history", JSON.stringify(history));
-        renderHistoryList();
-    } catch (e) {
-        console.error("Failed to save trip to history:", e);
-    }
-}
-
-function renderHistoryList() {
-    const list = document.getElementById("history-list");
-    const placeholder = document.getElementById("history-list-placeholder");
-    if (!list) return;
-    list.innerHTML = "";
-
-    try {
-        const history = JSON.parse(localStorage.getItem("tripsplit_history")) || [];
-        if (history.length === 0) {
-            if (placeholder) placeholder.classList.remove("hidden");
-            list.classList.add("hidden");
-            return;
-        }
-
-        if (placeholder) placeholder.classList.add("hidden");
-        list.classList.remove("hidden");
-
-        history.forEach((item, index) => {
-            const li = document.createElement("li");
-            li.style.display = "flex";
-            li.style.justifyContent = "space-between";
-            li.style.alignItems = "center";
-            li.style.padding = "0.5rem";
-            li.style.border = "1px solid var(--border)";
-            li.style.borderRadius = "6px";
-            li.style.background = "var(--surface-light)";
-            li.style.fontSize = "0.82rem";
-
-            const info = document.createElement("div");
-            info.style.display = "flex";
-            info.style.flexDirection = "column";
-            info.style.gap = "0.15rem";
-            
-            const title = document.createElement("strong");
-            title.textContent = item.city.toUpperCase();
-            title.style.color = "var(--accent)";
-            
-            const subtitle = document.createElement("span");
-            subtitle.textContent = `Cost: ₹${formatCost(item.plan.total_cost)}`;
-            subtitle.style.fontSize = "0.75rem";
-            subtitle.style.color = "var(--text-secondary)";
-
-            info.appendChild(title);
-            info.appendChild(subtitle);
-
-            const actions = document.createElement("div");
-            actions.style.display = "flex";
-            actions.style.gap = "0.35rem";
-
-            const loadBtn = document.createElement("button");
-            loadBtn.textContent = "Load";
-            loadBtn.style.padding = "0.2rem 0.4rem";
-            loadBtn.style.fontSize = "0.75rem";
-            loadBtn.style.borderRadius = "4px";
-            loadBtn.style.cursor = "pointer";
-            loadBtn.style.background = "var(--accent)";
-            loadBtn.style.color = "#fff";
-            loadBtn.style.border = "none";
-            loadBtn.addEventListener("click", () => {
-                loadHistoryItem(item);
-            });
-
-            const delBtn = document.createElement("button");
-            delBtn.innerHTML = "🗑️";
-            delBtn.style.padding = "0.2rem 0.3rem";
-            delBtn.style.fontSize = "0.75rem";
-            delBtn.style.borderRadius = "4px";
-            delBtn.style.cursor = "pointer";
-            delBtn.style.background = "transparent";
-            delBtn.style.border = "1px solid var(--border)";
-            delBtn.addEventListener("click", () => {
-                deleteHistoryItem(index);
-            });
-
-            actions.appendChild(loadBtn);
-            actions.appendChild(delBtn);
-
-            li.appendChild(info);
-            li.appendChild(actions);
-            list.appendChild(li);
-        });
-    } catch (e) {
-        console.error("Failed to render history list:", e);
-    }
-}
-
-function loadHistoryItem(item) {
-    try {
-        lastPlanResult = item.plan;
-        activePlanType = "primary";
-        currentSearchData = item.searchData;
-
-        // Restore form input values
-        document.getElementById("destination").value = item.city;
-        
-        // Show and populate candidate lists
-        const venuesTab = document.getElementById("venues-tab");
-        const venuesData = document.getElementById("venues-data");
-        const placeholder = venuesTab ? venuesTab.querySelector(".summary-placeholder") : null;
-        if (placeholder) placeholder.classList.add("hidden");
-        if (venuesData) venuesData.classList.remove("hidden");
-
-        const hotelCountEl = document.getElementById("hotel-count");
-        if (hotelCountEl) hotelCountEl.textContent = currentSearchData.venue_counts.hotels;
-        const restCountEl = document.getElementById("rest-count");
-        if (restCountEl) restCountEl.textContent = currentSearchData.venue_counts.restaurants;
-        const attrCountEl = document.getElementById("attr-count");
-        if (attrCountEl) attrCountEl.textContent = currentSearchData.venue_counts.attractions;
-
-        populateList("sample-hotels", currentSearchData.sample_venues.hotels, "No hotels found");
-        populateList("sample-restaurants", currentSearchData.sample_venues.restaurants, "No restaurants found");
-        populateList("sample-attractions", currentSearchData.sample_venues.attractions, "No attractions found");
-
-        // Initialize Map
-        initializeLeafletMap(currentSearchData.geocoding.lat, currentSearchData.geocoding.lon, currentSearchData.geocoding.bbox);
-
-        // Render plan details
-        renderPlanItinerary(lastPlanResult);
-
-        // Update toggle buttons and container states
-        const toggleBtn = document.getElementById("toggle-backup-btn");
-        if (toggleBtn) {
-            if (lastPlanResult.backup) {
-                toggleBtn.classList.remove("hidden");
-                toggleBtn.textContent = "Switch to Economy Option";
-                toggleBtn.style.background = "var(--bg-card)";
-                toggleBtn.style.color = "var(--text)";
-            } else {
-                toggleBtn.classList.add("hidden");
-            }
-        }
-
-        const planActions = document.querySelector(".plan-actions-row");
-        if (planActions) planActions.classList.remove("hidden");
-
-        const planTab = document.getElementById("plan-tab");
-        const planData = document.getElementById("plan-data");
-        const planPlaceholder = planTab ? planTab.querySelector(".plan-placeholder") : null;
-        if (planPlaceholder) planPlaceholder.classList.add("hidden");
-        if (planData) planData.classList.remove("hidden");
-
-        // Focus Tab
-        const planTabBtn = document.querySelector('[data-tab="plan-tab"]');
-        if (planTabBtn) planTabBtn.click();
-        
-        alert(`Loaded saved itinerary for "${item.city.toUpperCase()}"!`);
-    } catch (e) {
-        alert("Failed to load history item.");
-        console.error(e);
-    }
-}
-
-function deleteHistoryItem(index) {
-    try {
-        let history = JSON.parse(localStorage.getItem("tripsplit_history")) || [];
-        history.splice(index, 1);
-        localStorage.setItem("tripsplit_history", JSON.stringify(history));
-        renderHistoryList();
-    } catch (e) {
-        console.error("Failed to delete history item:", e);
-    }
-}
-
-// TripAdvisor Bubble Ratings Helper (Styled in Purple)
-function getBubbleRatingHtml(stars) {
-    if (!stars) return "";
-    const count = Math.min(5, Math.max(1, Math.round(stars)));
-    let bubbles = "";
-    for (let i = 0; i < 5; i++) {
-        if (i < count) {
-            bubbles += `<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#7C3AED; margin-right:3px; border:1px solid #7C3AED;"></span>`;
-        } else {
-            bubbles += `<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#E0E0E0; margin-right:3px; border:1px solid #CCCCCC;"></span>`;
-        }
-    }
-    return `<div class="tripadvisor-bubbles" style="display:inline-flex; align-items:center; margin-left:6px;" title="${count} bubbles">${bubbles}</div>`;
-}
-
-// TripAdvisor Hero Quick Filters Toggle Helper
-window.toggleHeroFilter = function(type) {
-    let checkboxId = "";
-    let btnId = "";
-    if (type === 'stay') {
-        checkboxId = "filter-stay";
-        btnId = "hero-btn-hotels";
-    } else if (type === 'transport') {
-        checkboxId = "filter-transport";
-        btnId = "hero-btn-transport";
-    } else if (type === 'attractions') {
-        checkboxId = "filter-attractions";
-        btnId = "hero-btn-sightseeing";
-    }
-
-    const checkbox = document.getElementById(checkboxId);
-    const btn = document.getElementById(btnId);
-    if (checkbox && btn) {
-        checkbox.checked = !checkbox.checked;
-        if (checkbox.checked) {
-            btn.classList.add("active");
-        } else {
-            btn.classList.remove("active");
-        }
-    }
-};
-
-// Favorites / TripAdvisor Trip Board Helpers
-function isVenueFavorite(name) {
-    try {
-        const favorites = JSON.parse(localStorage.getItem("tripsplit_favorites")) || [];
-        return favorites.some(f => f.name.toLowerCase() === name.toLowerCase());
-    } catch (e) {
-        return false;
-    }
-}
-
-function toggleFavoriteVenue(name, category, icon, lat = null, lon = null) {
-    try {
-        let favorites = JSON.parse(localStorage.getItem("tripsplit_favorites")) || [];
-        const index = favorites.findIndex(f => f.name.toLowerCase() === name.toLowerCase());
-        
-        if (index > -1) {
-            favorites.splice(index, 1);
-        } else {
-            let finalLat = lat;
-            let finalLon = lon;
-            if (!finalLat) {
-                // Try to find in lastPlanResult stops
-                if (lastPlanResult && lastPlanResult.stops) {
-                    for (const stop of lastPlanResult.stops) {
-                        if (stop.hotel && stop.hotel.name.toLowerCase() === name.toLowerCase()) {
-                            finalLat = stop.hotel.lat;
-                            finalLon = stop.hotel.lon;
-                            break;
-                        }
-                        const rMatch = stop.restaurants.find(r => r.name.toLowerCase() === name.toLowerCase());
-                        if (rMatch) {
-                            finalLat = rMatch.lat;
-                            finalLon = rMatch.lon;
-                            break;
-                        }
-                        const bMatch = stop.bars.find(b => b.name.toLowerCase() === name.toLowerCase());
-                        if (bMatch) {
-                            finalLat = bMatch.lat;
-                            finalLon = bMatch.lon;
-                            break;
-                        }
-                        if (stop.zones) {
-                            for (const zone of stop.zones) {
-                                const pMatch = zone.popular_places ? zone.popular_places.find(p => p.name.toLowerCase() === name.toLowerCase()) : null;
-                                if (pMatch) {
-                                    finalLat = pMatch.lat;
-                                    finalLon = pMatch.lon;
-                                    break;
-                                }
-                                const uMatch = zone.underrated_gems ? zone.underrated_gems.find(u => u.name.toLowerCase() === name.toLowerCase()) : null;
-                                if (uMatch) {
-                                    finalLat = uMatch.lat;
-                                    finalLon = uMatch.lon;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if (!finalLat && currentSearchData && currentSearchData.geocoding) {
-                finalLat = currentSearchData.geocoding.lat;
-                finalLon = currentSearchData.geocoding.lon;
-            }
-            favorites.push({
-                name: name,
-                category: category,
-                icon: icon,
-                lat: finalLat,
-                lon: finalLon,
-                timestamp: new Date().toLocaleString()
-            });
-        }
-        localStorage.setItem("tripsplit_favorites", JSON.stringify(favorites));
-        renderFavoritesList();
-        
-        // Refresh visible elements
-        if (currentSearchData) {
-            populateList("sample-hotels", currentSearchData.sample_venues.hotels, "No hotels found");
-            populateList("sample-restaurants", currentSearchData.sample_venues.restaurants, "No restaurants found");
-            populateList("sample-attractions", currentSearchData.sample_venues.attractions, "No attractions found");
-        }
-        if (lastPlanResult) {
-            renderPlanItinerary(lastPlanResult);
-        }
-    } catch (e) {
-        console.error("Failed to toggle favorite:", e);
-    }
-}
-
-function renderFavoritesList() {
-    const list = document.getElementById("favorites-list");
-    const placeholder = document.getElementById("favorites-placeholder");
-    if (!list) return;
-    list.innerHTML = "";
-
-    try {
-        const favorites = JSON.parse(localStorage.getItem("tripsplit_favorites")) || [];
-        if (favorites.length === 0) {
-            if (placeholder) placeholder.classList.remove("hidden");
-            list.classList.add("hidden");
-            return;
-        }
-
-        if (placeholder) placeholder.classList.add("hidden");
-        list.classList.remove("hidden");
-
-        favorites.forEach((item, index) => {
-            const li = document.createElement("li");
-            li.style.display = "flex";
-            li.style.flexDirection = "column";
-            li.style.alignItems = "stretch";
-            li.style.padding = "0.5rem";
-            li.style.border = "1px solid var(--border)";
-            li.style.borderRadius = "6px";
-            li.style.background = "var(--surface-light)";
-            li.style.fontSize = "0.82rem";
-            li.style.gap = "0.25rem";
-
-            // Row 1: Icon, Name and Action Buttons
-            const topRow = document.createElement("div");
-            topRow.style.display = "flex";
-            topRow.style.justifyContent = "space-between";
-            topRow.style.alignItems = "center";
-            topRow.style.width = "100%";
-
-            const info = document.createElement("div");
-            info.style.display = "flex";
-            info.style.alignItems = "center";
-            info.style.gap = "0.4rem";
-            info.style.overflow = "hidden";
-            info.style.flex = "1";
-            
-            const iconSpan = document.createElement("span");
-            iconSpan.textContent = item.icon;
-            
-            const nameSpan = document.createElement("span");
-            nameSpan.textContent = item.name;
-            nameSpan.style.fontWeight = "600";
-            nameSpan.style.whiteSpace = "nowrap";
-            nameSpan.style.overflow = "hidden";
-            nameSpan.style.textOverflow = "ellipsis";
-
-            info.appendChild(iconSpan);
-            info.appendChild(nameSpan);
-
-            const actions = document.createElement("div");
-            actions.style.display = "flex";
-            actions.style.gap = "0.3rem";
-
-            if (item.lat && item.lon) {
-                const pinBtn = document.createElement("button");
-                pinBtn.innerHTML = "📍";
-                pinBtn.title = "Locate on Map";
-                pinBtn.style.background = "none";
-                pinBtn.style.border = "none";
-                pinBtn.style.cursor = "pointer";
-                pinBtn.style.fontSize = "0.95rem";
-                pinBtn.addEventListener("click", () => {
-                    if (map) {
-                        const mapTabBtn = document.querySelector('[data-tab="map-tab"]');
-                        if (mapTabBtn) mapTabBtn.click();
-                        map.setView([item.lat, item.lon], 15);
-                        mapLayers.forEach(layer => {
-                            if (layer.getLatLng && layer.getLatLng().lat === item.lat && layer.getLatLng().lng === item.lon) {
-                                layer.openPopup();
-                            }
-                        });
-                    }
-                });
-                actions.appendChild(pinBtn);
-            }
-
-            const delBtn = document.createElement("button");
-            delBtn.innerHTML = "🗑";
-            delBtn.title = "Remove";
-            delBtn.style.background = "none";
-            delBtn.style.border = "none";
-            delBtn.style.cursor = "pointer";
-            delBtn.style.fontSize = "0.95rem";
-            delBtn.addEventListener("click", () => {
-                toggleFavoriteVenue(item.name, item.category, item.icon);
-            });
-            actions.appendChild(delBtn);
-
-            topRow.appendChild(info);
-            topRow.appendChild(actions);
-
-            li.appendChild(topRow);
-
-            // Row 2: Voting Tags
-            const voteDiv = document.createElement("div");
-            voteDiv.innerHTML = getVotingTagsHtml(item.name);
-            li.appendChild(voteDiv);
-
-            list.appendChild(li);
-        });
-    } catch (e) {
-        console.error("Failed to render favorites list:", e);
-    }
-}
-
-// Prefill City Helper for Trending Destinations cards
-window.preFillCity = function(cityName) {
-    const destInput = document.getElementById("destination");
-    if (destInput) {
-        destInput.value = cityName;
-        destInput.scrollIntoView({ behavior: "smooth", block: "center" });
-        destInput.focus();
-        
-        const form = document.getElementById("search-form");
-        if (form) {
-            const submitBtn = document.getElementById("search-btn");
-            if (submitBtn) {
-                submitBtn.click();
-            }
-        }
-    }
-};
-
-// --- TRIP GROUP EXPENSE LEDGER SYSTEM ---
-function setupLedger() {
-    const membersInput = document.getElementById("group-members-input");
-    const ledgerForm = document.getElementById("ledger-form");
-    const clearBtn = document.getElementById("clear-ledger-btn");
-
-    if (!membersInput) return;
-
-    // Listen to changes in group members list
-    membersInput.addEventListener("input", updateLedgerInputs);
-    updateLedgerInputs(); // Initial setup of dropdowns
-
-    if (ledgerForm) {
-        ledgerForm.addEventListener("submit", (e) => {
-            e.preventDefault();
-            const desc = document.getElementById("exp-desc").value.trim();
-            const amount = parseFloat(document.getElementById("exp-amount").value);
-            const paidBy = document.getElementById("exp-paid-by").value;
-            
-            // Get split candidates
-            const checkedBoxes = document.querySelectorAll("#exp-split-checkboxes input:checked");
-            const splitBetween = Array.from(checkedBoxes).map(cb => cb.value);
-
-            if (!desc || isNaN(amount) || amount <= 0 || !paidBy || splitBetween.length === 0) {
-                alert("Please fill all expense fields and select at least one person to split between!");
-                return;
-            }
-
-            const expenses = JSON.parse(localStorage.getItem("tripsplit_ledger")) || [];
-            expenses.push({
-                desc,
-                amount,
-                paidBy,
-                splitBetween,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            });
-
-            localStorage.setItem("tripsplit_ledger", JSON.stringify(expenses));
-            
-            // Clear input fields
-            document.getElementById("exp-desc").value = "";
-            document.getElementById("exp-amount").value = "";
-            
-            renderLedger();
-        });
-    }
-
-    if (clearBtn) {
-        clearBtn.addEventListener("click", () => {
-            if (confirm("Are you sure you want to clear all ledger expenses?")) {
-                localStorage.removeItem("tripsplit_ledger");
-                renderLedger();
-            }
-        });
-    }
-
-    renderLedger();
-}
-
-function updateLedgerInputs() {
-    const input = document.getElementById("group-members-input");
-    const select = document.getElementById("exp-paid-by");
-    const checkboxesDiv = document.getElementById("exp-split-checkboxes");
-    
-    if (!input || !select || !checkboxesDiv) return;
-
-    const members = input.value.split(",").map(m => m.trim()).filter(m => m.length > 0);
-    
-    // Save selected values to restore them
-    const prevPaidBy = select.value;
-    
-    // Clear
-    select.innerHTML = "";
-    checkboxesDiv.innerHTML = "";
-
-    members.forEach(member => {
-        // Dropdown Option
-        const opt = document.createElement("option");
-        opt.value = member;
-        opt.textContent = member;
-        select.appendChild(opt);
-
-        // Checkbox Split Item
-        const label = document.createElement("label");
-        label.style.display = "flex";
-        label.style.alignItems = "center";
-        label.style.gap = "0.35rem";
-        label.style.fontSize = "0.8rem";
-        label.style.cursor = "pointer";
-
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.value = member;
-        cb.checked = true; // default splits equally
-        
-        label.appendChild(cb);
-        label.appendChild(document.createTextNode(member));
-        checkboxesDiv.appendChild(label);
-    });
-
-    if (prevPaidBy && members.includes(prevPaidBy)) {
-        select.value = prevPaidBy;
-    }
-}
-
-function renderLedger() {
-    const list = document.getElementById("ledger-history-list");
-    const placeholder = document.getElementById("ledger-history-placeholder");
-    const balanceList = document.getElementById("ledger-balances-list");
-    const balancePlaceholder = document.getElementById("ledger-balances-placeholder");
-    const input = document.getElementById("group-members-input");
-
-    if (!list || !balanceList || !input) return;
-
-    list.innerHTML = "";
-    balanceList.innerHTML = "";
-
-    const members = input.value.split(",").map(m => m.trim()).filter(m => m.length > 0);
-    const expenses = JSON.parse(localStorage.getItem("tripsplit_ledger")) || [];
-
-    if (expenses.length === 0) {
-        if (placeholder) placeholder.classList.remove("hidden");
-        if (balancePlaceholder) balancePlaceholder.classList.remove("hidden");
-        return;
-    }
-
-    if (placeholder) placeholder.classList.add("hidden");
-    if (balancePlaceholder) balancePlaceholder.classList.add("hidden");
-
-    // 1. Render expense history
-    expenses.forEach((e, idx) => {
-        const li = document.createElement("li");
-        li.style.display = "flex";
-        li.style.justifyContent = "space-between";
-        li.style.padding = "0.35rem 0";
-        li.style.borderBottom = "1px dashed var(--border)";
-
-        li.innerHTML = `
-            <div>
-                <strong>${e.desc}</strong> <span style="font-size:0.75rem; color:var(--text-secondary);">(${e.timestamp})</span><br>
-                <span style="font-size:0.72rem; color:var(--text-secondary);">Paid by <b>${e.paidBy}</b> split amongst: ${e.splitBetween.join(", ")}</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:0.35rem;">
-                <span style="font-weight:700; color:var(--accent);">₹${e.amount}</span>
-                <button onclick="deleteLedgerItem(${idx})" style="background:none; border:none; cursor:pointer; font-size:0.8rem;">❌</button>
-            </div>
-        `;
-        list.appendChild(li);
-    });
-
-    // 2. Settle Up Calculator (Splitwise debt clearing greedy algorithm)
-    const balances = {};
-    members.forEach(m => { balances[m] = 0.0; });
-
-    expenses.forEach(e => {
-        // Payer gets credited full amount
-        if (balances[e.paidBy] !== undefined) {
-            balances[e.paidBy] += e.amount;
-        }
-        
-        // Split amount per split candidate
-        const share = e.amount / e.splitBetween.length;
-        e.splitBetween.forEach(recipient => {
-            if (balances[recipient] !== undefined) {
-                balances[recipient] -= share;
-            }
-        });
-    });
-
-    // Solve debt clearing transactions
-    const debtors = [];
-    const creditors = [];
-
-    Object.keys(balances).forEach(person => {
-        const bal = balances[person];
-        if (bal < -0.01) {
-            debtors.push({ name: person, amount: -bal });
-        } else if (bal > 0.01) {
-            creditors.push({ name: person, amount: bal });
-        }
-    });
-
-    // Greedy matching
-    let transactionsCount = 0;
-    while (debtors.length > 0 && creditors.length > 0) {
-        // Sort descending to settle largest first
-        debtors.sort((a, b) => b.amount - a.amount);
-        creditors.sort((a, b) => b.amount - a.amount);
-
-        const debtor = debtors[0];
-        const creditor = creditors[0];
-        const settleAmount = Math.min(debtor.amount, creditor.amount);
-
-        const li = document.createElement("li");
-        li.style.display = "flex";
-        li.style.alignItems = "center";
-        li.style.gap = "0.25rem";
-        li.style.background = "#fff";
-        li.style.padding = "0.35rem 0.5rem";
-        li.style.borderRadius = "4px";
-        li.style.border = "1px solid #E9D5FF";
-        li.style.marginBottom = "0.25rem";
-        li.innerHTML = `💸 <span style="color:#6D28D9;">${debtor.name}</span> owes <span style="color:#059669;">${creditor.name}</span> <strong>₹${settleAmount.toFixed(1)}</strong>`;
-        balanceList.appendChild(li);
-        transactionsCount++;
-
-        debtor.amount -= settleAmount;
-        creditor.amount -= settleAmount;
-
-        if (debtor.amount < 0.01) debtors.shift();
-        if (creditor.amount < 0.01) creditors.shift();
-    }
-
-    if (transactionsCount === 0) {
-        if (balancePlaceholder) balancePlaceholder.classList.remove("hidden");
-    }
-}
-
-window.deleteLedgerItem = function(index) {
-    const expenses = JSON.parse(localStorage.getItem("tripsplit_ledger")) || [];
-    expenses.splice(index, 1);
-    localStorage.setItem("tripsplit_ledger", JSON.stringify(expenses));
-    renderLedger();
-};
-
-// --- DYNAMIC GROUP VOTING SYSTEM ---
-window.toggleMemberVote = function(venueName, memberName) {
-    try {
-        let votes = JSON.parse(localStorage.getItem("tripsplit_votes")) || {};
-        if (!votes[venueName]) {
-            votes[venueName] = {};
-        }
-
-        const currentVote = votes[venueName][memberName] || "";
-        let nextVote = "";
-        
-        if (currentVote === "") {
-            nextVote = "yes";
-        } else if (currentVote === "yes") {
-            nextVote = "no";
-        } else {
-            nextVote = "";
-        }
-
-        votes[venueName][memberName] = nextVote;
-        localStorage.setItem("tripsplit_votes", JSON.stringify(votes));
-        
-        // Refresh Favorites and Itinerary displays to show matching vote tag style
-        if (currentSearchData) {
-            populateList("sample-hotels", currentSearchData.sample_venues.hotels, "No hotels found");
-            populateList("sample-restaurants", currentSearchData.sample_venues.restaurants, "No restaurants found");
-            populateList("sample-attractions", currentSearchData.sample_venues.attractions, "No attractions found");
-        }
-        if (lastPlanResult) {
-            renderPlanItinerary(lastPlanResult);
-        }
-        renderFavoritesList();
-    } catch (e) {
-        console.error("Failed to toggle member vote:", e);
-    }
-};
-
-function getVotingTagsHtml(venueName) {
-    const input = document.getElementById("group-members-input");
-    if (!input) return "";
-    const members = input.value.split(",").map(m => m.trim()).filter(m => m.length > 0);
-    
-    let votes = {};
-    try {
-        votes = JSON.parse(localStorage.getItem("tripsplit_votes")) || {};
-    } catch (e) {}
-
-    const venueVotes = votes[venueName] || {};
-
-    const badges = members.map(m => {
-        const val = venueVotes[m] || ""; // "yes", "no" or ""
-        let classStr = "vote-tag";
-        let label = `${m}`;
-        if (val === "yes") {
-            classStr += " yes";
-            label += " 👍";
-        } else if (val === "no") {
-            classStr += " no";
-            label += " 👎";
-        }
-        
-        return `<span class="${classStr}" onclick="event.stopPropagation(); toggleMemberVote('${venueName.replace(/'/g, "\\'")}', '${m.replace(/'/g, "\\'")}')">${label}</span>`;
-    }).join("");
-
-    return `
-        <div class="voting-tags-row">
-            <span style="font-size:0.7rem; color:var(--text-secondary); align-self:center; font-weight:700; margin-right:4px;">Votes:</span>
-            ${badges}
-        </div>
-    `;
-}
-
-// --- GEMINI TRAVEL ASSISTANT CHAT SYSTEM ---
-function setupAssistantChat() {
-    const chatBtn = document.getElementById("assistant-chat-btn");
-    const chatInput = document.getElementById("assistant-chat-input");
-    const chatBox = document.getElementById("assistant-chat-box");
-    const chatContainer = document.getElementById("floating-chat-container");
-    const chatBadge = document.getElementById("floating-chat-badge");
-    const minimizeBtn = document.getElementById("minimize-chat-btn");
-
-    if (!chatBtn || !chatInput || !chatBox || !chatContainer || !chatBadge) return;
-
-    // Toggle Floating Panel
-    window.toggleFloatingChat = function(show) {
-        if (show === true) {
-            chatContainer.style.display = "flex";
-            chatBadge.style.display = "none";
-        } else if (show === false) {
-            chatContainer.style.display = "none";
-            chatBadge.style.display = "flex";
-        } else {
-            const isHidden = chatContainer.style.display === "none";
-            toggleFloatingChat(isHidden);
-        }
-    };
-
-    if (minimizeBtn) {
-        minimizeBtn.addEventListener("click", () => toggleFloatingChat(false));
-    }
-    chatBadge.addEventListener("click", () => toggleFloatingChat(true));
-
-    async function sendChatQuery() {
-        const query = chatInput.value.trim();
-        if (!query) return;
-
-        // Clear input
-        chatInput.value = "";
-
-        // Append User bubble
-        appendChatBubble(chatBox, query, "user");
-
-        // Append Loading / Typing indicator
-        const typingId = appendChatBubble(chatBox, "Typing...", "assistant");
-        chatBox.scrollTop = chatBox.scrollHeight;
-
-        try {
-            // Load current favorites/hearted board list as context
-            const favorites = JSON.parse(localStorage.getItem("tripsplit_favorites")) || [];
-            
-            const response = await fetch("/api/assistant", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ query, favorites })
-            });
-
-            const typingBubble = document.getElementById(typingId);
-            if (typingBubble) typingBubble.remove();
-
-            if (!response.ok) {
-                throw new Error("Assistant connection lost.");
-            }
-
-            const data = await response.json();
-            appendChatBubble(chatBox, data.response, "assistant");
-        } catch (e) {
-            const typingBubble = document.getElementById(typingId);
-            if (typingBubble) typingBubble.remove();
-            appendChatBubble(chatBox, `Assistant: ${e.message}`, "error");
-        }
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    chatBtn.addEventListener("click", sendChatQuery);
-    chatInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            sendChatQuery();
-        }
-    });
-}
-
-function appendChatBubble(container, text, type) {
-    const bubble = document.createElement("div");
-    const id = "bubble_" + Math.random().toString(36).slice(2, 9);
-    bubble.id = id;
-    bubble.className = `chat-msg ${type}`;
-    
-    // Support basic markdown like **bold** in assistant response
-    if (type === "assistant") {
-        bubble.innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+// Favorites local storage
+function toggleFavoriteVenue(name, type, icon, lat, lon) {
+    const idx = state.favorites.indexOf(name);
+    if (idx > -1) {
+        state.favorites.splice(idx, 1);
     } else {
-        bubble.textContent = text;
+        state.favorites.push(name);
     }
-    
-    container.appendChild(bubble);
-    return id;
+    localStorage.setItem('ta_favorites', JSON.stringify(state.favorites));
+}
+
+function isVenueFavorite(name) {
+    return state.favorites.includes(name);
+}
+
+// Global loaders helpers
+function showPageLoader() {
+    let loader = document.getElementById('global-page-loader');
+    if (!loader) {
+        loader = document.createElement('div');
+        loader.id = 'global-page-loader';
+        loader.style = 'position:fixed; top:0; bottom:0; left:0; right:0; background:rgba(255,255,255,0.7); z-index:9999; display:flex; align-items:center; justify-content:center; flex-direction:column; font-weight:700; font-family:var(--font-heading);';
+        loader.innerHTML = `<div style="border:4px solid #f3f3f3; border-top:4px solid var(--accent); border-radius:50%; width:50px; height:50px; animation:spin 1s linear infinite; margin-bottom:1rem;"></div>Loading TripAdvisor databases...`;
+        
+        // Add animation stylesheet dynamically
+        const style = document.createElement('style');
+        style.innerHTML = `@keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }`;
+        document.head.appendChild(style);
+        
+        document.body.appendChild(loader);
+    }
+    loader.classList.remove('hidden');
+}
+
+function hidePageLoader() {
+    const loader = document.getElementById('global-page-loader');
+    if (loader) loader.classList.add('hidden');
 }

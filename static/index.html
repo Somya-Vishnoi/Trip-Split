@@ -3,526 +3,1335 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TripSplit - TripAdvisor-Grade Group Trip Budget Optimizer</title>
-    <!-- Google Fonts -->
+    <title>TripAdvisor - Plan Stays, Eat & Do Sights</title>
+    <!-- Outfit & Plus Jakarta Sans Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Leaflet Map CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <!-- Custom CSS -->
+    <!-- Custom Style Sheet -->
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <!-- Header / TripAdvisor Navbar Clone -->
-    <header class="tripadvisor-header">
-        <div class="header-content">
-            <a href="/" class="logo">
-                <svg class="logo-icon-svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent); margin-right: 0.5rem;">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+
+    <!-- GLOBAL FIXED NAVBAR -->
+    <header class="global-navbar">
+        <div class="nav-container">
+            <!-- Left: TripAdvisor Owl Logo -->
+            <a href="#" class="nav-logo" onclick="navigateToView('home'); return false;">
+                <svg viewBox="0 0 24 24" width="32" height="32" fill="#00AA6C" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15.5c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5.67-1.5 1.5-1.5 1.5.67 1.5 1.5zm-1.5-3.5c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1s1 .45 1 1v4c0 .55-.45 1-1 1z"/>
                 </svg>
-                <h1>Trip<span>split</span></h1>
+                <span class="logo-text">tripadvisor</span>
             </a>
-            <nav class="nav-links">
-                <a href="#" id="nav-discover" class="active">Discover</a>
-                <a href="#" id="nav-trips">Trips</a>
-                <a href="#" id="nav-engine">About Engine</a>
-                <a href="#" id="nav-chat">AI Assistant</a>
+
+            <!-- Middle: Main Nav Tabs -->
+            <nav class="nav-tabs-desktop">
+                <a href="#" class="nav-tab-link active" data-view-target="home" onclick="navigateToView('home'); return false;">Hotels</a>
+                <a href="#" class="nav-tab-link" data-view-target="restaurants-results" onclick="navigateToCategoryResults('restaurants'); return false;">Restaurants</a>
+                <a href="#" class="nav-tab-link" data-view-target="experience-results" onclick="navigateToCategoryResults('attractions'); return false;">Things to Do</a>
+                <a href="#" class="nav-tab-link" data-view-target="forums" onclick="navigateToView('forums'); return false;">Travel Forums</a>
+                <div class="nav-dropdown-trigger">
+                    <span class="dropdown-label">More ▼</span>
+                    <div class="nav-dropdown-menu">
+                        <a href="#" onclick="navigateToCategoryResults('flights'); return false;">Flights</a>
+                        <a href="#" onclick="navigateToCategoryResults('cruises'); return false;">Cruises</a>
+                        <a href="#" onclick="navigateToCategoryResults('cars'); return false;">Rental Cars</a>
+                    </div>
+                </div>
             </nav>
+
+            <!-- Right: Currency/Language, Sign In, Profile -->
+            <div class="nav-actions">
+                <button class="nav-btn-icon" onclick="openLanguageModal()" title="Select Language/Currency">🌐 USD</button>
+                
+                <!-- Non-logged in state -->
+                <button id="nav-signin-btn" class="nav-btn-primary" onclick="openSigninModal()">Sign In</button>
+                
+                <!-- Logged in state (hidden by default) -->
+                <div id="nav-user-dropdown" class="nav-user-profile hidden">
+                    <img id="nav-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Avatar" class="avatar-thumbnail">
+                    <span id="nav-username">Somya</span>
+                    <div class="user-dropdown-menu">
+                        <a href="#" onclick="navigateToView('profile'); return false;">My Profile</a>
+                        <a href="#" onclick="navigateToView('profile', 'reviews'); return false;">My Reviews</a>
+                        <a href="#" onclick="navigateToView('profile', 'trips'); return false;">My Trips</a>
+                        <hr>
+                        <a href="#" onclick="handleSignOut(); return false;">Sign Out</a>
+                    </div>
+                </div>
+
+                <!-- Mobile Hamburger Icon -->
+                <button class="mobile-hamburger-btn" onclick="toggleMobileDrawer()">☰</button>
+            </div>
         </div>
     </header>
 
-    <!-- TripAdvisor Hero Section -->
-    <div class="tripadvisor-hero">
-        <h1>Where to?</h1>
-        <div class="hero-sub">Enter destination details and budget constraint in our optimizer card to calculate your optimal trip!</div>
-        
-        <div class="hero-quick-filters">
-            <button class="quick-filter-btn active" id="hero-btn-hotels" onclick="toggleHeroFilter('stay')">
-                <span class="icon">🏨</span> Hotels
-            </button>
-            <button class="quick-filter-btn active" id="hero-btn-transport" onclick="toggleHeroFilter('transport')">
-                <span class="icon">🚗</span> Local Transport
-            </button>
-            <button class="quick-filter-btn active" id="hero-btn-sightseeing" onclick="toggleHeroFilter('attractions')">
-                <span class="icon">🏛️</span> Things to Do
-            </button>
+    <!-- MOBILE LEFT DRAWER -->
+    <div id="mobile-drawer" class="mobile-drawer-overlay hidden" onclick="toggleMobileDrawer()">
+        <div class="drawer-content" onclick="event.stopPropagation()">
+            <div class="drawer-header">
+                <h3>Tripadvisor Menu</h3>
+                <button onclick="toggleMobileDrawer()">&times;</button>
+            </div>
+            <nav class="drawer-nav">
+                <a href="#" onclick="navigateToView('home'); toggleMobileDrawer(); return false;">🏢 Hotels</a>
+                <a href="#" onclick="navigateToCategoryResults('restaurants'); toggleMobileDrawer(); return false;">🍔 Restaurants</a>
+                <a href="#" onclick="navigateToCategoryResults('attractions'); toggleMobileDrawer(); return false;">🏛️ Things to Do</a>
+                <a href="#" onclick="navigateToView('forums'); toggleMobileDrawer(); return false;">💬 Travel Forums</a>
+                <a href="#" onclick="navigateToCategoryResults('flights'); toggleMobileDrawer(); return false;">✈️ Flights</a>
+                <a href="#" onclick="navigateToCategoryResults('cruises'); toggleMobileDrawer(); return false;">🛳️ Cruises</a>
+                <a href="#" onclick="navigateToCategoryResults('cars'); toggleMobileDrawer(); return false;">🚗 Rental Cars</a>
+                <hr>
+                <button id="drawer-signin-btn" class="btn-primary" style="width: 100%;" onclick="openSigninModal(); toggleMobileDrawer();">Sign In</button>
+                <div id="drawer-user-info" class="hidden">
+                    <p style="font-weight: 700; margin-bottom: 0.5rem;">Hello, <span id="drawer-username-span">User</span>!</p>
+                    <a href="#" class="btn-secondary" style="display:block; text-align:center; margin-bottom: 0.5rem;" onclick="navigateToView('profile'); toggleMobileDrawer(); return false;">View Profile</a>
+                    <button class="btn-secondary" style="width: 100%;" onclick="handleSignOut(); toggleMobileDrawer();">Sign Out</button>
+                </div>
+            </nav>
         </div>
     </div>
 
-    <div class="container">
-        <!-- Main Dashboard Layout -->
-        <div class="dashboard-grid">
-            <!-- Top / Search Builder Panel -->
-            <div class="left-col">
-                <section class="card input-panel">
-                    <h2>⚙️ Plan New Adventure</h2>
-                    <form id="search-form">
-                        <div class="row">
-                            <div class="input-group col" style="flex: 2; min-width: 250px;">
-                                <label for="destination">Where are you going?</label>
-                                <input type="text" id="destination" placeholder="e.g., Goa, Manali, Mumbai, Jaipur" required autocomplete="off">
-                            </div>
-                            <div class="input-group col">
-                                <label for="budget">Total Budget (₹)</label>
-                                <input type="number" id="budget" min="100" value="50000" required>
-                            </div>
-                        </div>
-                        
-                        <div class="row" style="margin-top: 0.5rem;">
-                            <div class="input-group col">
-                                <label for="people">Group Size</label>
-                                <input type="number" id="people" min="1" value="4" required>
-                            </div>
-                            <div class="input-group col">
-                                <label for="days">Duration (Days)</label>
-                                <input type="number" id="days" min="1" max="14" value="4" required>
-                            </div>
-                        </div>
+    <!-- VIEW CONTAINERS CONTAINER -->
+    <main class="main-content-area">
 
-                        <!-- Filter Toggles for Custom Preferences -->
-                        <div class="filter-toggles">
-                            <label class="checkbox-container">
-                                <input type="checkbox" id="filter-stay" checked>
-                                Include Accommodation
-                            </label>
-                            <label class="checkbox-container">
-                                <input type="checkbox" id="filter-attractions" checked>
-                                Include Sightseeing (Ghumi Ghumi)
-                            </label>
-                            <label class="checkbox-container">
-                                <input type="checkbox" id="filter-transport" checked>
-                                Include Local Transport (₹500/day)
-                            </label>
+        <!-- ========================================== -->
+        <!-- 1. HOMEPAGE VIEW                           -->
+        <!-- ========================================== -->
+        <div id="home-view" class="view-container">
+            <!-- Hero Search Banner -->
+            <section class="hero-search-section">
+                <div class="hero-content">
+                    <h1>Where to?</h1>
+                    <div class="search-bar-wrapper">
+                        <div class="search-input-container">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="global-search-input" placeholder="Places to go, hotels, restaurants..." autocomplete="off">
+                            <button class="search-submit-btn" onclick="triggerGlobalSearch()">Search</button>
                         </div>
-
-                        <!-- Intercity Travel Mode Options -->
-                        <div class="filter-toggles" style="margin-top: 0.75rem;">
-                            <label class="checkbox-container">
-                                <input type="checkbox" id="add-intercity-travel">
-                                Include Roundtrip Intercity Travel
-                            </label>
-                            
-                            <div id="intercity-fields" class="hidden" style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 1rem; width: 100%;">
-                                <div class="input-group col" style="margin-bottom: 0;">
-                                    <label for="origin-city" style="font-size: 0.7rem; font-weight: bold; margin-bottom: 0.25rem;">Starting From (Origin)</label>
-                                    <input type="text" id="origin-city" placeholder="e.g. Delhi" style="padding: 0.6rem; font-size: 0.85rem;">
-                                </div>
-                                <div class="input-group col" style="margin-bottom: 0;">
-                                    <label for="intercity-mode" style="font-size: 0.7rem; font-weight: bold; margin-bottom: 0.25rem;">Mode of Transport</label>
-                                    <select id="intercity-mode" class="custom-select" style="padding: 0.6rem; font-size: 0.85rem; height: 38px;">
-                                        <option value="flight">Flight (Economy)</option>
-                                        <option value="train_3ac">Train (3AC)</option>
-                                        <option value="train_sleeper">Train (Sleeper)</option>
-                                        <option value="bus">Intercity Bus</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button type="submit" id="search-btn" class="btn-primary">
-                            <span>🔍 Find & Optimize Itinerary</span>
-                        </button>
-                    </form>
-
-                    <div id="loader" class="loader-container hidden">
-                        <div class="spinner"></div>
-                        <p id="loader-text">Geocoding & fetching venues from OpenStreetMap...</p>
+                        <!-- Autocomplete Dropdown List -->
+                        <div id="search-autocomplete-dropdown" class="autocomplete-dropdown hidden"></div>
                     </div>
-                </section>
+                </div>
+            </section>
+
+            <!-- Quick Category Pills -->
+            <section class="category-pills-section">
+                <div class="pills-container">
+                    <button class="pill-tag active" onclick="navigateToCategoryResults('hotels')">🏨 Hotels</button>
+                    <button class="pill-tag" onclick="navigateToCategoryResults('restaurants')">🍴 Restaurants</button>
+                    <button class="pill-tag" onclick="navigateToCategoryResults('attractions')">🏛️ Things to Do</button>
+                    <button class="pill-tag" onclick="navigateToCategoryResults('flights')">✈️ Flights</button>
+                    <button class="pill-tag" onclick="navigateToCategoryResults('cars')">🚗 Rental Cars</button>
+                </div>
+            </section>
+
+            <!-- Top Experiences Carousel -->
+            <section class="home-carousel-section">
+                <div class="section-title-row">
+                    <h2>Top Experiences on Tripadvisor</h2>
+                    <div class="carousel-nav-arrows">
+                        <button class="carousel-arrow prev" onclick="scrollCarousel('experiences-deck', -1)">◀</button>
+                        <button class="carousel-arrow next" onclick="scrollCarousel('experiences-deck', 1)">▶</button>
+                    </div>
+                </div>
+                <div class="carousel-viewport">
+                    <ul id="experiences-deck" class="horizontal-card-deck scroll-smooth">
+                        <!-- Carousel Cards injected via JS -->
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Editorial Choice Strip -->
+            <section class="awards-editorial-strip">
+                <div class="strip-content">
+                    <span class="strip-badge">2026 BEST OF THE BEST</span>
+                    <h2>Travellers' Choice Awards</h2>
+                    <p>Ranked properties, activities, and destinations voted by millions of global explorers. Explore the highest-rated stays, dinners, and events.</p>
+                    <button class="btn-primary dark-btn" onclick="navigateToCategoryResults('awards')">See the full list</button>
+                </div>
+            </section>
+
+            <!-- Grid Content Rows -->
+            <section class="editorial-rows-section">
+                <!-- Hotels You May Like -->
+                <div class="editorial-row">
+                    <h3>Hotels You May Like</h3>
+                    <div id="personalized-hotels-grid" class="horizontal-card-deck">
+                        <!-- Cards here -->
+                    </div>
+                </div>
+
+                <!-- Trending Destinations Grid -->
+                <div class="editorial-row" style="margin-top: 3rem;">
+                    <h3>Trending Destinations</h3>
+                    <div class="trending-dest-grid">
+                        <div class="trending-card" onclick="preFillCitySearch('Goa')">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Calangute_Beach_Goa.jpg/600px-Calangute_Beach_Goa.jpg" alt="Goa">
+                            <div class="trending-info">
+                                <h4>Goa, India</h4>
+                                <p>Sun-kissed beaches & architecture</p>
+                            </div>
+                        </div>
+                        <div class="trending-card" onclick="preFillCitySearch('Mumbai')">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Mumbai_03-2016_30_Gateway_of_India.jpg/600px-Mumbai_03-2016_30_Gateway_of_India.jpg" alt="Mumbai">
+                            <div class="trending-info">
+                                <h4>Mumbai, India</h4>
+                                <p>Gateway of India & vibrant bazaars</p>
+                            </div>
+                        </div>
+                        <div class="trending-card" onclick="preFillCitySearch('Jaipur')">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Hawa_Mahal_on_a_stormy_day.jpg/600px-Hawa_Mahal_on_a_stormy_day.jpg" alt="Jaipur">
+                            <div class="trending-info">
+                                <h4>Jaipur, India</h4>
+                                <p>Palaces of the pink city & forts</p>
+                            </div>
+                        </div>
+                        <div class="trending-card" onclick="preFillCitySearch('Delhi')">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/India_Gate_in_New_Delhi_03-2016.jpg/600px-India_Gate_in_New_Delhi_03-2016.jpg" alt="Delhi">
+                            <div class="trending-info">
+                                <h4>Delhi, India</h4>
+                                <p>Lutyens' gardens & spice street food</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Travel Articles -->
+                <div class="editorial-row" style="margin-top: 3rem;">
+                    <h3>Latest Travel Guides & Articles</h3>
+                    <div id="articles-deck" class="horizontal-card-deck">
+                        <!-- Blog style articles -->
+                    </div>
+                </div>
+            </section>
+        </div>
+
+
+        <!-- ========================================== -->
+        <!-- 2. DESTINATION OVERVIEW VIEW               -->
+        <!-- ========================================== -->
+        <div id="destination-view" class="view-container hidden">
+            <!-- Large City Header Photo with Overlay text -->
+            <section class="city-hero-banner" id="city-hero-banner-el">
+                <div class="city-hero-overlay">
+                    <h1 id="city-title-heading">JAIPUR</h1>
+                    <p id="city-country-heading">Rajasthan, India</p>
+                </div>
+            </section>
+
+            <!-- Sticky Sub-Navigation Tab bar -->
+            <div class="city-subnav-sticky" id="city-subnav-bar">
+                <div class="nav-container">
+                    <button class="subtab-btn active" data-subtab="dest-overview" onclick="switchDestSubtab('dest-overview')">Overview</button>
+                    <button class="subtab-btn" data-subtab="dest-hotels" onclick="switchDestSubtab('dest-hotels')">Stays & Hotels</button>
+                    <button class="subtab-btn" data-subtab="dest-restaurants" onclick="switchDestSubtab('dest-restaurants')">Restaurants</button>
+                    <button class="subtab-btn" data-subtab="dest-attractions" onclick="switchDestSubtab('dest-attractions')">Things to Do</button>
+                    <button class="subtab-btn" data-subtab="dest-guide" onclick="switchDestSubtab('dest-guide')">Travel Guide & Forums</button>
+                </div>
             </div>
 
-            <!-- Trending Destinations Section (TripAdvisor Style) -->
-            <div class="trending-section">
-                <h2 style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 800; color: var(--text-primary); text-align: left; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">🔥 Trending Destinations</h2>
-                <div class="trending-grid">
-                    <!-- Goa Card -->
-                    <div class="trending-card" onclick="preFillCity('Goa')">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Calangute_Beach_Goa.jpg/600px-Calangute_Beach_Goa.jpg" alt="Goa">
-                        <div class="trending-card-body">
-                            <h3>Goa</h3>
-                            <p>Golden sand beaches, historic churches, vibrant shacks, and water sports.</p>
+            <!-- City Subtabs Content -->
+            <div class="subtabs-content-area nav-container">
+                
+                <!-- Destination Overview Tab -->
+                <div id="dest-overview-tab" class="dest-subtab-pane">
+                    <div class="overview-grid-layout">
+                        <!-- Left: Info panels -->
+                        <div class="overview-left-col">
+                            <h2 style="margin-bottom:0.5rem;">About the City</h2>
+                            <p id="dest-overview-blurb" style="line-height:1.6; color:var(--text-secondary); margin-bottom:1.5rem;"></p>
+                            
+                            <!-- Best Time to Visit & Weather Row -->
+                            <div class="weather-widgets-row">
+                                <div class="weather-widget">
+                                    <span class="widget-icon">📅</span>
+                                    <div>
+                                        <div class="widget-title">Best Time to Visit</div>
+                                        <div class="widget-value" id="dest-best-time-val">October to March (Pleasant winter)</div>
+                                    </div>
+                                </div>
+                                <div class="weather-widget">
+                                    <span class="widget-icon">☀️</span>
+                                    <div>
+                                        <div class="widget-title">Current Weather</div>
+                                        <div class="widget-value" id="dest-weather-val">28°C, Light breeze</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right: Fast-planner (Knapsack budget splitter widget integrated) -->
+                        <div class="overview-right-col">
+                            <div class="budget-planner-card">
+                                <h3>⚙️ TripSplit Optimizer Widget</h3>
+                                <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:1rem; line-height:1.4;">Plan the optimal budget selection using knapsack dynamic programming routing!</p>
+                                <div class="planner-form-fields" style="display:flex; flex-direction:column; gap:0.75rem;">
+                                    <div>
+                                        <label style="font-size:0.72rem; font-weight:700; display:block; margin-bottom:0.25rem;">Budget Limit (INR)</label>
+                                        <input type="number" id="dest-budget-input" value="30000" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px;">
+                                    </div>
+                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                                        <div>
+                                            <label style="font-size:0.72rem; font-weight:700; display:block; margin-bottom:0.25rem;">Days</label>
+                                            <input type="number" id="dest-days-input" value="3" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size:0.72rem; font-weight:700; display:block; margin-bottom:0.25rem;">People</label>
+                                            <input type="number" id="dest-people-input" value="2" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px;">
+                                        </div>
+                                    </div>
+                                    <button class="btn-primary" style="width:100%; margin-top:0.5rem;" onclick="triggerDestTripOptimizer()">Optimize Custom Trip</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Mumbai Card -->
-                    <div class="trending-card" onclick="preFillCity('Mumbai')">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Mumbai_03-2016_30_Gateway_of_India.jpg/600px-Mumbai_03-2016_30_Gateway_of_India.jpg" alt="Mumbai">
-                        <div class="trending-card-body">
-                            <h3>Mumbai</h3>
-                            <p>Marine Drive skyline, Gateway of India monument, local train culture, and food streets.</p>
+                    <!-- Highlight sections (lodging, dining, sights) with "See all" links -->
+                    <div class="highlight-row-grid" style="margin-top: 3rem;">
+                        <div class="section-title-row">
+                            <h3>Popular Lodgings in City</h3>
+                            <a href="#" class="see-all-link" onclick="switchDestSubtab('dest-hotels'); return false;">See all hotels ➔</a>
+                        </div>
+                        <div id="dest-sample-hotels" class="horizontal-card-deck"></div>
+                    </div>
+
+                    <div class="highlight-row-grid" style="margin-top: 3rem;">
+                        <div class="section-title-row">
+                            <h3>Highly-Rated Dining Spots</h3>
+                            <a href="#" class="see-all-link" onclick="switchDestSubtab('dest-restaurants'); return false;">See all restaurants ➔</a>
+                        </div>
+                        <div id="dest-sample-restaurants" class="horizontal-card-deck"></div>
+                    </div>
+
+                    <div class="highlight-row-grid" style="margin-top: 3rem; margin-bottom: 4rem;">
+                        <div class="section-title-row">
+                            <h3>Top Things to Do</h3>
+                            <a href="#" class="see-all-link" onclick="switchDestSubtab('dest-attractions'); return false;">See all sights ➔</a>
+                        </div>
+                        <div id="dest-sample-attractions" class="horizontal-card-deck"></div>
+                    </div>
+                </div>
+
+                <!-- Destination Hotels Tab -->
+                <div id="dest-hotels-tab" class="dest-subtab-pane hidden">
+                    <div id="dest-hotels-page-container"></div>
+                </div>
+
+                <!-- Destination Restaurants Tab -->
+                <div id="dest-restaurants-tab" class="dest-subtab-pane hidden">
+                    <div id="dest-restaurants-page-container"></div>
+                </div>
+
+                <!-- Destination Attractions Tab -->
+                <div id="dest-attractions-tab" class="dest-subtab-pane hidden">
+                    <div id="dest-attractions-page-container"></div>
+                </div>
+
+                <!-- Destination Forums & Guide Tab -->
+                <div id="dest-guide-tab" class="dest-subtab-pane hidden" style="margin-bottom: 4rem;">
+                    <h3>Community Travel Boards & Forums</h3>
+                    <div id="dest-forum-teaser" class="forum-teaser-box" style="background:#FAF9F6; border:1px solid var(--border); border-radius:12px; padding:2rem; margin-top:1rem; display:flex; justify-content:space-between; align-items:center; gap:2rem; flex-wrap:wrap;">
+                        <div>
+                            <h4>Jaipur Travel Forum</h4>
+                            <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:0.25rem;">Connect with real travelers planning trips to Jaipur. Ask about transport, local weather, and hidden temple routes!</p>
+                        </div>
+                        <button class="btn-secondary" onclick="navigateToView('forums')">Browse Rajasthan Boards</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+
+        <!-- ========================================== -->
+        <!-- 3. HOTEL SEARCH RESULTS VIEW               -->
+        <!-- ========================================== -->
+        <div id="hotel-results-view" class="view-container hidden">
+            <div class="nav-container page-layout-sidebar-main">
+                <!-- Left Sidebar Filters -->
+                <aside class="sidebar-filters-box">
+                    <div class="filters-header">
+                        <h4>Filters</h4>
+                        <button class="clear-filters-link" onclick="clearAllSearchFilters('hotel')">Clear All</button>
+                    </div>
+
+                    <!-- Price Range Slider -->
+                    <div class="filter-section">
+                        <h5>Price per Night</h5>
+                        <div style="display:flex; flex-direction:column; gap:0.5rem; margin-top:0.5rem;">
+                            <input type="range" id="filter-hotel-price-range" min="500" max="25000" step="500" value="25000" oninput="updatePriceSliderLabel(this.value)">
+                            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-secondary);">
+                                <span>Min: ₹500</span>
+                                <span id="price-slider-value-lbl" style="font-weight:700; color:var(--accent);">Max: ₹25,000</span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Delhi Card -->
-                    <div class="trending-card" onclick="preFillCity('Delhi')">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/India_Gate_in_New_Delhi_03-2016.jpg/600px-India_Gate_in_New_Delhi_03-2016.jpg" alt="Delhi">
-                        <div class="trending-card-body">
-                            <h3>Delhi</h3>
-                            <p>Historic Mughal Red Fort, Qutub Minar heritage, street shopping, and local bites.</p>
+                    <!-- Hotel Class Stars Checkboxes -->
+                    <div class="filter-section">
+                        <h5>Hotel Class</h5>
+                        <ul class="filter-options-list">
+                            <li><label><input type="checkbox" class="filter-hotel-class-cb" value="5" onchange="applySearchFilters('hotel')"> ⭐⭐⭐⭐⭐ (5 Stars)</label></li>
+                            <li><label><input type="checkbox" class="filter-hotel-class-cb" value="4" onchange="applySearchFilters('hotel')"> ⭐⭐⭐⭐ (4 Stars)</label></li>
+                            <li><label><input type="checkbox" class="filter-hotel-class-cb" value="3" onchange="applySearchFilters('hotel')"> ⭐⭐⭐ (3 Stars)</label></li>
+                            <li><label><input type="checkbox" class="filter-hotel-class-cb" value="2" onchange="applySearchFilters('hotel')"> ⭐⭐ (2 Stars)</label></li>
+                        </ul>
+                    </div>
+
+                    <!-- Property Type -->
+                    <div class="filter-section">
+                        <h5>Property Type</h5>
+                        <ul class="filter-options-list">
+                            <li><label><input type="checkbox" class="filter-hotel-type-cb" value="hotel" onchange="applySearchFilters('hotel')"> Hotels</label></li>
+                            <li><label><input type="checkbox" class="filter-hotel-type-cb" value="hostel" onchange="applySearchFilters('hotel')"> Hostels & Backpackers</label></li>
+                            <li><label><input type="checkbox" class="filter-hotel-type-cb" value="guest_house" onchange="applySearchFilters('hotel')"> Guest Houses & Inns</label></li>
+                            <li><label><input type="checkbox" class="filter-hotel-type-cb" value="apartment" onchange="applySearchFilters('hotel')"> Apartments / Vacation Rentals</label></li>
+                        </ul>
+                    </div>
+
+                    <!-- Amenities -->
+                    <div class="filter-section">
+                        <h5>Amenities</h5>
+                        <ul class="filter-options-list">
+                            <li><label><input type="checkbox" class="filter-hotel-amenity-cb" value="wifi" onchange="applySearchFilters('hotel')"> Free WiFi</label></li>
+                            <li><label><input type="checkbox" class="filter-hotel-amenity-cb" value="pool" onchange="applySearchFilters('hotel')"> Swimming Pool</label></li>
+                            <li><label><input type="checkbox" class="filter-hotel-amenity-cb" value="parking" onchange="applySearchFilters('hotel')"> Free Parking</label></li>
+                            <li><label><input type="checkbox" class="filter-hotel-amenity-cb" value="bar" onchange="applySearchFilters('hotel')"> Restaurant & Lounge</label></li>
+                        </ul>
+                    </div>
+
+                    <!-- Guest Ratings -->
+                    <div class="filter-section">
+                        <h5>Guest Rating</h5>
+                        <ul class="filter-options-list">
+                            <li><label><input type="radio" name="filter-hotel-rating" class="filter-hotel-rating-radio" value="4.5" onchange="applySearchFilters('hotel')"> 🟢🟢🟢🟢🔘 Excellent (4.5+)</label></li>
+                            <li><label><input type="radio" name="filter-hotel-rating" class="filter-hotel-rating-radio" value="4.0" onchange="applySearchFilters('hotel')"> 🟢🟢🟢🟢⚪ Very Good (4.0+)</label></li>
+                            <li><label><input type="radio" name="filter-hotel-rating" class="filter-hotel-rating-radio" value="3.5" onchange="applySearchFilters('hotel')"> 🟢🟢🟢🔘⚪ Good (3.5+)</label></li>
+                            <li><label><input type="radio" name="filter-hotel-rating" class="filter-hotel-rating-radio" value="0" checked onchange="applySearchFilters('hotel')"> All Ratings</label></li>
+                        </ul>
+                    </div>
+                </aside>
+
+                <!-- Right Results Main Panel -->
+                <div class="results-main-panel">
+                    <div class="results-toolbar">
+                        <div>
+                            <span id="results-count-label" style="font-weight:700;">Showing 0 stays</span> in <span id="results-city-name-label">Jaipur</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <!-- Sort Dropdown -->
+                            <label style="font-size:0.78rem; font-weight:700;">Sort by:</label>
+                            <select id="results-sort-select" onchange="handleSortSelectChange(this.value, 'hotel')" style="padding:0.4rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem; outline:none;">
+                                <option value="value">Best Value</option>
+                                <option value="rating">Traveller Ranked</option>
+                                <option value="cost_asc">Price (low-high)</option>
+                                <option value="cost_desc">Price (high-low)</option>
+                            </select>
+                            
+                            <!-- Map Toggle Button -->
+                            <button class="btn-secondary" id="map-toggle-btn" onclick="toggleResultsMapSplit()">🗺️ Show Map</button>
                         </div>
                     </div>
 
-                    <!-- Jaipur Card -->
-                    <div class="trending-card" onclick="preFillCity('Jaipur')">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Hawa_Mahal_on_a_stormy_day.jpg/600px-Hawa_Mahal_on_a_stormy_day.jpg" alt="Jaipur">
-                        <div class="trending-card-body">
-                            <h3>Jaipur</h3>
-                            <p>Royal pink palaces, Hawa Mahal façade, historic forts, and colorful traditional bazaars.</p>
+                    <!-- Split container (left list, right Leaflet map) -->
+                    <div class="results-split-container" id="results-split-layout">
+                        <!-- Left Side Cards List -->
+                        <div class="results-cards-list" id="results-cards-list-container">
+                            <!-- Cards will be populated here -->
+                        </div>
+
+                        <!-- Right Side Map Panel (hidden by default unless Map toggled) -->
+                        <div class="results-map-panel hidden" id="results-map-panel-el">
+                            <div id="results-leaflet-map" style="width:100%; height:100%; border-radius:8px;"></div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Utility Widgets Row -->
-            <div class="utility-widgets-row">
-                <!-- Currency Converter -->
-                <section class="card converter-panel">
-                    <h2>💱 Currency Converter</h2>
-                    <div class="converter-box">
-                        <div class="input-group">
-                            <label for="conv-amount">Foreign Amount</label>
-                            <input type="number" id="conv-amount" value="100" min="1">
-                        </div>
-                        <div class="input-group">
-                            <label for="conv-from">From Currency</label>
-                            <select id="conv-from" class="custom-select">
-                                <option value="USD">USD ($)</option>
-                                <option value="EUR">EUR (€)</option>
-                                <option value="GBP">GBP (£)</option>
-                                <option value="AED">AED (Dh)</option>
-                                <option value="SGD">SGD (S$)</option>
-                            </select>
-                        </div>
-                        <div class="input-group" style="margin-top: 1rem;">
-                            <label>Converted to INR</label>
-                            <div class="conv-result-val" id="conv-result">₹8,300.00</div>
-                        </div>
-                        <button type="button" id="apply-budget-btn" class="btn-secondary">
-                            Apply to Total Budget
-                        </button>
-                    </div>
-                </section>
-
-                <!-- Group Members -->
-                <section class="card history-panel" id="members-card">
-                    <h2>👥 Group Members</h2>
-                    <div class="input-group">
-                        <label for="group-members-input">Group Names</label>
-                        <input type="text" id="group-members-input" value="Somya, Rahul, Aisha" title="Comma separated names">
-                        <span style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.5rem; display: block; line-height: 1.4;">Comma-separated names to simulate group decisions and split balances.</span>
-                    </div>
-                </section>
-
-                <!-- Saved Itineraries -->
-                <section class="card history-panel" id="history-card">
-                    <h2>📁 Saved Itineraries</h2>
-                    <div id="history-list-placeholder" style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 1.5rem 0;">
-                        No itineraries saved yet.
-                    </div>
-                    <ul id="history-list" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.5rem; max-height: 180px; overflow-y: auto;"></ul>
-                </section>
+            <!-- Booking partner drawer (flaps open from the right side of the screen when View Deal is clicked) -->
+            <div id="partner-comparison-drawer" class="partner-drawer hidden">
+                <div class="drawer-header">
+                    <h4>Compare Booking Stays</h4>
+                    <button class="close-drawer-btn" onclick="closePartnerComparisonDrawer()">&times;</button>
+                </div>
+                <div class="drawer-body">
+                    <div class="drawer-selected-hotel-info" id="drawer-hotel-summary-el"></div>
+                    <ul class="partner-prices-list" id="drawer-partner-prices-list-el"></ul>
+                </div>
             </div>
+            <!-- Drawer backdrop -->
+            <div id="partner-drawer-backdrop" class="drawer-backdrop hidden" onclick="closePartnerComparisonDrawer()"></div>
+        </div>
 
-            <!-- Saved Venues Board (Wide Row) -->
-            <div style="width: 100%;">
-                <section class="card history-panel" id="favorites-card">
-                    <h2>❤️ Saved Venues Board</h2>
-                    <div id="favorites-placeholder" style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 1rem 0;">
-                        No venues hearted yet.
+
+        <!-- ========================================== -->
+        <!-- 4. HOTEL DETAIL VIEW                       -->
+        <!-- ========================================== -->
+        <div id="hotel-detail-view" class="view-container hidden">
+            <!-- Full-width Photo Gallery strip -->
+            <section class="gallery-strip-section" id="hotel-gallery-strip-container">
+                <!-- 5 image columns with badge showing "See all photos" at the end -->
+            </section>
+
+            <div class="nav-container page-layout-sidebar-main" style="margin-top:2rem; align-items:flex-start;">
+                <!-- Left Column: Hotel details, address, tabs -->
+                <div class="detail-main-content">
+                    <div class="hotel-title-block">
+                        <h1 id="detail-hotel-name">Taj Rambagh Palace</h1>
+                        <div class="rating-review-row">
+                            <span id="detail-hotel-rating-bubbles"></span>
+                            <a href="#reviews-section" class="review-anchor-link" onclick="scrollToElement('reviews-section')"><span id="detail-hotel-reviews-count">(450 reviews)</span></a>
+                            <span class="hotel-class-stars" id="detail-hotel-class-stars">⭐⭐⭐⭐⭐</span>
+                        </div>
+                        <div class="hotel-address-line" style="margin-top:0.5rem; font-size:0.85rem; color:var(--text-secondary);">
+                            📍 <span id="detail-hotel-address">Bhawani Singh Road, Jaipur 302005, India</span>
+                        </div>
                     </div>
-                    <ul id="favorites-list" style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.75rem; max-height: 250px; overflow-y: auto;"></ul>
-                </section>
-            </div>
 
-            <!-- Output / Results Section (Full-Width) -->
-            <div style="width: 100%;">
-                <section class="card output-panel">
-                    <div class="tab-header">
-                        <button class="tab-btn active" data-tab="map-tab">📍 Interactive Map</button>
-                        <button class="tab-btn" data-tab="venues-tab">🏢 Candidate Venues</button>
-                        <button class="tab-btn" data-tab="plan-tab">🗓️ Optimized Budget Plan</button>
-                        <button class="tab-btn" data-tab="ledger-tab">⚖️ Expense Splitter</button>
+                    <!-- Amenities Icons Strip -->
+                    <div class="detail-key-amenities-strip" id="detail-hotel-amenities-strip">
+                        <!-- Icon+label pairs -->
                     </div>
 
-                    <div class="tab-content active" id="map-tab">
-                        <div id="map">
-                            <div class="map-placeholder">
-                                <p>Enter a destination and click "Find & Optimize Itinerary" to load the map and fetch venues.</p>
+                    <!-- Content Subtabs Menu -->
+                    <div class="detail-subtabs-menu">
+                        <button class="detail-subtab-btn active" data-dtab="detail-overview" onclick="switchDetailSubtab('detail-overview')">Overview</button>
+                        <button class="detail-subtab-btn" data-dtab="detail-rooms" onclick="switchDetailSubtab('detail-rooms')">Rooms</button>
+                        <button class="detail-subtab-btn" data-dtab="detail-location" onclick="switchDetailSubtab('detail-location')">Location & Nearby</button>
+                        <button class="detail-subtab-btn" data-dtab="detail-reviews" onclick="switchDetailSubtab('detail-reviews')">Reviews</button>
+                        <button class="detail-subtab-btn" data-dtab="detail-about" onclick="switchDetailSubtab('detail-about')">About Policies</button>
+                    </div>
+
+                    <!-- Content Subtab Panes -->
+                    <div class="detail-subtabs-panes-area">
+                        <!-- Overview Pane -->
+                        <div id="detail-overview-pane" class="detail-pane-content">
+                            <h4>Property Description</h4>
+                            <p id="detail-overview-description" style="line-height:1.6; color:var(--text-secondary); margin-top:0.5rem;"></p>
+                            
+                            <h4 style="margin-top:1.5rem;">Travellers' Choice Highlights</h4>
+                            <ul class="highlights-checklist" style="margin-top:0.5rem;">
+                                <li>✔️ Free WiFi in lobby and rooms</li>
+                                <li>✔️ Top rated pool & manicured heritage gardens</li>
+                                <li>✔️ Exceptional service rating</li>
+                            </ul>
+                        </div>
+
+                        <!-- Rooms Pane -->
+                        <div id="detail-rooms-pane" class="detail-pane-content hidden">
+                            <h4>Available Room Categories</h4>
+                            <div class="rooms-pricing-grid" id="detail-rooms-grid-container" style="display:flex; flex-direction:column; gap:1rem; margin-top:1rem;">
+                                <!-- Cards containing room photo, bed, price, book buttons -->
                             </div>
                         </div>
-                    </div>
 
-                    <div class="tab-content" id="venues-tab">
-                        <div class="summary-placeholder">
-                            <p>No venues loaded yet. Enter details above.</p>
+                        <!-- Location Pane -->
+                        <div id="detail-location-pane" class="detail-pane-content hidden">
+                            <h4>Location Map & Landmarks</h4>
+                            <div id="detail-location-leaflet-map" style="width:100%; height:300px; border-radius:8px; border:1px solid var(--border); margin-top:1rem;"></div>
+                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.5rem;">Centrally located with nearby sights within walking distances.</div>
                         </div>
-                        <div id="venues-data" class="hidden">
-                            <div class="stats-row">
-                                <div class="stat-card">
-                                    <span class="stat-val" id="hotel-count">0</span>
-                                    <span class="stat-lbl">Stays / Hotels</span>
+
+                        <!-- Reviews Pane -->
+                        <div id="detail-reviews-pane" class="detail-pane-content hidden">
+                            <!-- Ratings summary bar chart and written ratings -->
+                            <div class="reviews-summary-dashboard" style="display:grid; grid-template-columns:1.2fr 1fr; gap:1.5rem; background:#FAF9F6; padding:1.25rem; border-radius:12px; border:1px solid var(--border);">
+                                <div class="rating-breakdown-box">
+                                    <h5 style="margin-bottom:0.75rem;">Traveller Rating</h5>
+                                    <div class="breakdown-bars-list" id="rating-breakdown-bars-container">
+                                        <!-- Dynamic percentage bars -->
+                                    </div>
                                 </div>
-                                <div class="stat-card">
-                                    <span class="stat-val" id="rest-count">0</span>
-                                    <span class="stat-lbl">Restaurants</span>
-                                </div>
-                                <div class="stat-card">
-                                    <span class="stat-val" id="attr-count">0</span>
-                                    <span class="stat-lbl">Sightseeing Stops</span>
+                                <div class="sub-ratings-box">
+                                    <h5 style="margin-bottom:0.75rem;">Sub-Ratings Breakdown</h5>
+                                    <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.4rem; font-size:0.85rem;" id="sub-ratings-list-container">
+                                        <!-- Location, Cleanliness, Service, Value sub scores -->
+                                    </ul>
                                 </div>
                             </div>
 
-                            <div class="sample-lists">
-                                <h3>Sample Candidate Venues</h3>
-                                <div class="sample-grid">
-                                    <div>
-                                        <h4>🏨 Hotels</h4>
-                                        <ul id="sample-hotels"></ul>
-                                    </div>
-                                    <div>
-                                        <h4>🍽️ Restaurants</h4>
-                                        <ul id="sample-restaurants"></ul>
-                                    </div>
-                                    <div>
-                                        <h4>🏛️ Attractions</h4>
-                                        <ul id="sample-attractions"></ul>
-                                    </div>
-                                </div>
+                            <!-- Review List Controls -->
+                            <div id="reviews-section" class="reviews-section-header" style="margin-top:2rem; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:0.5rem; flex-wrap:wrap; gap:0.75rem;">
+                                <h4>Reviews (<span id="detail-reviews-total-lbl">0</span>)</h4>
+                                <button class="btn-primary" onclick="launchWriteReviewFlow()">✏️ Write a Review</button>
                             </div>
+
+                            <!-- Review Cards List -->
+                            <ul class="reviews-cards-list-deck" id="detail-reviews-cards-deck" style="list-style:none; padding:0; margin:1.5rem 0 0 0; display:flex; flex-direction:column; gap:1.5rem;">
+                                <!-- User review entries -->
+                            </ul>
+                        </div>
+
+                        <!-- About Pane -->
+                        <div id="detail-about-pane" class="detail-pane-content hidden">
+                            <h4>Hotel Policies</h4>
+                            <ul style="margin-top:0.5rem; font-size:0.85rem; line-height:1.6; color:var(--text-secondary);">
+                                <li>🕒 <strong>Check-in:</strong> From 2:00 PM</li>
+                                <li>🕒 <strong>Check-out:</strong> Until 12:00 PM</li>
+                                <li>🐕 <strong>Pets:</strong> Not allowed</li>
+                                <li>👶 <strong>Children:</strong> Children of all ages welcome. Extra beds available upon requests.</li>
+                            </ul>
                         </div>
                     </div>
+                </div>
 
-                    <div class="tab-content" id="plan-tab">
-                        <div class="plan-placeholder">
-                            <p>No plan generated yet. Submit details above to run the Knapsack Optimizer.</p>
-                        </div>
-                        <div id="plan-data" class="hidden">
-                            <div class="plan-summary-card">
-                                <div class="plan-summary-row">
-                                    <div class="summary-meta">
-                                        <h3>💰 Optimal Budget Allocation</h3>
-                                        <span id="plan-status" class="plan-status-badge">Within Budget</span>
-                                        <div id="travel-breakdown-container" class="hidden" style="margin-top: 0.75rem; font-size: 0.82rem; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 0.5rem; width: 100%;">
-                                            <div id="travel-breakdown-details"></div>
-                                        </div>
-                                    </div>
-                                    <div class="price-summary">
-                                        <div class="price-item">
-                                            <span class="price-lbl">Total Cost</span>
-                                            <span class="price-val" id="plan-total-cost">₹0</span>
-                                        </div>
-                                        <div class="price-item">
-                                            <span class="price-lbl">Per Person</span>
-                                            <span class="price-val" id="plan-person-cost">₹0</span>
-                                        </div>
-                                    </div>
+                <!-- Right Column: Sticky Booking Widget -->
+                <aside class="detail-booking-sidebar">
+                    <div class="booking-widget-sticky-box">
+                        <h3>Book Stays</h3>
+                        <div class="booking-inputs-grid" style="display:flex; flex-direction:column; gap:0.75rem; margin-top:1rem;">
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                                <div>
+                                    <label style="font-size:0.7rem; font-weight:700; color:var(--text-muted);">Check-In</label>
+                                    <input type="date" id="book-date-checkin" style="width:100%; padding:0.4rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
                                 </div>
+                                <div>
+                                    <label style="font-size:0.7rem; font-weight:700; color:var(--text-muted);">Check-Out</label>
+                                    <input type="date" id="book-date-checkout" style="width:100%; padding:0.4rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
+                                </div>
+                            </div>
+                            <div>
+                                <label style="font-size:0.7rem; font-weight:700; color:var(--text-muted);">Guests</label>
+                                <select id="book-guests-count" style="width:100%; padding:0.4rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
+                                    <option value="1">1 Adult</option>
+                                    <option value="2" selected>2 Adults</option>
+                                    <option value="3">3 Adults</option>
+                                    <option value="4">4 Adults</option>
+                                </select>
                             </div>
                             
-                            <div class="plan-actions-row hidden" style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem; justify-content: flex-end;">
-                                <button id="toggle-backup-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 0.45rem 0.9rem; border-radius: 6px; cursor: pointer; font-weight: 600;">Switch to Economy Option</button>
-                                <button id="export-pdf-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 0.45rem 0.9rem; border-radius: 6px; cursor: pointer; font-weight: 600;">Export to PDF</button>
-                            </div>
+                            <hr style="border-top:1px solid var(--border); margin:0.5rem 0;">
                             
-                            <div id="plan-details-wrapper">
-                                <div class="optimized-layout-grid">
-                                    <!-- Left: Accommodation Card -->
-                                    <div class="opt-card opt-hotel-card" id="opt-hotel-card-container">
-                                        <h3>Stays & Lodgings</h3>
-                                        <div id="opt-hotel-detail" class="opt-detail"></div>
-                                    </div>
-                                    
-                                    <!-- Right: Food, Nightlife & Zones -->
-                                    <div class="opt-card opt-itinerary-card">
-                                        <!-- Food & Nightlife Section -->
-                                        <div class="plan-sub-section">
-                                            <div class="food-nightlife-container">
-                                                <div class="food-block">
-                                                    <h4>Selected Restaurants</h4>
-                                                    <ul id="opt-restaurants-list" class="opt-list"></ul>
-                                                </div>
-                                                <div class="nightlife-block" id="opt-bars-container">
-                                                    <h4>Selected Bars & Clubs</h4>
-                                                    <ul id="opt-bars-list" class="opt-list"></ul>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Exploration Zones (Attractions Clustered by Location) -->
-                                        <div class="plan-sub-section" id="opt-zones-section" style="margin-top: 1.75rem;">
-                                            <h3>Exploration Zones (Clustered by Location)</h3>
-                                            <div id="opt-zones-container" class="zones-timeline"></div>
-                                        </div>
-                                    </div>
+                            <div class="best-partner-deal-row" style="display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <div style="font-size:0.72rem; color:var(--text-muted);">Partner Offer</div>
+                                    <strong style="font-size:1.1rem; color:var(--accent);" id="booking-sidebar-price-val">₹12,500</strong>
                                 </div>
+                                <button class="btn-primary" style="margin:0; padding:0.6rem 1rem;" onclick="triggerCheckoutFlow('hotel')">Book Now</button>
                             </div>
 
-                            <!-- Backup Plan Section -->
-                            <div id="backup-plan-section" class="backup-section hidden">
-                                <div class="backup-header">
-                                    <h4>Backup Economy Option</h4>
-                                    <span id="backup-cost-badge" class="cost-badge">₹0</span>
-                                </div>
-                                <p class="backup-desc">We created a lower-cost backup plan (recommending <span id="backup-hotel-name"></span>) to keep you safe in case actual costs exceed expectation.</p>
+                            <div class="compare-options-summary" style="margin-top:0.5rem;">
+                                <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-bottom:0.25rem;">Compare partner deals:</div>
+                                <ul style="list-style:none; padding:0; margin:0; font-size:0.78rem; display:flex; flex-direction:column; gap:0.35rem;" id="booking-compare-partner-list">
+                                    <!-- Partner pricing list -->
+                                </ul>
                             </div>
                         </div>
                     </div>
-
-                    <div class="tab-content" id="ledger-tab">
-                        <div class="ledger-container">
-                            <h3 style="font-family: var(--font-heading); font-size: 1.35rem; font-weight: 800; color: var(--accent); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">⚖️ Group Expense Splitter</h3>
-                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Log your group expenses during the trip, assign who paid, select who splits, and let the ledger settle the balances!</p>
-                            
-                            <div class="ledger-grid">
-                                <!-- Add Expense Column -->
-                                <div class="ledger-add-box">
-                                    <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem;">Add New Expense</h4>
-                                    <form id="ledger-form" style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                        <div class="input-group">
-                                            <label for="exp-desc">Description</label>
-                                            <input type="text" id="exp-desc" placeholder="e.g., Cab to Gateway of India" required>
-                                        </div>
-                                        <div class="input-group">
-                                            <label for="exp-amount">Amount (₹)</label>
-                                            <input type="number" id="exp-amount" min="1" placeholder="e.g., 900" required>
-                                        </div>
-                                        <div class="input-group">
-                                            <label for="exp-paid-by">Paid By</label>
-                                            <select id="exp-paid-by" class="custom-select" style="height: 38px; background: #fff;"></select>
-                                        </div>
-                                        <div class="input-group">
-                                            <label>Split Between</label>
-                                            <div id="exp-split-checkboxes" style="display: flex; flex-direction: column; gap: 0.35rem; max-height: 120px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface);"></div>
-                                        </div>
-                                        <button type="submit" class="btn-primary" style="font-size: 0.85rem; padding: 0.6rem; margin-top: 0.25rem; width: 100%; font-weight: 700;">Add Expense</button>
-                                    </form>
-                                </div>
-                                
-                                <!-- Ledger Balance & Debts Column -->
-                                <div class="ledger-results-box" style="display: flex; flex-direction: column; gap: 1rem;">
-                                    <div style="background: var(--surface-light); border: 1px solid var(--border); border-radius: var(--border-radius); padding: 1.25rem; flex: 1; min-height: 150px;">
-                                        <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem;">Active Ledger</h4>
-                                        <div id="ledger-history-placeholder" style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; padding: 1rem 0; font-style: italic;">No expenses added yet.</div>
-                                        <ul id="ledger-history-list" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.5rem; max-height: 180px; overflow-y: auto;"></ul>
-                                    </div>
-                                    
-                                    <div style="background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: var(--border-radius); padding: 1.25rem;">
-                                        <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--accent);">⚖️ Balance / Debt Settlement</h4>
-                                        <div id="ledger-balances-placeholder" style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; padding: 0.5rem 0; font-style: italic;">Balances are clean!</div>
-                                        <ul id="ledger-balances-list" style="margin: 0 0 0.75rem 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--text-primary);"></ul>
-                                        <button id="clear-ledger-btn" class="btn-secondary" style="font-size: 0.8rem; padding: 0.5rem; width: 100%; border-color: #E9D5FF; color: var(--accent); background: #fff; font-weight: 700;">Clear Ledger / Settle All</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+                </aside>
             </div>
         </div>
-    </div>
 
-    <!-- Footer -->
+
+        <!-- ========================================== -->
+        <!-- 5. RESTAURANT SEARCH & DETAIL VIEW         -->
+        <!-- ========================================== -->
+        <div id="restaurant-results-view" class="view-container hidden">
+            <!-- Reuse sidebar filters layout with Restaurant specific options -->
+            <div class="nav-container page-layout-sidebar-main">
+                <aside class="sidebar-filters-box">
+                    <div class="filters-header">
+                        <h4>Filters</h4>
+                        <button class="clear-filters-link" onclick="clearAllSearchFilters('restaurant')">Clear All</button>
+                    </div>
+                    
+                    <!-- Cuisines -->
+                    <div class="filter-section">
+                        <h5>Cuisine Category</h5>
+                        <ul class="filter-options-list">
+                            <li><label><input type="checkbox" class="filter-rest-cuisine-cb" value="indian" onchange="applySearchFilters('restaurant')"> Indian Traditional</label></li>
+                            <li><label><input type="checkbox" class="filter-rest-cuisine-cb" value="italian" onchange="applySearchFilters('restaurant')"> Italian & Pizzas</label></li>
+                            <li><label><input type="checkbox" class="filter-rest-cuisine-cb" value="chinese" onchange="applySearchFilters('restaurant')"> Chinese / Asian</label></li>
+                            <li><label><input type="checkbox" class="filter-rest-cuisine-cb" value="cafe" onchange="applySearchFilters('restaurant')"> Cafes & bakeries</label></li>
+                        </ul>
+                    </div>
+
+                    <!-- Price Category -->
+                    <div class="filter-section">
+                        <h5>Price Tier</h5>
+                        <ul class="filter-options-list">
+                            <li><label><input type="checkbox" class="filter-rest-price-cb" value="1" onchange="applySearchFilters('restaurant')"> 🪙 Cheap Eats (₹)</label></li>
+                            <li><label><input type="checkbox" class="filter-rest-price-cb" value="2" onchange="applySearchFilters('restaurant')"> 🪙🪙 Mid-range (₹₹)</label></li>
+                            <li><label><input type="checkbox" class="filter-rest-price-cb" value="3" onchange="applySearchFilters('restaurant')"> 🪙🪙🪙 Fine Dining (₹₹₹)</label></li>
+                        </ul>
+                    </div>
+                </aside>
+
+                <div class="results-main-panel">
+                    <div class="results-toolbar">
+                        <h4>🍽️ Restaurants in <span id="rest-city-name-label">Jaipur</span></h4>
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <label style="font-size:0.8rem; font-weight:700;">Sort:</label>
+                            <select id="rest-sort-select" onchange="handleSortSelectChange(this.value, 'restaurant')" style="padding:0.4rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
+                                <option value="value">Best Value</option>
+                                <option value="rating">Traveller Ranked</option>
+                                <option value="cost_asc">Price (low-high)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="results-cards-list" id="rest-cards-list-container">
+                        <!-- Cards here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="restaurant-detail-view" class="view-container hidden">
+            <!-- Restaurant Detail View has same components as hotel detail but Reservation widget -->
+            <section class="gallery-strip-section" id="rest-gallery-strip-container"></section>
+            
+            <div class="nav-container page-layout-sidebar-main" style="margin-top:2rem; align-items:flex-start;">
+                <div class="detail-main-content">
+                    <div class="hotel-title-block">
+                        <h1 id="detail-rest-name">Laxmi Mishthan Bhandar (LMB)</h1>
+                        <div class="rating-review-row">
+                            <span id="detail-rest-rating-bubbles"></span>
+                            <span id="detail-rest-reviews-count">(320 reviews)</span>
+                        </div>
+                        <div class="hotel-address-line" style="margin-top:0.5rem; font-size:0.85rem; color:var(--text-secondary);">
+                            📍 <span id="detail-rest-address">Johari Bazar, Jaipur, India</span> | Cuisine: <span id="detail-rest-cuisine-label">Indian</span>
+                        </div>
+                    </div>
+
+                    <!-- Amenities / Features -->
+                    <div class="detail-key-amenities-strip" id="detail-rest-amenities-strip"></div>
+
+                    <!-- Tabs -->
+                    <div class="detail-subtabs-menu">
+                        <button class="detail-subtab-btn active" data-rtab="rest-overview" onclick="switchRestDetailSubtab('rest-overview')">Overview</button>
+                        <button class="detail-subtab-btn" data-rtab="rest-menu" onclick="switchRestDetailSubtab('rest-menu')">Menu Highlights</button>
+                        <button class="detail-subtab-btn" data-rtab="rest-reviews" onclick="switchRestDetailSubtab('rest-reviews')">Reviews</button>
+                    </div>
+
+                    <div class="detail-subtabs-panes-area">
+                        <div id="rest-overview-pane" class="detail-pane-content">
+                            <h4>About Restaurant</h4>
+                            <p id="detail-rest-overview-description" style="line-height:1.6; color:var(--text-secondary);"></p>
+                        </div>
+
+                        <div id="rest-menu-pane" class="detail-pane-content hidden">
+                            <h4>Signature Dishes</h4>
+                            <ul class="highlights-checklist" id="rest-signature-dishes-list" style="margin-top:1rem; display:flex; flex-direction:column; gap:0.5rem;">
+                                <!-- Menu items list -->
+                            </ul>
+                        </div>
+
+                        <div id="rest-reviews-pane" class="detail-pane-content hidden">
+                            <div class="reviews-section-header" style="display:flex; justify-content:space-between; align-items:center;">
+                                <h4>Reviews</h4>
+                                <button class="btn-primary" onclick="launchWriteReviewFlow()">✏️ Write a Review</button>
+                            </div>
+                            <ul class="reviews-cards-list-deck" id="rest-reviews-cards-deck" style="list-style:none; padding:0; margin-top:1.5rem;"></ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reservation Widget -->
+                <aside class="detail-booking-sidebar">
+                    <div class="booking-widget-sticky-box">
+                        <h3>Book a Table</h3>
+                        <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.75rem;">Powered by TheFork & OpenTable</p>
+                        <div class="booking-inputs-grid" style="display:flex; flex-direction:column; gap:0.75rem;">
+                            <div>
+                                <label style="font-size:0.7rem; font-weight:700; color:var(--text-muted);">Date</label>
+                                <input type="date" id="table-reserve-date" style="width:100%; padding:0.4rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                                <div>
+                                    <label style="font-size:0.7rem; font-weight:700; color:var(--text-muted);">Time</label>
+                                    <select id="table-reserve-time" style="width:100%; padding:0.4rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
+                                        <option>7:00 PM</option>
+                                        <option>7:30 PM</option>
+                                        <option>8:00 PM</option>
+                                        <option>8:30 PM</option>
+                                        <option>9:00 PM</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size:0.7rem; font-weight:700; color:var(--text-muted);">Guests</label>
+                                    <input type="number" id="table-reserve-people" value="2" style="width:100%; padding:0.4rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
+                                </div>
+                            </div>
+                            <button class="btn-primary" style="width:100%; margin-top:0.5rem;" onclick="triggerCheckoutFlow('restaurant')">Find Table</button>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+
+
+        <!-- ========================================== -->
+        <!-- 6. THINGS TO DO / EXPERIENCES VIEW         -->
+        <!-- ========================================== -->
+        <div id="experience-results-view" class="view-container hidden">
+            <div class="nav-container page-layout-sidebar-main">
+                <aside class="sidebar-filters-box">
+                    <div class="filters-header">
+                        <h4>Filters</h4>
+                        <button class="clear-filters-link" onclick="clearAllSearchFilters('experience')">Clear All</button>
+                    </div>
+
+                    <!-- Category of Sights -->
+                    <div class="filter-section">
+                        <h5>Category</h5>
+                        <ul class="filter-options-list">
+                            <li><label><input type="checkbox" class="filter-exp-category-cb" value="museum" onchange="applySearchFilters('experience')"> Museums & Palaces</label></li>
+                            <li><label><input type="checkbox" class="filter-exp-category-cb" value="beach" onchange="applySearchFilters('experience')"> Beaches & Outdoors</label></li>
+                            <li><label><input type="checkbox" class="filter-exp-category-cb" value="viewpoint" onchange="applySearchFilters('experience')"> Viewpoints & Landmarks</label></li>
+                            <li><label><input type="checkbox" class="filter-exp-category-cb" value="park" onchange="applySearchFilters('experience')"> Parks & Gardens</label></li>
+                        </ul>
+                    </div>
+
+                    <!-- Entry Fees -->
+                    <div class="filter-section">
+                        <h5>Entry Cost</h5>
+                        <ul class="filter-options-list">
+                            <li><label><input type="checkbox" class="filter-exp-price-cb" value="free" onchange="applySearchFilters('experience')"> 🆓 Free Entry</label></li>
+                            <li><label><input type="checkbox" class="filter-exp-price-cb" value="paid" onchange="applySearchFilters('experience')"> 🎟️ Paid Tickets</label></li>
+                        </ul>
+                    </div>
+                </aside>
+
+                <div class="results-main-panel">
+                    <div class="results-toolbar">
+                        <h4>🏛️ Sights & Experiences in <span id="exp-city-name-label">Jaipur</span></h4>
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <label style="font-size:0.8rem; font-weight:700;">Sort:</label>
+                            <select id="exp-sort-select" onchange="handleSortSelectChange(this.value, 'experience')" style="padding:0.4rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
+                                <option value="value">Recommended</option>
+                                <option value="rating">Traveller Ranked</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="results-cards-list" id="exp-cards-list-container">
+                        <!-- Cards here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="experience-detail-view" class="view-container hidden">
+            <section class="gallery-strip-section" id="exp-gallery-strip-container"></section>
+            
+            <div class="nav-container page-layout-sidebar-main" style="margin-top:2rem; align-items:flex-start;">
+                <div class="detail-main-content">
+                    <div class="hotel-title-block">
+                        <h1 id="detail-exp-name">Amber Palace Tour</h1>
+                        <div class="rating-review-row">
+                            <span id="detail-exp-rating-bubbles"></span>
+                            <span id="detail-exp-reviews-count">(580 reviews)</span>
+                        </div>
+                        <div class="hotel-address-line" style="margin-top:0.5rem; font-size:0.85rem; color:var(--text-secondary);">
+                            📍 <span id="detail-exp-address">Amber, Jaipur, India</span>
+                        </div>
+                    </div>
+
+                    <!-- Amenities / Features -->
+                    <div class="detail-key-amenities-strip" id="detail-exp-amenities-strip"></div>
+
+                    <!-- Tabs -->
+                    <div class="detail-subtabs-menu">
+                        <button class="detail-subtab-btn active" data-etab="exp-overview" onclick="switchExpDetailSubtab('exp-overview')">Overview</button>
+                        <button class="detail-subtab-btn" data-etab="exp-included" onclick="switchExpDetailSubtab('exp-included')">What's Included</button>
+                        <button class="detail-subtab-btn" data-etab="exp-reviews" onclick="switchExpDetailSubtab('exp-reviews')">Reviews</button>
+                    </div>
+
+                    <div class="detail-subtabs-panes-area">
+                        <div id="exp-overview-pane" class="detail-pane-content">
+                            <h4>Overview</h4>
+                            <p id="detail-exp-overview-description" style="line-height:1.6; color:var(--text-secondary);"></p>
+                        </div>
+
+                        <div id="exp-included-pane" class="detail-pane-content hidden">
+                            <h4>Highlights & Details</h4>
+                            <ul class="highlights-checklist" style="display:flex; flex-direction:column; gap:0.5rem; margin-top:1rem;">
+                                <li>✔️ Full historical guided walk tour</li>
+                                <li>✔️ Express skip-the-line entrance pass</li>
+                                <li>❌ Hotel pickup & dining meals (excluded)</li>
+                            </ul>
+                        </div>
+
+                        <div id="exp-reviews-pane" class="detail-pane-content hidden">
+                            <div class="reviews-section-header" style="display:flex; justify-content:space-between; align-items:center;">
+                                <h4>Reviews</h4>
+                                <button class="btn-primary" onclick="launchWriteReviewFlow()">✏️ Write a Review</button>
+                            </div>
+                            <ul class="reviews-cards-list-deck" id="exp-reviews-cards-deck" style="list-style:none; padding:0; margin-top:1.5rem;"></ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Book activity widget -->
+                <aside class="detail-booking-sidebar">
+                    <div class="booking-widget-sticky-box">
+                        <h3>Book Tickets</h3>
+                        <div class="booking-inputs-grid" style="display:flex; flex-direction:column; gap:0.75rem; margin-top:1rem;">
+                            <div>
+                                <label style="font-size:0.7rem; font-weight:700; color:var(--text-muted);">Select Tour Date</label>
+                                <input type="date" id="activity-book-date" style="width:100%; padding:0.4rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.7rem; font-weight:700; color:var(--text-muted);">Adult Travelers</label>
+                                <input type="number" id="activity-book-people" value="1" min="1" style="width:100%; padding:0.4rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
+                            </div>
+                            
+                            <hr style="border-top:1px solid var(--border); margin:0.5rem 0;">
+                            
+                            <div class="best-partner-deal-row" style="display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <div style="font-size:0.72rem; color:var(--text-muted);">Price from</div>
+                                    <strong style="font-size:1.1rem; color:var(--accent);" id="activity-booking-price-val">₹1,500</strong>
+                                </div>
+                                <button class="btn-primary" style="margin:0; padding:0.6rem 1rem;" onclick="triggerCheckoutFlow('activity')">Book Now</button>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+
+
+        <!-- ========================================== -->
+        <!-- 7. TRAVEL FORUMS VIEW                      -->
+        <!-- ========================================== -->
+        <div id="forums-view" class="view-container hidden" style="margin-bottom: 4rem;">
+            <div class="nav-container">
+                <div class="forum-banner" style="background:#0F172A; color:#fff; padding:3rem; border-radius:16px; margin-bottom:2rem; text-align:center;">
+                    <h2 style="color:#fff;">Community Travel Forums</h2>
+                    <p style="color:#94A3B8; margin-top:0.5rem;">Find answers and discuss travel questions with real travel experts.</p>
+                </div>
+
+                <div class="forum-dashboard-layout" style="display:grid; grid-template-columns:1.5fr 1fr; gap:2rem;">
+                    <!-- Left: Thread List Board -->
+                    <div class="forum-threads-box">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid var(--border); padding-bottom:0.5rem;">
+                            <h3>Recent Discussion Threads</h3>
+                            <button class="btn-primary" onclick="launchCreateThreadFlow()">➕ New Thread</button>
+                        </div>
+                        <ul class="forum-threads-list" id="forum-threads-container-list" style="list-style:none; padding:0; display:flex; flex-direction:column; gap:0.75rem;">
+                            <!-- Thread item bars -->
+                        </ul>
+                    </div>
+
+                    <!-- Right: Quick search and info -->
+                    <aside class="forum-sidebar">
+                        <div style="background:#FAF9F6; border:1px solid var(--border); border-radius:12px; padding:1.25rem; display:flex; flex-direction:column; gap:0.75rem;">
+                            <h4>Find Boards</h4>
+                            <input type="text" placeholder="Search boards by country..." id="forum-board-search" oninput="filterForumBoardsList(this.value)" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
+                            <ul style="list-style:none; padding:0; margin:0.5rem 0 0 0; display:flex; flex-direction:column; gap:0.5rem; font-size:0.85rem;" id="forum-boards-list-container">
+                                <!-- list of cities links -->
+                            </ul>
+                        </div>
+                    </aside>
+                </div>
+            </div>
+        </div>
+
+        <div id="forum-thread-view" class="view-container hidden" style="margin-bottom: 4rem;">
+            <div class="nav-container">
+                <a href="#" onclick="navigateToView('forums'); return false;" style="font-weight:700; color:var(--accent); text-decoration:none; display:inline-block; margin-bottom:1rem;">⬅️ Back to Forum Boards</a>
+                
+                <div class="thread-header-block" style="background:#FAF9F6; border:1px solid var(--border); border-radius:12px; padding:1.5rem; margin-bottom:1.5rem;">
+                    <h2 id="thread-title-lbl">Jaipur itinerary travel tip needed?</h2>
+                    <div style="display:flex; gap:0.75rem; font-size:0.8rem; color:var(--text-secondary); margin-top:0.5rem;">
+                        <span>Author: <strong id="thread-author-lbl">john_travels</strong></span>
+                        <span>|</span>
+                        <span>Date: <span id="thread-date-lbl">Jul 07, 2026</span></span>
+                    </div>
+                </div>
+
+                <!-- Thread post entries -->
+                <div class="posts-stream-box" id="thread-posts-stream-container" style="display:flex; flex-direction:column; gap:1rem; margin-bottom:2rem;">
+                    <!-- Posts -->
+                </div>
+
+                <!-- Post reply text area -->
+                <div class="post-reply-form-box" id="forum-reply-form-container" style="background:#FFFFFF; border:1px solid var(--border); border-radius:12px; padding:1.5rem;">
+                    <h4>Post a Reply</h4>
+                    <textarea id="forum-reply-body" placeholder="Write your reply tip here..." style="width:100%; height:120px; padding:0.75rem; border:1px solid var(--border); border-radius:8px; margin-top:0.75rem; font-size:0.85rem; outline:none; resize:vertical;"></textarea>
+                    <button class="btn-primary" style="margin-top:0.75rem;" onclick="handlePostForumReply()">Post Reply</button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ========================================== -->
+        <!-- 8. USER PROFILE VIEW                       -->
+        <!-- ========================================== -->
+        <div id="profile-view" class="view-container hidden" style="margin-bottom: 4rem;">
+            <div class="nav-container page-layout-sidebar-main" style="align-items:flex-start;">
+                <!-- Sidebar dashboard stats -->
+                <aside class="profile-stats-card" style="background:#FFFFFF; border:1px solid var(--border); border-radius:16px; padding:1.5rem; text-align:center; width:280px; box-shadow:0 4px 15px rgba(0,0,0,0.03);">
+                    <img id="profile-avatar-img" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" alt="Avatar" style="width:120px; height:120px; border-radius:50%; object-fit:crop; border:3px solid var(--accent); margin:0 auto 1rem auto; display:block;">
+                    <h3 id="profile-username-lbl" style="font-size:1.15rem; font-weight:800;">Somya</h3>
+                    <p id="profile-location-lbl" style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:0.25rem;">New Delhi, India</p>
+                    <p style="font-size:0.72rem; color:var(--text-muted); margin-bottom:1rem;">Member since 2026</p>
+                    
+                    <button class="btn-secondary" style="width:100%; font-size:0.78rem; padding:0.5rem;" onclick="toggleEditProfileForm()">✏️ Edit Profile</button>
+                    
+                    <hr style="border-top:1px solid var(--border); margin:1.25rem 0;">
+                    
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; font-size:0.8rem;">
+                        <div style="border-right:1px solid var(--border);">
+                            <strong id="profile-stat-reviews" style="font-size:1.2rem; color:var(--accent); display:block;">2</strong>
+                            Reviews
+                        </div>
+                        <div>
+                            <strong id="profile-stat-photos" style="font-size:1.2rem; color:var(--accent); display:block;">0</strong>
+                            Photos
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Main contributions area -->
+                <div class="profile-contributions-box" style="flex:1; min-width:0;">
+                    <!-- Edit Profile Inline Form Overlay (hidden by default) -->
+                    <div id="profile-edit-inline-box" class="hidden" style="background:#FAF9F6; border:1px solid var(--border); border-radius:12px; padding:1.25rem; margin-bottom:1.5rem;">
+                        <h4>Edit Profile Info</h4>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.75rem;">
+                            <div>
+                                <label style="font-size:0.7rem; font-weight:700;">Display Name</label>
+                                <input type="text" id="edit-profile-username" style="width:100%; padding:0.4rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.7rem; font-weight:700;">Home City</label>
+                                <input type="text" id="edit-profile-location" style="width:100%; padding:0.4rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem;">
+                            </div>
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
+                            <button class="btn-secondary" style="font-size:0.78rem; padding:0.4rem 0.85rem;" onclick="toggleEditProfileForm()">Cancel</button>
+                            <button class="btn-primary" style="font-size:0.78rem; padding:0.4rem 0.85rem; margin:0;" onclick="handleSaveProfileUpdate()">Save</button>
+                        </div>
+                    </div>
+
+                    <div class="detail-subtabs-menu">
+                        <button class="detail-subtab-btn active" data-ptab="profile-contributions" onclick="switchProfileSubtab('profile-contributions')">My Reviews</button>
+                        <button class="detail-subtab-btn" data-ptab="profile-photos" onclick="switchProfileSubtab('profile-photos')">My Photos</button>
+                        <button class="detail-subtab-btn" data-ptab="profile-trips" onclick="switchProfileSubtab('profile-trips')">My Saved Trips</button>
+                    </div>
+
+                    <div class="detail-subtabs-panes-area" style="margin-top:1.5rem;">
+                        <!-- Reviews list pane -->
+                        <div id="profile-contributions-pane" class="profile-tab-pane">
+                            <ul class="reviews-cards-list-deck" id="profile-reviews-list-container" style="list-style:none; padding:0; display:flex; flex-direction:column; gap:1.25rem;">
+                                <!-- User contributed reviews -->
+                            </ul>
+                        </div>
+
+                        <!-- Photos Grid pane -->
+                        <div id="profile-photos-pane" class="profile-tab-pane hidden">
+                            <div class="photos-contribution-grid" id="profile-photos-grid-container" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:0.75rem;">
+                                <!-- User contributed photos -->
+                            </div>
+                        </div>
+
+                        <!-- Saved Trips pane -->
+                        <div id="profile-trips-pane" class="profile-tab-pane hidden">
+                            <ul class="saved-trips-list" id="profile-trips-list-container" style="list-style:none; padding:0; display:flex; flex-direction:column; gap:1rem;">
+                                <!-- Saved/Persisted itineraries list from TripSplit optimizer -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER SECTION -->
     <footer class="site-footer">
         <div class="footer-content">
             <div class="footer-brand">
-                <h2>Trip<span>split</span></h2>
-                <p>Advanced TripAdvisor-grade itinerary planner and knapsack budget splitter. Plan optimal stays and sightseeing stops with friends!</p>
+                <h2>tripadvisor</h2>
+                <p>Cloned for education & assignments. Browse optimal routes, dynamic hotels, local dining spots, and historic attractions.</p>
             </div>
             <div class="footer-column">
-                <h3>Quick Links</h3>
+                <h3>Explore</h3>
                 <ul>
-                    <li><a href="#" onclick="document.getElementById('nav-discover').click(); return false;">Discover</a></li>
-                    <li><a href="#" onclick="document.getElementById('nav-trips').click(); return false;">Trips Board</a></li>
-                    <li><a href="#" onclick="document.getElementById('nav-engine').click(); return false;">About Optimizer Engine</a></li>
+                    <li><a href="#" onclick="navigateToCategoryResults('hotels'); return false;">Hotels & Stays</a></li>
+                    <li><a href="#" onclick="navigateToCategoryResults('restaurants'); return false;">Restaurants & Dining</a></li>
+                    <li><a href="#" onclick="navigateToCategoryResults('attractions'); return false;">Things to Do</a></li>
+                    <li><a href="#" onclick="navigateToView('forums'); return false;">Community Forums</a></li>
                 </ul>
             </div>
             <div class="footer-column">
-                <h3>About</h3>
-                <p style="color: #94A3B8; line-height: 1.6; font-size: 0.85rem;">Developed with Nominatim Nominations and OpenStreetMap Overpass APIs for real-time venue search, and parallel Gemini Flash enrichment.</p>
+                <h3>About Cloners</h3>
+                <p style="color: #94A3B8; font-size: 0.8rem; line-height: 1.6;">Built with Nominatim geocoding services, Overpass API local candidates extraction, and Leaflet map markers overlays.</p>
             </div>
         </div>
         <div class="footer-bottom">
-            <div>&copy; 2026 TripSplit. All rights reserved.</div>
-            <div>Built with ❤️ for Group Explorers</div>
+            <div>&copy; 2026 TripAdvisor assignment clone. All rights reserved.</div>
+            <div>Built for Travelers & Students</div>
         </div>
     </footer>
 
-    <!-- About Engine Modal -->
-    <div id="about-modal" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999;">
-        <div class="modal-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--border-radius); max-width: 600px; width: 90%; padding: 2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.15); position: relative; color: var(--text-primary); text-align: left;">
-            <button id="close-modal-btn" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
-            <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--accent); margin-bottom: 1rem; border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">⚙️ How TripSplit Works</h2>
-            <div style="display: flex; flex-direction: column; gap: 1rem; font-size: 0.92rem; line-height: 1.5; max-height: 380px; overflow-y: auto; padding-right: 0.5rem;">
-                <p>TripSplit uses advanced combinatorial optimization algorithms to build the best itinerary matching your budget constraint.</p>
-                
-                <div>
-                    <h3 style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem;">1. Geocoding & Candidate Extraction</h3>
-                    <p>It geocodes input stops via OpenStreetMap Nominatim and queries OSM Overpass to find stays, restaurants, bars, and attractions within a 2.5km centroid radius.</p>
-                </div>
-                
-                <div>
-                    <h3 style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem;">2. Knapsack Dynamic Programming (Stay + Dining)</h3>
-                    <p>For each stop, TripSplit runs a <strong>Constrained 0/1 Knapsack DP solver</strong> to choose the stay, restaurants, and attractions that maximize total utility (using ratings, stars, and landmark weights) without exceeding the allocated budget.</p>
-                </div>
-                
-                <div>
-                    <h3 style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem;">3. Traveling Salesperson Problem (TSP) Day Routing</h3>
-                    <p>Sightseeing venues are geographically clustered by day using a Greedy TSP solver, ensuring that the route minimizes travel distance and overhead between sights.</p>
-                </div>
+    <!-- ========================================== -->
+    <!-- OVERLAY MODALS & FORMS                     -->
+    <!-- ========================================== -->
 
-                <div>
-                    <h3 style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem;">4. Parallel Gemini Enrichment</h3>
-                    <p>Finally, a parallelized Gemini Flash model fetches traveler vibes, local signature dish tips, and coordinates in real-time to enrich the finalized plan stops.</p>
+    <!-- Sign In Modal -->
+    <div id="signin-modal" class="modal-overlay hidden" onclick="closeSigninModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <button class="close-modal-x" onclick="closeSigninModal()">&times;</button>
+            
+            <div class="signin-tabs-header">
+                <button class="signin-tab-btn active" data-stab="tab-login" onclick="switchSigninModalTab('tab-login')">Sign In</button>
+                <button class="signin-tab-btn" data-stab="tab-register" onclick="switchSigninModalTab('tab-register')">Join</button>
+            </div>
+
+            <!-- Login Form Pane -->
+            <div id="tab-login-pane" class="signin-form-pane">
+                <form id="signin-form-element" onsubmit="handleSignInSubmit(event)">
+                    <div style="display:flex; flex-direction:column; gap:1rem; margin-top:1rem;">
+                        <div>
+                            <label style="font-size:0.75rem; font-weight:700;">Email Address</label>
+                            <input type="email" id="signin-email" required placeholder="name@example.com" style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; outline:none;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.75rem; font-weight:700;">Password</label>
+                            <input type="password" id="signin-password" required placeholder="Enter password..." style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; outline:none;">
+                        </div>
+                        <button type="submit" class="btn-primary" style="width:100%; margin-top:0.5rem; padding:0.75rem;">Sign In</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Join / Register Form Pane -->
+            <div id="tab-register-pane" class="signin-form-pane hidden">
+                <form id="register-form-element" onsubmit="handleRegisterSubmit(event)">
+                    <div style="display:flex; flex-direction:column; gap:1rem; margin-top:1rem;">
+                        <div>
+                            <label style="font-size:0.75rem; font-weight:700;">Username</label>
+                            <input type="text" id="register-username" required placeholder="Choose username..." style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; outline:none;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.75rem; font-weight:700;">Email Address</label>
+                            <input type="email" id="register-email" required placeholder="name@example.com" style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; outline:none;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.75rem; font-weight:700;">Password</label>
+                            <input type="password" id="register-password" required placeholder="Choose secure password..." style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; outline:none;">
+                        </div>
+                        <button type="submit" class="btn-primary" style="width:100%; margin-top:0.5rem; padding:0.75rem;">Create Account</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- OAuth rows block -->
+            <div style="margin-top:1.5rem; text-align:center;">
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.75rem; position:relative;">
+                    <span style="background:#fff; padding:0 0.5rem; z-index:2; position:relative;">or continue with</span>
+                    <hr style="border-top:1px solid var(--border); position:absolute; top:50%; left:0; right:0; z-index:1; margin:0;">
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                    <button class="btn-secondary" style="font-size:0.8rem; padding:0.6rem;" onclick="handleOAuthLogin('Google')">🌐 Google</button>
+                    <button class="btn-secondary" style="font-size:0.8rem; padding:0.6rem;" onclick="handleOAuthLogin('Facebook')">🔵 Facebook</button>
                 </div>
             </div>
-            <button id="close-modal-btn-bottom" class="btn-secondary" style="margin-top: 1.5rem; width: 100%; font-weight: 700; padding: 0.6rem;">Got it!</button>
         </div>
     </div>
 
     <!-- Image Lightbox Modal -->
-    <div id="image-lightbox" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 10000;" onclick="closeLightbox()">
-        <div class="lightbox-content" style="position: relative; max-width: 90%; max-height: 80%; text-align: center;" onclick="event.stopPropagation()">
-            <button style="position: absolute; top: -2.5rem; right: 0; background: none; border: none; font-size: 2rem; cursor: pointer; color: #fff;" onclick="closeLightbox()">&times;</button>
-            <img id="lightbox-img" src="" alt="Venue Image" style="max-width: 100%; max-height: 70vh; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); object-fit: contain; border: 2px solid rgba(255,255,255,0.2);">
-            <div id="lightbox-caption" style="color: #fff; font-size: 1.1rem; font-weight: 700; margin-top: 1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.8);"></div>
+    <div id="image-lightbox" class="modal-overlay hidden" onclick="closeLightbox()">
+        <div class="lightbox-card" onclick="event.stopPropagation()">
+            <button class="close-modal-x" onclick="closeLightbox()">&times;</button>
+            <div class="lightbox-image-box">
+                <button class="lightbox-arrow prev" onclick="navigateLightbox(-1)">◀</button>
+                <img id="lightbox-img" src="" alt="Big Photo">
+                <button class="lightbox-arrow next" onclick="navigateLightbox(1)">▶</button>
+            </div>
+            <div id="lightbox-caption" class="lightbox-caption-text">Venue Photo</div>
         </div>
     </div>
 
-    <!-- Floating Gemini AI Chat Widget -->
-    <div id="floating-chat-container" class="floating-chat-box" style="position: fixed; bottom: 1.5rem; right: 1.5rem; width: 340px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); box-shadow: 0 10px 25px rgba(0,0,0,0.15); display: flex; flex-direction: column; z-index: 999; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); transform-origin: bottom right;">
-        <!-- Chat Header -->
-        <div class="chat-header" style="background: linear-gradient(135deg, #7C3AED, #5B21B6); color: #fff; padding: 0.85rem 1rem; border-top-left-radius: 11px; border-top-right-radius: 11px; display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <span style="font-size: 1.1rem;">🤖</span>
-                <div style="text-align: left;">
-                    <h3 style="margin: 0; font-size: 0.88rem; font-weight: 700; color: #ffffff;">TripSplit Travel AI</h3>
-                    <span style="font-size: 0.68rem; opacity: 0.85;">Always Active Advisor</span>
+    <!-- Write a Review Modal -->
+    <div id="write-review-modal" class="modal-overlay hidden" onclick="closeWriteReviewModal()">
+        <div class="modal-card" style="max-width:600px;" onclick="event.stopPropagation()">
+            <button class="close-modal-x" onclick="closeWriteReviewModal()">&times;</button>
+            <h3 style="border-bottom:1.5px solid var(--border); padding-bottom:0.5rem; margin-bottom:1rem;">✏️ Write a Review</h3>
+            
+            <form id="write-review-form-element" onsubmit="handleReviewFormSubmit(event)">
+                <div style="display:flex; flex-direction:column; gap:1.25rem;">
+                    <!-- Bubble score selection -->
+                    <div>
+                        <label style="font-size:0.8rem; font-weight:700; display:block; margin-bottom:0.35rem;">Your Rating (1 to 5 bubbles)</label>
+                        <div class="bubble-score-selector" style="display:flex; gap:0.5rem;">
+                            <span class="bubble-selector-dot" data-score="1" onclick="setReviewFormBubbleScore(1)">🟢</span>
+                            <span class="bubble-selector-dot" data-score="2" onclick="setReviewFormBubbleScore(2)">🟢</span>
+                            <span class="bubble-selector-dot" data-score="3" onclick="setReviewFormBubbleScore(3)">🟢</span>
+                            <span class="bubble-selector-dot" data-score="4" onclick="setReviewFormBubbleScore(4)">🟢</span>
+                            <span class="bubble-selector-dot" data-score="5" onclick="setReviewFormBubbleScore(5)">🟢</span>
+                        </div>
+                        <input type="hidden" id="review-form-score-val" value="5">
+                    </div>
+
+                    <!-- Date of Visit -->
+                    <div>
+                        <label style="font-size:0.8rem; font-weight:700; display:block; margin-bottom:0.35rem;">When did you visit?</label>
+                        <input type="month" id="review-form-date" required style="padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
+                    </div>
+
+                    <!-- Headline -->
+                    <div>
+                        <label style="font-size:0.8rem; font-weight:700; display:block; margin-bottom:0.35rem;">Review Title / Headline</label>
+                        <input type="text" id="review-form-headline" required placeholder="Summarize your experience in one sentence..." style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; outline:none; font-size:0.85rem;">
+                    </div>
+
+                    <!-- Body Text (truncated 200 char validation) -->
+                    <div>
+                        <label style="font-size:0.8rem; font-weight:700; display:block; margin-bottom:0.35rem;">Detailed Review (minimum 200 characters)</label>
+                        <textarea id="review-form-body" required placeholder="Tell travelers about service, location, value, cleanliness. What did you enjoy? What can be improved?" oninput="handleReviewBodyTextInput(this.value)" style="width:100%; height:120px; padding:0.6rem; border:1px solid var(--border); border-radius:6px; outline:none; font-size:0.85rem; resize:vertical;"></textarea>
+                        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+                            <span id="review-char-validation-label">0 / 200 characters</span>
+                            <span id="review-char-validation-warning" style="color:#DC2626;" class="hidden">⚠️ Review must be at least 200 characters.</span>
+                        </div>
+                    </div>
+
+                    <!-- File dropzone mock -->
+                    <div>
+                        <label style="font-size:0.8rem; font-weight:700; display:block; margin-bottom:0.35rem;">Upload Photo (optional)</label>
+                        <div class="photo-dropzone-box" onclick="simulatePhotoUploadPicker()">
+                            <span>📷 Drag & drop or click to add photos</span>
+                        </div>
+                        <input type="hidden" id="review-form-photo-val" value="">
+                    </div>
+
+                    <button type="submit" class="btn-primary" style="width:100%; padding:0.75rem; font-size:0.9rem;">Submit Review</button>
                 </div>
-            </div>
-            <button id="minimize-chat-btn" style="background: none; border: none; color: #fff; cursor: pointer; font-size: 1rem; font-weight: bold; padding: 0.2rem 0.5rem; line-height: 1;">&minus;</button>
+            </form>
         </div>
-        
-        <!-- Chat Body (Always ON/Expanded by default) -->
-        <div id="chat-widget-body" style="display: flex; flex-direction: column; height: 320px;">
-            <div id="assistant-chat-box" style="flex: 1; overflow-y: auto; padding: 0.85rem; background: var(--surface-light); display: flex; flex-direction: column; gap: 0.75rem;">
-                <div class="chat-msg assistant">
-                    👋 Hello! I am your <strong>TripSplit Travel Assistant</strong>, powered by Gemini. <br><br>
-                    Ask me anything about cities, travel itineraries, packing lists, local secrets, or cultural etiquettes. I will also keep an eye on your hearted/saved places to give matching recommendations!
+    </div>
+
+    <!-- Languages / Currency Selector Modal -->
+    <div id="language-selector-modal" class="modal-overlay hidden" onclick="closeLanguageModal()">
+        <div class="modal-card" style="max-width:500px;" onclick="event.stopPropagation()">
+            <button class="close-modal-x" onclick="closeLanguageModal()">&times;</button>
+            <h3 style="border-bottom:1.5px solid var(--border); padding-bottom:0.5rem; margin-bottom:1.5rem;">Select Language & Currency</h3>
+            
+            <div style="display:flex; flex-direction:column; gap:1.25rem;">
+                <div>
+                    <label style="font-size:0.8rem; font-weight:700; display:block; margin-bottom:0.4rem;">Language</label>
+                    <select style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
+                        <option>English (India)</option>
+                        <option>English (United States)</option>
+                        <option>English (United Kingdom)</option>
+                        <option>Español (España)</option>
+                        <option>Français (France)</option>
+                    </select>
                 </div>
-            </div>
-            <div style="padding: 0.75rem; border-top: 1px solid var(--border); display: flex; gap: 0.35rem; background: var(--surface);">
-                <input type="text" id="assistant-chat-input" placeholder="Ask travel question..." style="font-size: 0.85rem; padding: 0.5rem; flex: 1; border-radius: 6px; border: 1px solid var(--border); outline: none;">
-                <button id="assistant-chat-btn" class="btn-primary" style="font-size: 0.85rem; padding: 0.5rem 0.85rem; border-radius: 6px; font-weight: 700; margin-top: 0;">Send</button>
+                <div>
+                    <label style="font-size:0.8rem; font-weight:700; display:block; margin-bottom:0.4rem;">Currency</label>
+                    <select id="language-currency-select-el" onchange="handleCurrencyChange(this.value)" style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
+                        <option value="INR">₹ INR - Indian Rupee</option>
+                        <option value="USD">$ USD - US Dollar</option>
+                        <option value="EUR">€ EUR - Euro</option>
+                        <option value="GBP">£ GBP - British Pound</option>
+                    </select>
+                </div>
+                <button class="btn-primary" style="width:100%; padding:0.65rem;" onclick="closeLanguageModal()">Save Preferences</button>
             </div>
         </div>
     </div>
 
-    <!-- Floating Chat Badge Icon (Only visible when chat is minimized) -->
-    <button id="floating-chat-badge" style="position: fixed; bottom: 1.5rem; right: 1.5rem; width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #7C3AED, #5B21B6); border: none; box-shadow: 0 4px 15px rgba(124, 58, 237, 0.45); color: #fff; font-size: 1.8rem; cursor: pointer; display: none; align-items: center; justify-content: center; z-index: 999; transition: var(--transition);">
-        🤖
-    </button>
+    <!-- Booking Checkout Wizard Flow Modal -->
+    <div id="checkout-modal" class="modal-overlay hidden" onclick="closeCheckoutModal()">
+        <div class="modal-card" style="max-width:650px; padding:2rem;" onclick="event.stopPropagation()">
+            <button class="close-modal-x" onclick="closeCheckoutModal()">&times;</button>
+            
+            <!-- Checkout Stepper Progress -->
+            <div class="checkout-stepper" style="display:flex; justify-content:space-between; margin-bottom:2rem; font-size:0.8rem; font-weight:700; border-bottom:1px solid var(--border); padding-bottom:0.75rem;">
+                <span id="step-lbl-1" class="step-active">1. Traveler Details</span>
+                <span id="step-lbl-2" style="color:var(--text-muted);">2. Payment Methods</span>
+                <span id="step-lbl-3" style="color:var(--text-muted);">3. Receipt Confirmation</span>
+            </div>
+
+            <!-- Step 1 Pane: Traveler Form -->
+            <div id="checkout-step-1" class="checkout-pane">
+                <h4>Traveler Information</h4>
+                <form onsubmit="handleCheckoutStep1Submit(event)" style="display:flex; flex-direction:column; gap:1rem; margin-top:1rem;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                        <div>
+                            <label style="font-size:0.75rem; font-weight:700;">First Name</label>
+                            <input type="text" required id="chk-fname" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.75rem; font-weight:700;">Last Name</label>
+                            <input type="text" required id="chk-lname" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px;">
+                        </div>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; font-weight:700;">Contact Email</label>
+                        <input type="email" required id="chk-email" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px;">
+                    </div>
+                    <button type="submit" class="btn-primary" style="width:100%; margin-top:0.5rem; padding:0.65rem;">Continue to Payment</button>
+                </form>
+            </div>
+
+            <!-- Step 2 Pane: Payment Form -->
+            <div id="checkout-step-2" class="checkout-pane hidden">
+                <h4>Card Payment Info</h4>
+                <form onsubmit="handleCheckoutStep2Submit(event)" style="display:flex; flex-direction:column; gap:1rem; margin-top:1rem;">
+                    <div>
+                        <label style="font-size:0.75rem; font-weight:700;">Cardholder Name</label>
+                        <input type="text" required id="chk-cardname" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; font-weight:700;">Card Number</label>
+                        <input type="text" required placeholder="1234 5678 1234 5678" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px;">
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                        <div>
+                            <label style="font-size:0.75rem; font-weight:700;">Expiry MM/YY</label>
+                            <input type="text" required placeholder="12/28" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.75rem; font-weight:700;">CVV Code</label>
+                            <input type="password" required placeholder="***" maxLength="3" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px;">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width:100%; margin-top:0.5rem; padding:0.65rem;">Confirm & Pay</button>
+                </form>
+            </div>
+
+            <!-- Step 3 Pane: Confirmation -->
+            <div id="checkout-step-3" class="checkout-pane hidden" style="text-align:center; padding:1rem 0;">
+                <span style="font-size:3rem; display:block; margin-bottom:1rem;">🎉</span>
+                <h3>Booking Confirmed!</h3>
+                <p style="color:var(--text-secondary); margin-top:0.5rem; font-size:0.9rem;">Thank you, <span id="chk-receipt-username">Somya</span>! Your booking has been processed successfully.</p>
+                <div style="background:#FAF9F6; border:1px solid var(--border); border-radius:8px; padding:1rem; margin:1.5rem auto 1.5rem auto; max-width:400px; text-align:left; font-size:0.82rem;">
+                    <div><strong>Confirmation Reference:</strong> <span id="chk-receipt-ref" style="font-family:monospace; font-weight:700; color:var(--accent);">TA-2026-908127</span></div>
+                    <div style="margin-top:0.25rem;"><strong>Property/Activity:</strong> <span id="chk-receipt-title">Taj Rambagh Palace</span></div>
+                    <div style="margin-top:0.25rem;"><strong>Total Cost Paid:</strong> <span id="chk-receipt-cost">₹12,500</span></div>
+                </div>
+                <button class="btn-primary" style="padding:0.6rem 2rem;" onclick="closeCheckoutModal()">Back to site</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Forum Thread Modal -->
+    <div id="forum-create-thread-modal" class="modal-overlay hidden" onclick="closeCreateThreadModal()">
+        <div class="modal-card" style="max-width:550px;" onclick="event.stopPropagation()">
+            <button class="close-modal-x" onclick="closeCreateThreadModal()">&times;</button>
+            <h3 style="border-bottom:1.5px solid var(--border); padding-bottom:0.5rem; margin-bottom:12px;">💬 Create Discussion Thread</h3>
+            
+            <form onsubmit="handleCreateThreadSubmit(event)">
+                <div style="display:flex; flex-direction:column; gap:1rem;">
+                    <div>
+                        <label style="font-size:0.75rem; font-weight:700;">Thread Title</label>
+                        <input type="text" id="forum-thread-title" required placeholder="What is your travel question?" style="width:100%; padding:0.55rem; border:1px solid var(--border); border-radius:6px; outline:none; font-size:0.85rem;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; font-weight:700;">Your Message / Details</label>
+                        <textarea id="forum-thread-body" required placeholder="Describe your question, travel dates, or recommendations needed..." style="width:100%; height:120px; padding:0.55rem; border:1px solid var(--border); border-radius:6px; outline:none; font-size:0.85rem; resize:vertical;"></textarea>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width:100%; padding:0.65rem; font-size:0.88rem;">Publish Thread</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <!-- Leaflet Map JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
