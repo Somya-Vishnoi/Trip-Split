@@ -123,12 +123,74 @@ document.addEventListener('DOMContentLoaded', () => {
     renderHomepageHotels();
     renderHomepageArticles();
     
-    // Go to default view
-    navigateToView('home');
+    // Parse URL parameters on load for deep linking & history compatibility
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewParam = urlParams.get('view') || 'home';
+    const paramVal = urlParams.get('param') || '';
+    const cityParam = urlParams.get('city');
+    const catParam = urlParams.get('cat');
+    const itemParam = urlParams.get('item');
+    const threadParam = urlParams.get('thread');
+    
+    if (cityParam) state.currentCity = decodeURIComponent(cityParam);
+    if (catParam) state.selectedCategory = decodeURIComponent(catParam);
+    if (itemParam) state.selectedItemId = decodeURIComponent(itemParam);
+    if (threadParam) state.selectedThreadId = parseInt(threadParam);
+    
+    // Push the initial replaceState
+    window.history.replaceState({
+        viewId: viewParam,
+        param: paramVal,
+        currentCity: state.currentCity || '',
+        selectedCategory: state.selectedCategory || '',
+        selectedItemId: state.selectedItemId || '',
+        selectedThreadId: state.selectedThreadId || ''
+    }, '', window.location.search || '?view=home');
+    
+    // Route to initial page view
+    if (viewParam === 'destination' && state.currentCity) {
+        navigateToDestinationOverview(state.currentCity, 'India', true);
+    } else if ((viewParam === 'hotel-detail' || viewParam === 'restaurant-detail' || viewParam === 'experience-detail') && state.selectedItemId) {
+        let cat = viewParam === 'hotel-detail' ? 'hotel' : viewParam === 'restaurant-detail' ? 'restaurant' : 'experience';
+        navigateToDetail(state.selectedItemId, cat, '', true);
+    } else if (viewParam === 'forum-thread' && state.selectedThreadId) {
+        openForumThread(state.selectedThreadId, true);
+    } else if (viewParam === 'hotel-results' || viewParam === 'restaurant-results' || viewParam === 'experience-results') {
+        navigateToCategoryResults(state.selectedCategory || 'hotels', true);
+    } else {
+        navigateToView(viewParam, paramVal, true);
+    }
+});
+
+// Window Popstate Listener for Browser Back/Forward buttons
+window.addEventListener('popstate', (event) => {
+    if (event.state) {
+        const { viewId, param, currentCity, selectedCategory, selectedItemId, selectedThreadId } = event.state;
+        if (currentCity) state.currentCity = currentCity;
+        if (selectedCategory) state.selectedCategory = selectedCategory;
+        if (selectedItemId) state.selectedItemId = selectedItemId;
+        if (selectedThreadId) state.selectedThreadId = selectedThreadId;
+        
+        // Navigate accordingly
+        if (viewId === 'destination' && state.currentCity) {
+            navigateToDestinationOverview(state.currentCity, 'India', true);
+        } else if ((viewId === 'hotel-detail' || viewId === 'restaurant-detail' || viewId === 'experience-detail') && state.selectedItemId) {
+            let cat = viewId === 'hotel-detail' ? 'hotel' : viewId === 'restaurant-detail' ? 'restaurant' : 'experience';
+            navigateToDetail(state.selectedItemId, cat, '', true);
+        } else if (viewId === 'forum-thread' && state.selectedThreadId) {
+            openForumThread(state.selectedThreadId, true);
+        } else if (viewId === 'hotel-results' || viewId === 'restaurant-results' || viewId === 'experience-results') {
+            navigateToCategoryResults(state.selectedCategory || 'hotels', true);
+        } else {
+            navigateToView(viewId, param, true);
+        }
+    } else {
+        navigateToView('home', '', true);
+    }
 });
 
 // --- ROUTER VIEW CONTROLLER ---
-function navigateToView(viewId, param = '') {
+function navigateToView(viewId, param = '', skipPushState = false) {
     state.currentView = viewId;
     
     // Hide all views
@@ -158,30 +220,48 @@ function navigateToView(viewId, param = '') {
     } else if (viewId === 'ledger') {
         initializeLedgerView();
     }
+    
+    if (!skipPushState) {
+        let url = '?view=' + viewId;
+        if (param) url += '&param=' + encodeURIComponent(param);
+        if (state.currentCity) url += '&city=' + encodeURIComponent(state.currentCity);
+        if (state.selectedCategory) url += '&cat=' + encodeURIComponent(state.selectedCategory);
+        if (state.selectedItemId) url += '&item=' + encodeURIComponent(state.selectedItemId);
+        if (state.selectedThreadId) url += '&thread=' + encodeURIComponent(state.selectedThreadId);
+        
+        window.history.pushState({
+            viewId: viewId,
+            param: param,
+            currentCity: state.currentCity,
+            selectedCategory: state.selectedCategory,
+            selectedItemId: state.selectedItemId,
+            selectedThreadId: state.selectedThreadId
+        }, '', url);
+    }
 }
 
 // Navigates directly from pills/search into the category search pages
-function navigateToCategoryResults(category) {
+function navigateToCategoryResults(category, skipPushState = false) {
     state.selectedCategory = category;
     
     if (category === 'restaurants') {
         const city = state.currentCity || 'Jaipur';
         state.currentCity = city;
         document.getElementById('rest-city-name-label').textContent = city;
-        navigateToView('restaurant-results');
+        navigateToView('restaurant-results', '', skipPushState);
         loadCategoryResults('restaurant', city);
     } else if (category === 'attractions') {
         const city = state.currentCity || 'Jaipur';
         state.currentCity = city;
         document.getElementById('exp-city-name-label').textContent = city;
-        navigateToView('experience-results');
+        navigateToView('experience-results', '', skipPushState);
         loadCategoryResults('experience', city);
     } else {
         // Default stays/hotels
         const city = state.currentCity || 'Jaipur';
         state.currentCity = city;
         document.getElementById('results-city-name-label').textContent = city;
-        navigateToView('hotel-results');
+        navigateToView('hotel-results', '', skipPushState);
         loadCategoryResults('hotel', city);
     }
 }
@@ -498,9 +578,9 @@ function preFillCitySearch(city) {
 }
 
 // --- DESTINATION OVERVIEW CONTROLLER ---
-async function navigateToDestinationOverview(city, country = "India") {
+async function navigateToDestinationOverview(city, country = "India", skipPushState = false) {
     state.currentCity = city;
-    navigateToView('destination');
+    navigateToView('destination', '', skipPushState);
     
     // Populate header photo based on city
     let heroImg = "https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=1200&q=80"; // Jaipur
@@ -1035,7 +1115,10 @@ function plotPinsOnResultsMap() {
 }
 
 // --- ITEM DETAIL VIEWS MANAGER ---
-function navigateToDetail(name, category, addressFallback = "") {
+function navigateToDetail(name, category, addressFallback = "", skipPushState = false) {
+    state.selectedItemId = name;
+    state.selectedCategory = category;
+
     // Find the item details in list caches
     let item = state.venues[category].find(v => v.name === name);
     if (!item) {
@@ -1062,7 +1145,7 @@ function navigateToDetail(name, category, addressFallback = "") {
         state.checkoutItem = item;
         state.checkoutType = 'hotel';
         
-        navigateToView('hotel-detail');
+        navigateToView('hotel-detail', '', skipPushState);
         
         document.getElementById('detail-hotel-name').textContent = item.name;
         document.getElementById('detail-hotel-rating-bubbles').innerHTML = getBubbleRatingHtml(item.stars || 4.5);
@@ -1147,7 +1230,7 @@ function navigateToDetail(name, category, addressFallback = "") {
     } else if (category === 'restaurant') {
         state.checkoutItem = item;
         state.checkoutType = 'restaurant';
-        navigateToView('restaurant-detail');
+        navigateToView('restaurant-detail', '', skipPushState);
         
         document.getElementById('detail-rest-name').textContent = item.name;
         document.getElementById('detail-rest-rating-bubbles').innerHTML = getBubbleRatingHtml(item.stars || 4.4);
@@ -1180,7 +1263,7 @@ function navigateToDetail(name, category, addressFallback = "") {
     } else if (category === 'experience') {
         state.checkoutItem = item;
         state.checkoutType = 'experience';
-        navigateToView('experience-detail');
+        navigateToView('experience-detail', '', skipPushState);
         
         document.getElementById('detail-exp-name').textContent = item.name;
         document.getElementById('detail-exp-rating-bubbles').innerHTML = getBubbleRatingHtml(item.stars || 4.7);
@@ -1641,9 +1724,10 @@ function filterForumThreadsByBoard(boardId) {
     `).join('');
 }
 
-function openForumThread(threadId) {
+function openForumThread(threadId, skipPushState = false) {
     state.activeThreadId = threadId;
-    navigateToView('forum-thread');
+    state.selectedThreadId = threadId;
+    navigateToView('forum-thread', '', skipPushState);
     
     const thread = state.forumThreads.find(t => t.id === threadId);
     if (!thread) return;
