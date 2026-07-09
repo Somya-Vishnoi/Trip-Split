@@ -1402,3 +1402,7 @@ input:focus, select.custom-select:focus {
     border-top: 3px solid var(--accent);
 }
 
+.hidden {
+    display: none !important;
+}
+
