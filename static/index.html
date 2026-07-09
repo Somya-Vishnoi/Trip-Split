@@ -3,112 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TripSplit - Group Trip Budget Optimizer</title>
+    <title>TripSplit - TripAdvisor-Grade Group Trip Budget Optimizer</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Leaflet Map CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+    <!-- Header / TripAdvisor Navbar Clone -->
+    <header class="tripadvisor-header">
+        <div class="header-content">
+            <a href="/" class="logo">
+                <svg class="logo-icon-svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent); margin-right: 0.5rem;">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+                <h1>Trip<span>split</span></h1>
+            </a>
+            <nav class="nav-links">
+                <a href="#" id="nav-discover" class="active">Discover</a>
+                <a href="#" id="nav-trips">Trips</a>
+                <a href="#" id="nav-engine">About Engine</a>
+                <a href="#" id="nav-chat">AI Assistant</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- TripAdvisor Hero Section -->
+    <div class="tripadvisor-hero">
+        <h1>Where to?</h1>
+        <div class="hero-sub">Enter destination details and budget constraint in our optimizer card to calculate your optimal trip!</div>
+        
+        <div class="hero-quick-filters">
+            <button class="quick-filter-btn active" id="hero-btn-hotels" onclick="toggleHeroFilter('stay')">
+                <span class="icon">🏨</span> Hotels
+            </button>
+            <button class="quick-filter-btn active" id="hero-btn-transport" onclick="toggleHeroFilter('transport')">
+                <span class="icon">🚗</span> Local Transport
+            </button>
+            <button class="quick-filter-btn active" id="hero-btn-sightseeing" onclick="toggleHeroFilter('attractions')">
+                <span class="icon">🏛️</span> Things to Do
+            </button>
+        </div>
+    </div>
+
     <div class="container">
-        <!-- Header / TripAdvisor Navbar Clone -->
-        <header class="tripadvisor-header">
-            <div class="header-content">
-                <div class="logo" style="display: flex; align-items: center; gap: 0.5rem;">
-                    <svg class="logo-icon-svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);">
-                        <line x1="22" y1="2" x2="11" y2="13"></line>
-                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                    </svg>
-                    <h1 style="margin: 0; font-size: 1.45rem;">Trip<span>split</span></h1>
-                </div>
-                <nav class="nav-links">
-                    <a href="#" id="nav-discover" class="active">Discover</a>
-                    <a href="#" id="nav-trips">Trips</a>
-                    <a href="#" id="nav-engine">About Engine</a>
-                    <a href="#" id="nav-chat">AI Assistant</a>
-                </nav>
-            </div>
-        </header>
-
-        <!-- TripAdvisor Hero Search Section -->
-        <div class="tripadvisor-hero">
-            <h1>Where to?</h1>
-            <div class="hero-sub">Enter destination details and budget constraint in our optimizer card to calculate your optimal trip!</div>
-            
-            <div class="hero-quick-filters">
-                <button class="quick-filter-btn active" id="hero-btn-hotels" onclick="toggleHeroFilter('stay')">
-                    <span class="icon">🏨</span> Hotels
-                </button>
-                <button class="quick-filter-btn active" id="hero-btn-transport" onclick="toggleHeroFilter('transport')">
-                    <span class="icon">🚗</span> Local Transport
-                </button>
-                <button class="quick-filter-btn active" id="hero-btn-sightseeing" onclick="toggleHeroFilter('attractions')">
-                    <span class="icon">🏛️</span> Things to Do
-                </button>
-            </div>
-        </div>
-
-        <!-- Trending Destinations Section (TripAdvisor Style) -->
-        <div class="trending-section" style="margin-top: 2.5rem; margin-bottom: 2.5rem;">
-            <h2 style="font-size: 1.55rem; font-weight: 800; color: var(--text-primary); text-align: left; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">🔥 Trending Destinations</h2>
-            <div class="trending-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem;">
-                
-                <!-- Goa Card -->
-                <div class="trending-card" onclick="preFillCity('Goa')" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--border-radius); overflow: hidden; cursor: pointer; transition: var(--transition); box-shadow: var(--box-shadow); text-align: left;">
-                    <div class="trending-img-placeholder" style="height: 140px; background: linear-gradient(135deg, #C4B5FD, #7C3AED); display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 3.2rem; font-weight: bold;">🏖️</div>
-                    <div style="padding: 1.25rem;">
-                        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-primary);">Goa</h3>
-                        <p style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.45;">Golden sand beaches, beach clubs, and water sports.</p>
-                    </div>
-                </div>
-
-                <!-- Mumbai Card -->
-                <div class="trending-card" onclick="preFillCity('Mumbai')" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--border-radius); overflow: hidden; cursor: pointer; transition: var(--transition); box-shadow: var(--box-shadow); text-align: left;">
-                    <div class="trending-img-placeholder" style="height: 140px; background: linear-gradient(135deg, #93C5FD, #2563EB); display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 3.2rem; font-weight: bold;">🌆</div>
-                    <div style="padding: 1.25rem;">
-                        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-primary);">Mumbai</h3>
-                        <p style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.45;">Marine Drive coast, historical monuments, and food streets.</p>
-                    </div>
-                </div>
-
-                <!-- Delhi Card -->
-                <div class="trending-card" onclick="preFillCity('Delhi')" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--border-radius); overflow: hidden; cursor: pointer; transition: var(--transition); box-shadow: var(--box-shadow); text-align: left;">
-                    <div class="trending-img-placeholder" style="height: 140px; background: linear-gradient(135deg, #FDBA74, #F59E0B); display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 3.2rem; font-weight: bold;">🕌</div>
-                    <div style="padding: 1.25rem;">
-                        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-primary);">Delhi</h3>
-                        <p style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.45;">Centuries-old Mughal heritage, street bites, and markets.</p>
-                    </div>
-                </div>
-
-                <!-- Jaipur Card -->
-                <div class="trending-card" onclick="preFillCity('Jaipur')" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--border-radius); overflow: hidden; cursor: pointer; transition: var(--transition); box-shadow: var(--box-shadow); text-align: left;">
-                    <div class="trending-img-placeholder" style="height: 140px; background: linear-gradient(135deg, #F472B6, #DB2777); display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 3.2rem; font-weight: bold;">🏰</div>
-                    <div style="padding: 1.25rem;">
-                        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-primary);">Jaipur</h3>
-                        <p style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.45;">Royal pink forts, heritage palaces, and cultural bazaars.</p>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
         <!-- Main Dashboard Layout -->
         <div class="dashboard-grid">
-            <!-- Left Column: Inputs & Utilities -->
+            <!-- Top / Search Builder Panel -->
             <div class="left-col">
                 <section class="card input-panel">
-                    <h2>Plan New Adventure</h2>
+                    <h2>⚙️ Plan New Adventure</h2>
                     <form id="search-form">
-                        <div class="input-group">
-                            <label for="destination">Where are you going?</label>
-                            <input type="text" id="destination" placeholder="e.g., Goa, Manali, Rome" required autocomplete="off">
+                        <div class="row">
+                            <div class="input-group col" style="flex: 2; min-width: 250px;">
+                                <label for="destination">Where are you going?</label>
+                                <input type="text" id="destination" placeholder="e.g., Goa, Manali, Mumbai, Jaipur" required autocomplete="off">
+                            </div>
+                            <div class="input-group col">
+                                <label for="budget">Total Budget (₹)</label>
+                                <input type="number" id="budget" min="100" value="50000" required>
+                            </div>
                         </div>
                         
-                        <div class="row">
+                        <div class="row" style="margin-top: 0.5rem;">
                             <div class="input-group col">
                                 <label for="people">Group Size</label>
                                 <input type="number" id="people" min="1" value="4" required>
@@ -117,11 +79,6 @@
                                 <label for="days">Duration (Days)</label>
                                 <input type="number" id="days" min="1" max="14" value="4" required>
                             </div>
-                        </div>
-                        
-                        <div class="input-group">
-                            <label for="budget">Total Budget (₹)</label>
-                            <input type="number" id="budget" min="100" value="50000" required>
                         </div>
 
                         <!-- Filter Toggles for Custom Preferences -->
@@ -147,14 +104,14 @@
                                 Include Roundtrip Intercity Travel
                             </label>
                             
-                            <div id="intercity-fields" class="hidden" style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.75rem; width: 100%;">
-                                <div class="input-group" style="margin-bottom: 0;">
-                                    <label for="origin-city" style="font-size: 0.8rem; font-weight: bold; margin-bottom: 0.25rem;">Starting From (Origin)</label>
-                                    <input type="text" id="origin-city" placeholder="e.g. Jaipur" style="padding: 0.4rem; font-size: 0.85rem;">
+                            <div id="intercity-fields" class="hidden" style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 1rem; width: 100%;">
+                                <div class="input-group col" style="margin-bottom: 0;">
+                                    <label for="origin-city" style="font-size: 0.7rem; font-weight: bold; margin-bottom: 0.25rem;">Starting From (Origin)</label>
+                                    <input type="text" id="origin-city" placeholder="e.g. Delhi" style="padding: 0.6rem; font-size: 0.85rem;">
                                 </div>
-                                <div class="input-group" style="margin-bottom: 0;">
-                                    <label for="intercity-mode" style="font-size: 0.8rem; font-weight: bold; margin-bottom: 0.25rem;">Mode of Transport</label>
-                                    <select id="intercity-mode" class="custom-select" style="padding: 0.4rem; font-size: 0.85rem;">
+                                <div class="input-group col" style="margin-bottom: 0;">
+                                    <label for="intercity-mode" style="font-size: 0.7rem; font-weight: bold; margin-bottom: 0.25rem;">Mode of Transport</label>
+                                    <select id="intercity-mode" class="custom-select" style="padding: 0.6rem; font-size: 0.85rem; height: 38px;">
                                         <option value="flight">Flight (Economy)</option>
                                         <option value="train_3ac">Train (3AC)</option>
                                         <option value="train_sleeper">Train (Sleeper)</option>
@@ -165,7 +122,7 @@
                         </div>
 
                         <button type="submit" id="search-btn" class="btn-primary">
-                            <span>Initialize Venues</span>
+                            <span>🔍 Find & Optimize Itinerary</span>
                         </button>
                     </form>
 
@@ -174,25 +131,69 @@
                         <p id="loader-text">Geocoding & fetching venues from OpenStreetMap...</p>
                     </div>
                 </section>
+            </div>
 
+            <!-- Trending Destinations Section (TripAdvisor Style) -->
+            <div class="trending-section">
+                <h2 style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 800; color: var(--text-primary); text-align: left; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">🔥 Trending Destinations</h2>
+                <div class="trending-grid">
+                    <!-- Goa Card -->
+                    <div class="trending-card" onclick="preFillCity('Goa')">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Calangute_Beach_Goa.jpg/600px-Calangute_Beach_Goa.jpg" alt="Goa">
+                        <div class="trending-card-body">
+                            <h3>Goa</h3>
+                            <p>Golden sand beaches, historic churches, vibrant shacks, and water sports.</p>
+                        </div>
+                    </div>
+
+                    <!-- Mumbai Card -->
+                    <div class="trending-card" onclick="preFillCity('Mumbai')">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Mumbai_03-2016_30_Gateway_of_India.jpg/600px-Mumbai_03-2016_30_Gateway_of_India.jpg" alt="Mumbai">
+                        <div class="trending-card-body">
+                            <h3>Mumbai</h3>
+                            <p>Marine Drive skyline, Gateway of India monument, local train culture, and food streets.</p>
+                        </div>
+                    </div>
+
+                    <!-- Delhi Card -->
+                    <div class="trending-card" onclick="preFillCity('Delhi')">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/India_Gate_in_New_Delhi_03-2016.jpg/600px-India_Gate_in_New_Delhi_03-2016.jpg" alt="Delhi">
+                        <div class="trending-card-body">
+                            <h3>Delhi</h3>
+                            <p>Historic Mughal Red Fort, Qutub Minar heritage, street shopping, and local bites.</p>
+                        </div>
+                    </div>
+
+                    <!-- Jaipur Card -->
+                    <div class="trending-card" onclick="preFillCity('Jaipur')">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Hawa_Mahal_on_a_stormy_day.jpg/600px-Hawa_Mahal_on_a_stormy_day.jpg" alt="Jaipur">
+                        <div class="trending-card-body">
+                            <h3>Jaipur</h3>
+                            <p>Royal pink palaces, Hawa Mahal façade, historic forts, and colorful traditional bazaars.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Utility Widgets Row -->
+            <div class="utility-widgets-row">
+                <!-- Currency Converter -->
                 <section class="card converter-panel">
-                    <h2>Currency Converter</h2>
+                    <h2>💱 Currency Converter</h2>
                     <div class="converter-box">
                         <div class="input-group">
                             <label for="conv-amount">Foreign Amount</label>
                             <input type="number" id="conv-amount" value="100" min="1">
                         </div>
-                        <div class="row">
-                            <div class="input-group col">
-                                <label for="conv-from">From Currency</label>
-                                <select id="conv-from" class="custom-select">
-                                    <option value="USD">USD ($)</option>
-                                    <option value="EUR">EUR (€)</option>
-                                    <option value="GBP">GBP (£)</option>
-                                    <option value="AED">AED (Dh)</option>
-                                    <option value="SGD">SGD (S$)</option>
-                                </select>
-                            </div>
+                        <div class="input-group">
+                            <label for="conv-from">From Currency</label>
+                            <select id="conv-from" class="custom-select">
+                                <option value="USD">USD ($)</option>
+                                <option value="EUR">EUR (€)</option>
+                                <option value="GBP">GBP (£)</option>
+                                <option value="AED">AED (Dh)</option>
+                                <option value="SGD">SGD (S$)</option>
+                            </select>
                         </div>
                         <div class="input-group" style="margin-top: 1rem;">
                             <label>Converted to INR</label>
@@ -204,216 +205,249 @@
                     </div>
                 </section>
 
-                <section class="card history-panel" id="history-card" style="margin-top: 1.5rem;">
-                    <h2>Saved Itineraries</h2>
-                    <div id="history-list-placeholder" style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 0.5rem 0;">
+                <!-- Group Members -->
+                <section class="card history-panel" id="members-card">
+                    <h2>👥 Group Members</h2>
+                    <div class="input-group">
+                        <label for="group-members-input">Group Names</label>
+                        <input type="text" id="group-members-input" value="Somya, Rahul, Aisha" title="Comma separated names">
+                        <span style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.5rem; display: block; line-height: 1.4;">Comma-separated names to simulate group decisions and split balances.</span>
+                    </div>
+                </section>
+
+                <!-- Saved Itineraries -->
+                <section class="card history-panel" id="history-card">
+                    <h2>📁 Saved Itineraries</h2>
+                    <div id="history-list-placeholder" style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 1.5rem 0;">
                         No itineraries saved yet.
                     </div>
-                    <ul id="history-list" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.5rem; max-height: 200px; overflow-y: auto;"></ul>
+                    <ul id="history-list" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.5rem; max-height: 180px; overflow-y: auto;"></ul>
                 </section>
-
-                <section class="card history-panel" id="members-card" style="margin-top: 1.5rem;">
-                    <h2>👥 Group Members</h2>
-                    <div class="input-group" style="margin-bottom: 0.25rem;">
-                        <input type="text" id="group-members-input" value="Somya, Rahul, Aisha" style="font-size: 0.8rem; padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border); width: 100%;" title="Comma separated names">
-                        <span style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem; display: block; line-height: 1.3;">Comma-separated names to simulate group decisions and splits.</span>
-                    </div>
-                </section>
-
-                <section class="card history-panel" id="favorites-card" style="margin-top: 1.5rem;">
-                    <h2>❤️ Saved Venues Board</h2>
-                    <div id="favorites-placeholder" style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 0.5rem 0;">
-                        No venues hearted yet.
-                    </div>
-                    <ul id="favorites-list" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.5rem; max-height: 200px; overflow-y: auto;"></ul>
-                </section>
-
             </div>
 
-            <!-- Right Panel: Map & Summary -->
-            <section class="card output-panel">
-                <div class="tab-header">
-                    <button class="tab-btn active" data-tab="map-tab">Interactive Map</button>
-                    <button class="tab-btn" data-tab="venues-tab">Candidate Venues</button>
-                    <button class="tab-btn" data-tab="plan-tab">Budget Plan</button>
-                    <button class="tab-btn" data-tab="ledger-tab">Expense Splitter</button>
-                </div>
-
-                <div class="tab-content active" id="map-tab">
-                    <div id="map">
-                        <div class="map-placeholder">
-                            <p>Enter a destination and click "Initialize Venues" to load the map and fetch venues.</p>
-                        </div>
+            <!-- Saved Venues Board (Wide Row) -->
+            <div style="width: 100%;">
+                <section class="card history-panel" id="favorites-card">
+                    <h2>❤️ Saved Venues Board</h2>
+                    <div id="favorites-placeholder" style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 1rem 0;">
+                        No venues hearted yet.
                     </div>
-                </div>
+                    <ul id="favorites-list" style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.75rem; max-height: 250px; overflow-y: auto;"></ul>
+                </section>
+            </div>
 
-                <div class="tab-content" id="venues-tab">
-                    <div class="summary-placeholder">
-                        <p>No venues loaded yet. Enter details on the left.</p>
+            <!-- Output / Results Section (Full-Width) -->
+            <div style="width: 100%;">
+                <section class="card output-panel">
+                    <div class="tab-header">
+                        <button class="tab-btn active" data-tab="map-tab">📍 Interactive Map</button>
+                        <button class="tab-btn" data-tab="venues-tab">🏢 Candidate Venues</button>
+                        <button class="tab-btn" data-tab="plan-tab">🗓️ Optimized Budget Plan</button>
+                        <button class="tab-btn" data-tab="ledger-tab">⚖️ Expense Splitter</button>
                     </div>
-                    <div id="venues-data" class="hidden">
-                        <div class="stats-row">
-                            <div class="stat-card">
-                                <span class="stat-val" id="hotel-count">0</span>
-                                <span class="stat-lbl">Hotels</span>
-                            </div>
-                            <div class="stat-card">
-                                <span class="stat-val" id="rest-count">0</span>
-                                <span class="stat-lbl">Restaurants</span>
-                            </div>
-                            <div class="stat-card">
-                                <span class="stat-val" id="attr-count">0</span>
-                                <span class="stat-lbl">Attractions</span>
-                            </div>
-                        </div>
 
-                        <div class="sample-lists">
-                            <h3>Sample Candidate Venues</h3>
-                            <div class="sample-grid">
-                                <div>
-                                    <h4>🏨 Hotels</h4>
-                                    <ul id="sample-hotels"></ul>
-                                </div>
-                                <div>
-                                    <h4>🍽️ Restaurants</h4>
-                                    <ul id="sample-restaurants"></ul>
-                                </div>
-                                <div>
-                                    <h4>🏛️ Attractions</h4>
-                                    <ul id="sample-attractions"></ul>
-                                </div>
+                    <div class="tab-content active" id="map-tab">
+                        <div id="map">
+                            <div class="map-placeholder">
+                                <p>Enter a destination and click "Find & Optimize Itinerary" to load the map and fetch venues.</p>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="tab-content" id="plan-tab">
-                    <div class="plan-placeholder">
-                        <p>No plan generated yet. Submit the details on the left to run the optimizer.</p>
-                    </div>
-                    <div id="plan-data" class="hidden">
-                        <div class="plan-summary-card">
-                            <div class="plan-summary-row">
-                                <div class="summary-meta">
-                                    <h3>Optimal Budget Allocation</h3>
-                                    <span id="plan-status" class="plan-status-badge">Within Budget</span>
-                                    <div id="travel-breakdown-container" class="hidden" style="margin-top: 0.75rem; font-size: 0.82rem; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 0.5rem; width: 100%;">
-                                        <div id="travel-breakdown-details"></div>
+                    <div class="tab-content" id="venues-tab">
+                        <div class="summary-placeholder">
+                            <p>No venues loaded yet. Enter details above.</p>
+                        </div>
+                        <div id="venues-data" class="hidden">
+                            <div class="stats-row">
+                                <div class="stat-card">
+                                    <span class="stat-val" id="hotel-count">0</span>
+                                    <span class="stat-lbl">Stays / Hotels</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-val" id="rest-count">0</span>
+                                    <span class="stat-lbl">Restaurants</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-val" id="attr-count">0</span>
+                                    <span class="stat-lbl">Sightseeing Stops</span>
+                                </div>
+                            </div>
+
+                            <div class="sample-lists">
+                                <h3>Sample Candidate Venues</h3>
+                                <div class="sample-grid">
+                                    <div>
+                                        <h4>🏨 Hotels</h4>
+                                        <ul id="sample-hotels"></ul>
                                     </div>
-                                </div>
-                                <div class="price-summary">
-                                    <div class="price-item">
-                                        <span class="price-lbl">Total Cost</span>
-                                        <span class="price-val" id="plan-total-cost">₹0</span>
+                                    <div>
+                                        <h4>🍽️ Restaurants</h4>
+                                        <ul id="sample-restaurants"></ul>
                                     </div>
-                                    <div class="price-item">
-                                        <span class="price-lbl">Per Person</span>
-                                        <span class="price-val" id="plan-person-cost">₹0</span>
+                                    <div>
+                                        <h4>🏛️ Attractions</h4>
+                                        <ul id="sample-attractions"></ul>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        
-                        <div class="plan-actions-row hidden" style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem; justify-content: flex-end;">
-                            <button id="toggle-backup-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 0.45rem 0.9rem; background: var(--bg-card); border: 1.5px solid var(--border); border-radius: 6px; cursor: pointer; color: var(--text); font-weight: 600; transition: all 0.2s ease;">Switch to Economy Option</button>
-                            <button id="export-pdf-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 0.45rem 0.9rem; background: var(--bg-card); border: 1.5px solid var(--border); border-radius: 6px; cursor: pointer; color: var(--text); font-weight: 600; transition: all 0.2s ease;">Export to PDF</button>
+                    </div>
+
+                    <div class="tab-content" id="plan-tab">
+                        <div class="plan-placeholder">
+                            <p>No plan generated yet. Submit details above to run the Knapsack Optimizer.</p>
                         </div>
-                        
-                        <div id="plan-details-wrapper">
-                            <div class="optimized-layout-grid">
-                                <!-- Left: Accommodation Card -->
-                                <div class="opt-card opt-hotel-card" id="opt-hotel-card-container">
-                                    <h3>Accommodation</h3>
-                                    <div id="opt-hotel-detail" class="opt-detail"></div>
-                                </div>
-                                
-                                <!-- Right: Food, Nightlife & Zones -->
-                                <div class="opt-card opt-itinerary-card">
-                                    <!-- Food & Nightlife Section -->
-                                    <div class="plan-sub-section">
-                                        <div class="food-nightlife-container">
-                                            <div class="food-block">
-                                                <h4>Selected Restaurants</h4>
-                                                <ul id="opt-restaurants-list" class="opt-list"></ul>
-                                            </div>
-                                            <div class="nightlife-block" id="opt-bars-container">
-                                                <h4>Selected Bars & Clubs</h4>
-                                                <ul id="opt-bars-list" class="opt-list"></ul>
-                                            </div>
+                        <div id="plan-data" class="hidden">
+                            <div class="plan-summary-card">
+                                <div class="plan-summary-row">
+                                    <div class="summary-meta">
+                                        <h3>💰 Optimal Budget Allocation</h3>
+                                        <span id="plan-status" class="plan-status-badge">Within Budget</span>
+                                        <div id="travel-breakdown-container" class="hidden" style="margin-top: 0.75rem; font-size: 0.82rem; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 0.5rem; width: 100%;">
+                                            <div id="travel-breakdown-details"></div>
                                         </div>
                                     </div>
-                                    
-                                    <!-- Exploration Zones (Attractions Clustered by Location) -->
-                                    <div class="plan-sub-section" id="opt-zones-section" style="margin-top: 1.75rem;">
-                                        <h3>Exploration Zones (Clustered by Location)</h3>
-                                        <div id="opt-zones-container" class="zones-timeline"></div>
+                                    <div class="price-summary">
+                                        <div class="price-item">
+                                            <span class="price-lbl">Total Cost</span>
+                                            <span class="price-val" id="plan-total-cost">₹0</span>
+                                        </div>
+                                        <div class="price-item">
+                                            <span class="price-lbl">Per Person</span>
+                                            <span class="price-val" id="plan-person-cost">₹0</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-
-                        <!-- Backup Plan Section -->
-                        <div id="backup-plan-section" class="backup-section hidden">
-                            <div class="backup-header">
-                                <h4>Backup Economy Option</h4>
-                                <span id="backup-cost-badge" class="cost-badge">₹0</span>
-                            </div>
-                            <p class="backup-desc">We created a lower-cost backup plan (recommending <span id="backup-hotel-name"></span>) to keep you safe in case actual costs exceed expectation.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tab-content" id="ledger-tab">
-                    <div class="ledger-container" style="padding: 1rem 0; text-align: left;">
-                        <h3 style="font-size: 1.3rem; font-weight: 800; color: var(--accent); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">👥 Group Expense Splitter</h3>
-                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Easily log your trip group expenses, assign who paid, select who splits, and let the ledger settle the balances!</p>
-                        
-                        <div class="ledger-grid" style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 1.5rem;">
-                            <!-- Add Expense Column -->
-                            <div class="ledger-add-box" style="background: var(--surface-light); border: 1px solid var(--border); border-radius: var(--border-radius); padding: 1.25rem;">
-                                <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem;">Add New Expense</h4>
-                                <form id="ledger-form" style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                    <div class="input-group">
-                                        <label for="exp-desc" style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">Description</label>
-                                        <input type="text" id="exp-desc" placeholder="e.g., Cab to Amer Fort" required style="font-size: 0.85rem; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border); width: 100%;">
-                                    </div>
-                                    <div class="input-group">
-                                        <label for="exp-amount" style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">Amount (₹)</label>
-                                        <input type="number" id="exp-amount" min="1" placeholder="e.g., 900" required style="font-size: 0.85rem; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border); width: 100%;">
-                                    </div>
-                                    <div class="input-group">
-                                        <label for="exp-paid-by" style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">Paid By</label>
-                                        <select id="exp-paid-by" class="custom-select" style="font-size: 0.85rem; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border); width: 100%; height: 36px; background: #fff;"></select>
-                                    </div>
-                                    <div class="input-group">
-                                        <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">Split Between</label>
-                                        <div id="exp-split-checkboxes" style="display: flex; flex-direction: column; gap: 0.35rem; max-height: 120px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface);"></div>
-                                    </div>
-                                    <button type="submit" class="btn-primary" style="font-size: 0.85rem; padding: 0.6rem; margin-top: 0.25rem; width: 100%; font-weight: 700;">Add Expense</button>
-                                </form>
                             </div>
                             
-                            <!-- Ledger Balance & Debts Column -->
-                            <div class="ledger-results-box" style="display: flex; flex-direction: column; gap: 1rem;">
-                                <div style="background: var(--surface-light); border: 1px solid var(--border); border-radius: var(--border-radius); padding: 1.25rem; flex: 1; min-height: 150px;">
-                                    <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem;">Active Ledger</h4>
-                                    <div id="ledger-history-placeholder" style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; padding: 1rem 0; font-style: italic;">No expenses added yet.</div>
-                                    <ul id="ledger-history-list" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.5rem; max-height: 180px; overflow-y: auto;"></ul>
+                            <div class="plan-actions-row hidden" style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem; justify-content: flex-end;">
+                                <button id="toggle-backup-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 0.45rem 0.9rem; border-radius: 6px; cursor: pointer; font-weight: 600;">Switch to Economy Option</button>
+                                <button id="export-pdf-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 0.45rem 0.9rem; border-radius: 6px; cursor: pointer; font-weight: 600;">Export to PDF</button>
+                            </div>
+                            
+                            <div id="plan-details-wrapper">
+                                <div class="optimized-layout-grid">
+                                    <!-- Left: Accommodation Card -->
+                                    <div class="opt-card opt-hotel-card" id="opt-hotel-card-container">
+                                        <h3>Stays & Lodgings</h3>
+                                        <div id="opt-hotel-detail" class="opt-detail"></div>
+                                    </div>
+                                    
+                                    <!-- Right: Food, Nightlife & Zones -->
+                                    <div class="opt-card opt-itinerary-card">
+                                        <!-- Food & Nightlife Section -->
+                                        <div class="plan-sub-section">
+                                            <div class="food-nightlife-container">
+                                                <div class="food-block">
+                                                    <h4>Selected Restaurants</h4>
+                                                    <ul id="opt-restaurants-list" class="opt-list"></ul>
+                                                </div>
+                                                <div class="nightlife-block" id="opt-bars-container">
+                                                    <h4>Selected Bars & Clubs</h4>
+                                                    <ul id="opt-bars-list" class="opt-list"></ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Exploration Zones (Attractions Clustered by Location) -->
+                                        <div class="plan-sub-section" id="opt-zones-section" style="margin-top: 1.75rem;">
+                                            <h3>Exploration Zones (Clustered by Location)</h3>
+                                            <div id="opt-zones-container" class="zones-timeline"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Backup Plan Section -->
+                            <div id="backup-plan-section" class="backup-section hidden">
+                                <div class="backup-header">
+                                    <h4>Backup Economy Option</h4>
+                                    <span id="backup-cost-badge" class="cost-badge">₹0</span>
+                                </div>
+                                <p class="backup-desc">We created a lower-cost backup plan (recommending <span id="backup-hotel-name"></span>) to keep you safe in case actual costs exceed expectation.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-content" id="ledger-tab">
+                        <div class="ledger-container">
+                            <h3 style="font-family: var(--font-heading); font-size: 1.35rem; font-weight: 800; color: var(--accent); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">⚖️ Group Expense Splitter</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Log your group expenses during the trip, assign who paid, select who splits, and let the ledger settle the balances!</p>
+                            
+                            <div class="ledger-grid">
+                                <!-- Add Expense Column -->
+                                <div class="ledger-add-box">
+                                    <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem;">Add New Expense</h4>
+                                    <form id="ledger-form" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                        <div class="input-group">
+                                            <label for="exp-desc">Description</label>
+                                            <input type="text" id="exp-desc" placeholder="e.g., Cab to Gateway of India" required>
+                                        </div>
+                                        <div class="input-group">
+                                            <label for="exp-amount">Amount (₹)</label>
+                                            <input type="number" id="exp-amount" min="1" placeholder="e.g., 900" required>
+                                        </div>
+                                        <div class="input-group">
+                                            <label for="exp-paid-by">Paid By</label>
+                                            <select id="exp-paid-by" class="custom-select" style="height: 38px; background: #fff;"></select>
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Split Between</label>
+                                            <div id="exp-split-checkboxes" style="display: flex; flex-direction: column; gap: 0.35rem; max-height: 120px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface);"></div>
+                                        </div>
+                                        <button type="submit" class="btn-primary" style="font-size: 0.85rem; padding: 0.6rem; margin-top: 0.25rem; width: 100%; font-weight: 700;">Add Expense</button>
+                                    </form>
                                 </div>
                                 
-                                <div style="background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: var(--border-radius); padding: 1.25rem;">
-                                    <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--accent);">⚖️ Balance / Debt Settlement</h4>
-                                    <div id="ledger-balances-placeholder" style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; padding: 0.5rem 0; font-style: italic;">Balances are clean!</div>
-                                    <ul id="ledger-balances-list" style="margin: 0 0 0.75rem 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--text-primary);"></ul>
-                                    <button id="clear-ledger-btn" class="btn-secondary" style="font-size: 0.8rem; padding: 0.5rem; width: 100%; border-color: #E9D5FF; color: var(--accent); background: #fff; font-weight: 700;">Clear Ledger / Settle All</button>
+                                <!-- Ledger Balance & Debts Column -->
+                                <div class="ledger-results-box" style="display: flex; flex-direction: column; gap: 1rem;">
+                                    <div style="background: var(--surface-light); border: 1px solid var(--border); border-radius: var(--border-radius); padding: 1.25rem; flex: 1; min-height: 150px;">
+                                        <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem;">Active Ledger</h4>
+                                        <div id="ledger-history-placeholder" style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; padding: 1rem 0; font-style: italic;">No expenses added yet.</div>
+                                        <ul id="ledger-history-list" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.5rem; max-height: 180px; overflow-y: auto;"></ul>
+                                    </div>
+                                    
+                                    <div style="background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: var(--border-radius); padding: 1.25rem;">
+                                        <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--accent);">⚖️ Balance / Debt Settlement</h4>
+                                        <div id="ledger-balances-placeholder" style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; padding: 0.5rem 0; font-style: italic;">Balances are clean!</div>
+                                        <ul id="ledger-balances-list" style="margin: 0 0 0.75rem 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--text-primary);"></ul>
+                                        <button id="clear-ledger-btn" class="btn-secondary" style="font-size: 0.8rem; padding: 0.5rem; width: 100%; border-color: #E9D5FF; color: var(--accent); background: #fff; font-weight: 700;">Clear Ledger / Settle All</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </section>
+                </section>
+            </div>
         </div>
     </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <h2>Trip<span>split</span></h2>
+                <p>Advanced TripAdvisor-grade itinerary planner and knapsack budget splitter. Plan optimal stays and sightseeing stops with friends!</p>
+            </div>
+            <div class="footer-column">
+                <h3>Quick Links</h3>
+                <ul>
+                    <li><a href="#" onclick="document.getElementById('nav-discover').click(); return false;">Discover</a></li>
+                    <li><a href="#" onclick="document.getElementById('nav-trips').click(); return false;">Trips Board</a></li>
+                    <li><a href="#" onclick="document.getElementById('nav-engine').click(); return false;">About Optimizer Engine</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <h3>About</h3>
+                <p style="color: #94A3B8; line-height: 1.6; font-size: 0.85rem;">Developed with Nominatim Nominations and OpenStreetMap Overpass APIs for real-time venue search, and parallel Gemini Flash enrichment.</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div>&copy; 2026 TripSplit. All rights reserved.</div>
+            <div>Built with ❤️ for Group Explorers</div>
+        </div>
+    </footer>
 
     <!-- About Engine Modal -->
     <div id="about-modal" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999;">
@@ -480,7 +514,7 @@
             </div>
             <div style="padding: 0.75rem; border-top: 1px solid var(--border); display: flex; gap: 0.35rem; background: var(--surface);">
                 <input type="text" id="assistant-chat-input" placeholder="Ask travel question..." style="font-size: 0.85rem; padding: 0.5rem; flex: 1; border-radius: 6px; border: 1px solid var(--border); outline: none;">
-                <button id="assistant-chat-btn" class="btn-primary" style="font-size: 0.85rem; padding: 0.5rem 0.85rem; border-radius: 6px; font-weight: 700;">Send</button>
+                <button id="assistant-chat-btn" class="btn-primary" style="font-size: 0.85rem; padding: 0.5rem 0.85rem; border-radius: 6px; font-weight: 700; margin-top: 0;">Send</button>
             </div>
         </div>
     </div>

@@ -790,53 +790,126 @@ function renderPlanItinerary(plan) {
             // Draw Map
             plotZonesOnMap(stop.zones, stop.hotel, stop.restaurants, stop.bars);
         }
+        
+        // Fetch and display real photos from Wikipedia
+        loadRealVenueImages();
     }
 }
 
-function getVenueImageUrl(name, category) {
-    const stopWords = ["hotel", "restaurant", "cafe", "bar", "club", "pub", "lounge", "inn", "stay", "and", "the", "in", "at", "resort", "palace", "of", "deluxe", "executive", "premium", "luxury", "budget", "room", "guest", "house", "suites", "dining", "kitchen", "ltd", "pvt", "limited"];
-    
-    // Remove symbols and split into words
-    let words = name.toLowerCase()
-                    .replace(/[^a-z0-9\s]/g, "")
-                    .split(/\s+/)
-                    .filter(w => w.length > 1 && !stopWords.includes(w));
-    
-    // If all words got filtered, fall back to the original name words
-    if (words.length === 0) {
-        words = name.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 0);
-    }
-    
-    // Limit to first 4 keyword tags to prevent overly specific searches that Flickr might fail
-    const tags = words.slice(0, 4);
-    
-    // Get destination city name from search inputs for additional tag context if available
-    const destInput = document.getElementById("destination");
-    if (destInput && destInput.value) {
-        const cityWords = destInput.value.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 0);
-        // Append the first word of the city if it's not already in the tags list
-        if (cityWords.length > 0 && !tags.includes(cityWords[0])) {
-            tags.push(cityWords[0]);
-        }
-    }
-    
-    const query = tags.join(",");
-    return `https://loremflickr.com/400/300/${query}`;
+// --- REAL VENUE PHOTO SYSTEM (Wikipedia + Wikimedia Commons) ---
+const venueImageCache = {};
+
+function getPlaceholderSvg(name) {
+    const colors = ["4F46E5","0EA5E9","10B981","F59E0B","EF4444","8B5CF6","EC4899","06B6D4"];
+    const hash = Math.abs(name.split("").reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0));
+    const color = colors[hash % colors.length];
+    const initials = name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+    return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect fill="#${color}" width="400" height="300" rx="8"/><text x="200" y="160" text-anchor="middle" fill="white" font-size="48" font-family="Arial,sans-serif" font-weight="bold">${initials}</text></svg>`)}`;
 }
 
 function renderVenueImageHtml(venueName, category) {
-    const url = getVenueImageUrl(venueName, category);
+    const placeholder = getPlaceholderSvg(venueName);
     const escapedName = venueName.replace(/'/g, "\\'");
     return `
-        <div class="venue-img-container" onclick="openLightbox('${url}', '${escapedName}')">
-            <img src="${url}" class="venue-img" alt="${venueName}">
-            <div class="img-overlay-info">📸 Interactive Photo</div>
-            <button class="img-zoom-btn" onclick="event.stopPropagation(); openLightbox('${url}', '${escapedName}')">🔍</button>
+        <div class="venue-img-container" onclick="openLightboxForVenue('${escapedName}')">
+            <img src="${placeholder}" class="venue-img" alt="${venueName}" data-venue="${venueName.replace(/"/g, '&quot;')}" data-category="${category}">
+            <button class="img-zoom-btn" onclick="event.stopPropagation(); openLightboxForVenue('${escapedName}')">🔍</button>
         </div>
     `;
 }
 
+// Fetch real photos from Wikipedia for all rendered venue images
+async function loadRealVenueImages() {
+    const imgs = document.querySelectorAll("img.venue-img[data-venue]");
+    const promises = [];
+    
+    imgs.forEach(img => {
+        const name = img.dataset.venue;
+        if (!name) return;
+        
+        // Already loaded
+        if (venueImageCache[name]) {
+            img.src = venueImageCache[name];
+            return;
+        }
+        
+        promises.push(fetchWikipediaImage(name).then(url => {
+            if (url) {
+                venueImageCache[name] = url;
+                // Update ALL images with this venue name (handles duplicates)
+                document.querySelectorAll(`img.venue-img[data-venue="${CSS.escape(name)}"]`).forEach(el => {
+                    el.src = url;
+                });
+            }
+        }));
+    });
+    
+    await Promise.allSettled(promises);
+}
+
+async function fetchWikipediaImage(placeName) {
+    // Get the city context for better search
+    const destInput = document.getElementById("destination");
+    const city = destInput ? destInput.value.trim() : "";
+    
+    // Try multiple search strategies
+    const searchTerms = [
+        placeName,
+        city ? `${placeName} ${city}` : null,
+        placeName.replace(/\(.*?\)/g, "").trim()  // Remove parentheticals
+    ].filter(Boolean);
+    
+    for (const term of searchTerms) {
+        try {
+            // Wikipedia page summary API - returns real thumbnail
+            const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`;
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.thumbnail && data.thumbnail.source) {
+                    // Request a higher-res version (600px wide)
+                    return data.thumbnail.source.replace(/\/\d+px-/, "/600px-");
+                }
+            }
+        } catch(e) { /* try next */ }
+    }
+    
+    // Fallback: Wikipedia search API
+    try {
+        const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(placeName)}&format=json&origin=*&srlimit=1`;
+        const res = await fetch(searchUrl);
+        if (res.ok) {
+            const data = await res.json();
+            const pages = data.query?.search;
+            if (pages && pages.length > 0) {
+                const title = pages[0].title;
+                const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+                if (summaryRes.ok) {
+                    const summaryData = await summaryRes.json();
+                    if (summaryData.thumbnail?.source) {
+                        return summaryData.thumbnail.source.replace(/\/\d+px-/, "/600px-");
+                    }
+                }
+            }
+        }
+    } catch(e) { /* use placeholder */ }
+    
+    return null; // keep placeholder
+}
+
 // Lightbox controller
+window.openLightboxForVenue = function(venueName) {
+    const lightbox = document.getElementById("image-lightbox");
+    const img = document.getElementById("lightbox-img");
+    const cap = document.getElementById("lightbox-caption");
+    if (!lightbox || !img) return;
+    
+    const src = venueImageCache[venueName] || getPlaceholderSvg(venueName);
+    img.src = src;
+    if (cap) cap.textContent = venueName;
+    lightbox.classList.remove("hidden");
+};
+
 window.openLightbox = function(src, caption) {
     const lightbox = document.getElementById("image-lightbox");
     const img = document.getElementById("lightbox-img");
