@@ -155,6 +155,8 @@ function navigateToView(viewId, param = '') {
         renderUserProfilePage(param);
     } else if (viewId === 'forums') {
         renderForumIndex();
+    } else if (viewId === 'ledger') {
+        initializeLedgerView();
     }
 }
 
@@ -1934,3 +1936,260 @@ function hidePageLoader() {
     const loader = document.getElementById('global-page-loader');
     if (loader) loader.classList.add('hidden');
 }
+
+// --- FLOATING AI ASSISTANT CHATBOT LOGIC ---
+function toggleFloatingChat() {
+    document.getElementById('floating-chat-container').classList.toggle('hidden');
+}
+
+async function handleSendChatMessage() {
+    const input = document.getElementById('assistant-chat-input');
+    const query = input.value.trim();
+    if (!query) return;
+    
+    input.value = '';
+    
+    // Append user message
+    appendChatMessage(query, 'user');
+    
+    // Call backend assistant endpoint
+    try {
+        const res = await fetch('/api/assistant', {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                query: query,
+                favorites: state.favorites
+            })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            appendChatMessage(data.response, 'assistant');
+        } else {
+            appendChatMessage("Sorry, I'm having trouble connecting to the travel advice servers right now. Please try again in a bit!", 'assistant');
+        }
+    } catch (err) {
+        appendChatMessage("Sorry, I'm offline. Please make sure the backend Python server is running!", 'assistant');
+    }
+}
+
+function handleChatInputKeyPress(e) {
+    if (e.key === 'Enter') {
+        handleSendChatMessage();
+    }
+}
+
+function appendChatMessage(text, sender) {
+    const box = document.getElementById('assistant-chat-box');
+    if (!box) return;
+    
+    const msg = document.createElement('div');
+    msg.className = `chat-message ${sender}`;
+    msg.textContent = text;
+    box.appendChild(msg);
+    
+    // Scroll to bottom
+    box.scrollTop = box.scrollHeight;
+}
+
+// --- GROUP EXPENSE SPLITTER LEDGER LOGIC ---
+state.ledgerExpenses = JSON.parse(localStorage.getItem('ta_expenses') || '[]');
+state.groupMembers = localStorage.getItem('ta_members') ? localStorage.getItem('ta_members').split(',') : ['Somya', 'Amit', 'Priya', 'Rohan'];
+
+function initializeLedgerView() {
+    // Fill Group Members input field
+    const membersInput = document.getElementById('group-members-input');
+    if (membersInput) {
+        membersInput.value = state.groupMembers.join(', ');
+    }
+    
+    // Populate Paid By Dropdown
+    const paidBySelect = document.getElementById('exp-paid-by');
+    if (paidBySelect) {
+        paidBySelect.innerHTML = state.groupMembers.map(m => `<option value="${m}">${m}</option>`).join('');
+    }
+    
+    // Populate Split checkboxes
+    const cboxes = document.getElementById('exp-split-checkboxes');
+    if (cboxes) {
+        cboxes.innerHTML = state.groupMembers.map(m => `
+            <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.78rem; font-weight:600; cursor:pointer;">
+                <input type="checkbox" class="exp-splitter-cb" value="${m}" checked>
+                <span>${m}</span>
+            </label>
+        `).join('');
+    }
+    
+    // Render History & Balances
+    renderLedgerHistoryList();
+    calculateSettleUpLedger();
+}
+
+function handleGroupMembersChange(value) {
+    const list = value.split(',').map(m => m.trim()).filter(m => m.length > 0);
+    if (list.length === 0) return;
+    
+    state.groupMembers = list;
+    localStorage.setItem('ta_members', list.join(','));
+    initializeLedgerView();
+}
+
+function handleLogExpenseSubmit(e) {
+    e.preventDefault();
+    const desc = document.getElementById('exp-desc').value.trim();
+    const amount = parseFloat(document.getElementById('exp-amount').value);
+    const paidBy = document.getElementById('exp-paid-by').value;
+    
+    const splitters = Array.from(document.querySelectorAll('.exp-splitter-cb:checked')).map(cb => cb.value);
+    if (splitters.length === 0) {
+        alert("Please select at least one person to split the expense between!");
+        return;
+    }
+    
+    const exp = {
+        id: Date.now(),
+        desc: desc,
+        amount: amount,
+        paidBy: paidBy,
+        splitters: splitters
+    };
+    
+    state.ledgerExpenses.push(exp);
+    localStorage.setItem('ta_expenses', JSON.stringify(state.ledgerExpenses));
+    
+    // Reset Form fields
+    document.getElementById('exp-desc').value = '';
+    document.getElementById('exp-amount').value = '';
+    
+    initializeLedgerView();
+}
+
+function handleDeleteExpense(id) {
+    state.ledgerExpenses = state.ledgerExpenses.filter(e => e.id !== id);
+    localStorage.setItem('ta_expenses', JSON.stringify(state.ledgerExpenses));
+    initializeLedgerView();
+}
+
+function handleClearLedger() {
+    state.ledgerExpenses = [];
+    localStorage.removeItem('ta_expenses');
+    initializeLedgerView();
+}
+
+function renderLedgerHistoryList() {
+    const list = document.getElementById('ledger-history-list');
+    if (!list) return;
+    
+    if (state.ledgerExpenses.length === 0) {
+        list.innerHTML = `<li style="padding:1.5rem; text-align:center; color:var(--text-muted); font-size:0.85rem;">No bills logged in the ledger yet.</li>`;
+        return;
+    }
+    
+    list.innerHTML = state.ledgerExpenses.map(e => `
+        <li style="border:1px solid var(--border); border-radius:8px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center; background:#FAF9F6; font-size:0.85rem;">
+            <div>
+                <strong>${e.desc}</strong>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.15rem;">
+                    Paid by <strong>${e.paidBy}</strong> • Split between: ${e.splitters.join(', ')}
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:1rem;">
+                <strong style="color:var(--text-primary);">₹${e.amount.toLocaleString('en-IN')}</strong>
+                <button onclick="handleDeleteExpense(${e.id})" style="color:#DC2626; font-weight:700; font-size:1.1rem; line-height:1;">&times;</button>
+            </div>
+        </li>
+    `).join('');
+}
+
+function calculateSettleUpLedger() {
+    const blist = document.getElementById('ledger-balances-list');
+    const rlist = document.getElementById('ledger-resolutions-list');
+    if (!blist || !rlist) return;
+    
+    // Initialize empty balances map
+    const balances = {};
+    state.groupMembers.forEach(m => balances[m] = 0);
+    
+    // Calculate net credit/debit for each person
+    state.ledgerExpenses.forEach(e => {
+        const share = e.amount / e.splitters.length;
+        
+        // Add full paid amount to payer credit balance
+        if (balances[e.paidBy] !== undefined) {
+            balances[e.paidBy] += e.amount;
+        }
+        
+        // Subtract share from splitters debit balance
+        e.splitters.forEach(s => {
+            if (balances[s] !== undefined) {
+                balances[s] -= share;
+            }
+        });
+    });
+    
+    // Render balances list
+    blist.innerHTML = Object.keys(balances).map(m => {
+        const bal = balances[m];
+        const color = bal > 0.01 ? '#00AA6C' : bal < -0.01 ? '#DC2626' : 'var(--text-muted)';
+        const sign = bal > 0.01 ? '+' : '';
+        return `
+            <li style="display:flex; justify-content:space-between; border-bottom:1.5px dashed var(--border); padding-bottom:2px;">
+                <span>${m}</span>
+                <strong style="color:${color};">${sign}₹${Math.round(bal).toLocaleString('en-IN')}</strong>
+            </li>
+        `;
+    }).join('');
+    
+    // Solve balances clearing using greedy match algorithm
+    const debtors = [];
+    const creditors = [];
+    
+    Object.keys(balances).forEach(m => {
+        const bal = balances[m];
+        if (bal < -0.05) {
+            debtors.push({ name: m, balance: bal });
+        } else if (bal > 0.05) {
+            creditors.push({ name: m, balance: bal });
+        }
+    });
+    
+    const transactions = [];
+    
+    // Greedily match largest debtor to largest creditor
+    let iterations = 0;
+    while (debtors.length > 0 && creditors.length > 0 && iterations < 100) {
+        iterations++;
+        
+        debtors.sort((a,b) => a.balance - b.balance); // largest debtor first (most negative)
+        creditors.sort((a,b) => b.balance - a.balance); // largest creditor first (most positive)
+        
+        const d = debtors[0];
+        const c = creditors[0];
+        
+        const clearAmt = Math.min(-d.balance, c.balance);
+        
+        transactions.push({
+            from: d.name,
+            to: c.name,
+            amount: Math.round(clearAmt)
+        });
+        
+        d.balance += clearAmt;
+        c.balance -= clearAmt;
+        
+        if (Math.abs(d.balance) < 0.05) debtors.shift();
+        if (Math.abs(c.balance) < 0.05) creditors.shift();
+    }
+    
+    if (transactions.length === 0) {
+        rlist.innerHTML = `<li style="color:var(--text-muted); font-size:0.8rem; font-weight:normal; text-align:center; padding:0.5rem 0;">Group is fully settled!</li>`;
+        return;
+    }
+    
+    rlist.innerHTML = transactions.map(t => `
+        <li style="border:1.5px solid var(--accent); background:#FAFBF9; border-radius:6px; padding:0.4rem 0.75rem; margin-bottom:0.35rem; font-size:0.82rem;">
+            💸 <strong>${t.from}</strong> owes <strong>${t.to}</strong>: <span style="font-size:0.9rem;">₹${t.amount.toLocaleString('en-IN')}</span>
+        </li>
+    `).join('');
+}
+

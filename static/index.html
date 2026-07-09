@@ -31,6 +31,7 @@
                 <a href="#" class="nav-tab-link active" data-view-target="home" onclick="navigateToView('home'); return false;">Hotels</a>
                 <a href="#" class="nav-tab-link" data-view-target="restaurants-results" onclick="navigateToCategoryResults('restaurants'); return false;">Restaurants</a>
                 <a href="#" class="nav-tab-link" data-view-target="experience-results" onclick="navigateToCategoryResults('attractions'); return false;">Things to Do</a>
+                <a href="#" class="nav-tab-link" data-view-target="ledger" onclick="navigateToView('ledger'); return false;">Expense Splitter</a>
                 <a href="#" class="nav-tab-link" data-view-target="forums" onclick="navigateToView('forums'); return false;">Travel Forums</a>
                 <div class="nav-dropdown-trigger">
                     <span class="dropdown-label">More ▼</span>
@@ -44,7 +45,7 @@
 
             <!-- Right: Currency/Language, Sign In, Profile -->
             <div class="nav-actions">
-                <button class="nav-btn-icon" onclick="openLanguageModal()" title="Select Language/Currency">🌐 USD</button>
+                <button class="nav-btn-icon" onclick="openLanguageModal()" title="Select Language/Currency">🌐 INR</button>
                 
                 <!-- Non-logged in state -->
                 <button id="nav-signin-btn" class="nav-btn-primary" onclick="openSigninModal()">Sign In</button>
@@ -1036,6 +1037,91 @@
                         </div>
                     </div>
                 </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- 9. EXPENSE SPLITTER (LEDGER) VIEW          -->
+        <!-- ========================================== -->
+        <div id="ledger-view" class="view-container hidden" style="margin-bottom: 4rem;">
+            <div class="nav-container">
+                <div class="forum-banner" style="background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); padding:2rem 3rem; border-radius:16px; margin-bottom:2rem; text-align:center;">
+                    <h2>⚖️ Group Expense Splitter</h2>
+                    <p style="color:var(--text-muted); margin-top:0.25rem;">Log joint group bills, choose splitters, and calculate the exact minimum transactions to clear all debts.</p>
+                </div>
+
+                <div class="page-layout-sidebar-main" style="align-items:flex-start;">
+                    <!-- Left column: Add expense and history list -->
+                    <div style="flex:1.6; min-width:0; display:flex; flex-direction:column; gap:1.5rem;">
+                        <!-- Add Expense Form Card -->
+                        <div class="budget-planner-card" style="background:#FFFFFF;">
+                            <h3>➕ Add New Expense</h3>
+                            <form id="ledger-expense-form" onsubmit="handleLogExpenseSubmit(event)" style="display:flex; flex-direction:column; gap:1rem; margin-top:1rem;">
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                                    <div>
+                                        <label style="font-size:0.75rem; font-weight:700;">Expense Description</label>
+                                        <input type="text" id="exp-desc" required placeholder="e.g. Dinner at LMB" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size:0.75rem; font-weight:700;">Amount (₹ INR)</label>
+                                        <input type="number" id="exp-amount" required min="1" placeholder="₹ Amount" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
+                                    </div>
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr 1.5fr; gap:0.75rem;">
+                                    <div>
+                                        <label style="font-size:0.75rem; font-weight:700;">Paid By</label>
+                                        <select id="exp-paid-by" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem; outline:none; background:#fff;"></select>
+                                    </div>
+                                    <div>
+                                        <label style="font-size:0.75rem; font-weight:700; display:block; margin-bottom:0.25rem;">Split Between</label>
+                                        <div id="exp-split-checkboxes" style="display:flex; flex-wrap:wrap; gap:0.5rem; border:1px solid var(--border); padding:0.5rem; border-radius:6px; min-height:36px; background:#fff;">
+                                            <!-- Dynamically generated checkboxes -->
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn-primary" style="margin-top:0.5rem;">Log Shared Expense</button>
+                            </form>
+                        </div>
+
+                        <!-- Expense History List Card -->
+                        <div class="budget-planner-card" style="background:#FFFFFF;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1.5px solid var(--border); padding-bottom:0.5rem;">
+                                <h3>📜 Shared Bills History</h3>
+                                <button class="clear-filters-link" onclick="handleClearLedger()">Clear All Expenses</button>
+                            </div>
+                            <ul id="ledger-history-list" style="list-style:none; padding:0; display:flex; flex-direction:column; gap:0.75rem;">
+                                <!-- History entries logged -->
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Right column: Group members & Settle balances -->
+                    <aside style="width:320px; flex:0 0 auto; display:flex; flex-direction:column; gap:1.5rem;">
+                        <!-- Group Members Card -->
+                        <div class="booking-widget-sticky-box" style="background:#FFFFFF;">
+                            <h3>👥 Group Members</h3>
+                            <div style="margin-top:1rem; display:flex; flex-direction:column; gap:0.5rem;">
+                                <label style="font-size:0.72rem; font-weight:700; color:var(--text-muted);">Manage Members (comma separated)</label>
+                                <input type="text" id="group-members-input" value="Somya, Amit, Priya, Rohan" onchange="handleGroupMembersChange(this.value)" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
+                            </div>
+                        </div>
+
+                        <!-- Settle balances card -->
+                        <div class="booking-widget-sticky-box" style="background:#FFFFFF;">
+                            <h3>📊 Settle-Up Ledger</h3>
+                            <div style="margin-top:1rem;">
+                                <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-bottom:0.5rem;">Net Balances:</div>
+                                <ul id="ledger-balances-list" style="list-style:none; padding:0; display:flex; flex-direction:column; gap:0.4rem; font-size:0.82rem; margin-bottom:1.25rem;">
+                                    <!-- Person balances -->
+                                </ul>
+
+                                <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-bottom:0.5rem; border-top:1px solid var(--border); padding-top:0.75rem;">Minimum Clearing Transactions:</div>
+                                <ul id="ledger-resolutions-list" style="list-style:none; padding:0; display:flex; flex-direction:column; gap:0.4rem; font-size:0.85rem; font-weight:700; color:var(--accent);">
+                                    <!-- Resolutions transactions -->
+                                </ul>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
             </div>
         </div>
 
@@ -1330,6 +1416,34 @@
                     <button type="submit" class="btn-primary" style="width:100%; padding:0.65rem; font-size:0.88rem;">Publish Thread</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- FLOATING CHATBOT WIDGET -->
+    <button id="floating-chat-badge" class="chat-badge-btn" onclick="toggleFloatingChat()" title="Ask TripSplit AI Assistant">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="#FFFFFF" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
+        </svg>
+    </button>
+
+    <div id="floating-chat-container" class="floating-chat-widget hidden">
+        <div class="chat-widget-header">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <span class="assistant-avatar-dot">🟢</span>
+                <strong>Ollie - TripSplit Assistant</strong>
+            </div>
+            <button class="minimize-chat-btn" onclick="toggleFloatingChat()">&times;</button>
+        </div>
+        <div class="chat-widget-body">
+            <div id="assistant-chat-box" class="chat-messages-container">
+                <div class="chat-message assistant">
+                    Hi! I'm Ollie, your TripSplit travel assistant. 🚀 Ask me about hotels, dining, budget tips, or custom itineraries!
+                </div>
+            </div>
+            <div class="chat-input-row">
+                <input type="text" id="assistant-chat-input" placeholder="Ask Ollie something..." onkeypress="handleChatInputKeyPress(event)">
+                <button id="assistant-chat-btn" onclick="handleSendChatMessage()">Send</button>
+            </div>
         </div>
     </div>
 
