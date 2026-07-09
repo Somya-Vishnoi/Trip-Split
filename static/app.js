@@ -265,23 +265,36 @@ function navigateToView(viewId, param = '', skipPushState = false) {
 // Navigates directly from pills/search into the category search pages
 function navigateToCategoryResults(category, skipPushState = false) {
     state.selectedCategory = category;
+    const city = state.currentCity;
+    
+    if (!city) {
+        // Redirect to homepage and focus the main search box
+        navigateToView('home', '', skipPushState);
+        const input = document.getElementById('global-search-input');
+        if (input) {
+            input.focus();
+            input.placeholder = "Please type a destination to see listings...";
+            input.style.borderColor = "var(--accent)";
+            input.style.boxShadow = "0 0 0 3px rgba(124, 58, 237, 0.2)";
+            setTimeout(() => {
+                input.style.borderColor = "";
+                input.style.boxShadow = "";
+                input.placeholder = "Places to go, hotels, restaurants...";
+            }, 5000);
+        }
+        return;
+    }
     
     if (category === 'restaurants') {
-        const city = state.currentCity || 'Jaipur';
-        state.currentCity = city;
         document.getElementById('rest-city-name-label').textContent = city;
         navigateToView('restaurant-results', '', skipPushState);
         loadCategoryResults('restaurant', city);
     } else if (category === 'attractions') {
-        const city = state.currentCity || 'Jaipur';
-        state.currentCity = city;
         document.getElementById('exp-city-name-label').textContent = city;
         navigateToView('experience-results', '', skipPushState);
         loadCategoryResults('experience', city);
     } else {
         // Default stays/hotels
-        const city = state.currentCity || 'Jaipur';
-        state.currentCity = city;
         document.getElementById('results-city-name-label').textContent = city;
         navigateToView('hotel-results', '', skipPushState);
         loadCategoryResults('hotel', city);
@@ -447,7 +460,7 @@ function renderHomepageExperiences() {
     ];
     
     list.innerHTML = exps.map(item => `
-        <li class="card-item-el" onclick="navigateToDetail('Amber Palace Tour', 'experience', 'Amber, Jaipur, India')">
+        <li class="card-item-el" onclick="navigateToDetail('${item.name.replace(/'/g, "\\'")}', 'experience')">
             <div class="card-img-container">
                 <img src="${item.img}" alt="${item.name}">
                 ${item.badge ? `<span class="card-badge">${item.badge}</span>` : ''}
@@ -605,10 +618,17 @@ async function navigateToDestinationOverview(city, country = "India", skipPushSt
     navigateToView('destination', '', skipPushState);
     
     // Populate header photo based on city
-    let heroImg = "https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=1200&q=80"; // Jaipur
-    if (city.toLowerCase() === 'goa') heroImg = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80";
-    else if (city.toLowerCase() === 'mumbai') heroImg = "https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=1200&q=80";
-    else if (city.toLowerCase() === 'delhi') heroImg = "https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&w=1200&q=80";
+    const cityImgs = {
+        'jaipur': 'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=1200&q=80',
+        'goa': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80',
+        'mumbai': 'https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=1200&q=80',
+        'delhi': 'https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&w=1200&q=80',
+        'london': 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=1200&q=80',
+        'paris': 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=80',
+        'tokyo': 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=1200&q=80',
+        'new york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=1200&q=80'
+    };
+    let heroImg = cityImgs[city.toLowerCase()] || "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80";
     
     document.getElementById('city-hero-banner-el').style.backgroundImage = `linear-gradient(transparent, rgba(0,0,0,0.6)), url('${heroImg}')`;
     document.getElementById('city-title-heading').textContent = city.toUpperCase();
@@ -745,7 +765,7 @@ function renderSubDeck(containerId, list, type) {
         return `
             <div class="card-item-el" onclick="navigateToDetail('${item.name.replace(/'/g, "\\'")}', '${type}')">
                 <div class="card-img-container">
-                    <img src="${getPlaceholderSvg(item.name)}" alt="${item.name}">
+                    <img src="${getVenuePhoto(item.name, type)}" alt="${item.name}">
                     <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${item.name.replace(/'/g, "\\'")}', '${type}', '', ${item.lat}, ${item.lon}); this.innerHTML = isVenueFavorite('${item.name.replace(/'/g, "\\'")}') ? '❤️' : '🤍';">${heartIcon}</button>
                 </div>
                 <div class="card-details">
@@ -942,7 +962,7 @@ function renderHotelResultsList() {
         return `
             <div class="row-card-item" onclick="navigateToDetail('${h.name.replace(/'/g, "\\'")}', 'hotel')">
                 <div class="row-card-img">
-                    <img src="${getPlaceholderSvg(h.name)}" alt="${h.name}">
+                    <img src="${getVenuePhoto(h.name, 'hotel')}" alt="${h.name}">
                     <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${h.name.replace(/'/g, "\\'")}', 'hotel', '', ${h.lat}, ${h.lon}); this.innerHTML = isVenueFavorite('${h.name.replace(/'/g, "\\'")}') ? '❤️' : '🤍';">${heartIcon}</button>
                 </div>
                 <div class="row-card-content">
@@ -988,7 +1008,7 @@ function renderRestaurantResultsList() {
         return `
             <div class="row-card-item" onclick="navigateToDetail('${r.name.replace(/'/g, "\\'")}', 'restaurant')">
                 <div class="row-card-img" style="width:200px;">
-                    <img src="${getPlaceholderSvg(r.name)}" alt="${r.name}">
+                    <img src="${getVenuePhoto(r.name, 'restaurant')}" alt="${r.name}">
                     <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${r.name.replace(/'/g, "\\'")}', 'restaurant', '', ${r.lat}, ${r.lon}); this.innerHTML = isVenueFavorite('${r.name.replace(/'/g, "\\'")}') ? '❤️' : '🤍';">${heartIcon}</button>
                 </div>
                 <div class="row-card-content">
@@ -1030,7 +1050,7 @@ function renderExperienceResultsList() {
         return `
             <div class="row-card-item" onclick="navigateToDetail('${e.name.replace(/'/g, "\\'")}', 'experience')">
                 <div class="row-card-img" style="width:200px;">
-                    <img src="${getPlaceholderSvg(e.name)}" alt="${e.name}">
+                    <img src="${getVenuePhoto(e.name, 'experience')}" alt="${e.name}">
                     <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${e.name.replace(/'/g, "\\'")}', 'experience', '', ${e.lat}, ${e.lon}); this.innerHTML = isVenueFavorite('${e.name.replace(/'/g, "\\'")}') ? '❤️' : '🤍';">${heartIcon}</button>
                 </div>
                 <div class="row-card-content">
@@ -1183,6 +1203,8 @@ function plotPinsOnResultsMap() {
 
 // --- ITEM DETAIL VIEWS MANAGER ---
 function navigateToDetail(name, category, addressFallback = "", skipPushState = false) {
+    const cityCap = capitalizeFirstLetter(state.currentCity || 'Delhi');
+    const isInd = isIndianCity(state.currentCity);
     state.selectedItemId = name;
     state.selectedCategory = category;
 
@@ -1218,10 +1240,10 @@ function navigateToDetail(name, category, addressFallback = "", skipPushState = 
         document.getElementById('detail-hotel-rating-bubbles').innerHTML = getBubbleRatingHtml(item.stars || 4.5);
         document.getElementById('detail-hotel-reviews-count').textContent = `(${getReviewsListForVenue(item.name).length} reviews)`;
         document.getElementById('detail-hotel-class-stars').textContent = "⭐".repeat(Math.round(item.stars || 5));
-        document.getElementById('detail-hotel-address').textContent = addressFallback || item.address || `${item.name} Central Area, Jaipur, Rajasthan`;
+        document.getElementById('detail-hotel-address').textContent = addressFallback || item.address || `${item.name} Central Area, ${cityCap}`;
         
         // Description
-        document.getElementById('detail-overview-description').textContent = item.enrichment?.description || `${item.name} offers travelers a royal legacy stay inside comfortable suites. It features highly praised spa setups and authentic culinary options inside gardens.`;
+        document.getElementById('detail-overview-description').textContent = item.enrichment?.description || `${item.name} offers travelers a comfortable, premium stay inside modern rooms and suites. It features outstanding service, signature amenities, and premium dining options.`;
         
         // Rooms
         const rgrid = document.getElementById('detail-rooms-grid-container');
@@ -1302,23 +1324,31 @@ function navigateToDetail(name, category, addressFallback = "", skipPushState = 
         document.getElementById('detail-rest-name').textContent = item.name;
         document.getElementById('detail-rest-rating-bubbles').innerHTML = getBubbleRatingHtml(item.stars || 4.4);
         document.getElementById('detail-rest-reviews-count').textContent = `(${getReviewsListForVenue(item.name).length} reviews)`;
-        document.getElementById('detail-rest-address').textContent = addressFallback || item.address || `${item.name} Bazaar, Jaipur, Rajasthan`;
-        document.getElementById('detail-rest-cuisine-label').textContent = item.sub_type ? item.sub_type.toUpperCase() : 'INDIAN TRADITIONAL';
+        document.getElementById('detail-rest-address').textContent = addressFallback || item.address || `${item.name} Bazaar, ${cityCap}`;
+        document.getElementById('detail-rest-cuisine-label').textContent = item.sub_type ? item.sub_type.toUpperCase() : (isInd ? 'INDIAN TRADITIONAL' : 'CONTINENTAL');
         
-        document.getElementById('detail-rest-overview-description').textContent = `${item.name} is one of the most popular dining destinations in this area. It specializes in mouth-watering regional desserts, snacks, and traditional signature thalis.`;
+        document.getElementById('detail-rest-overview-description').textContent = `${item.name} is one of the most popular dining destinations in this area. It specializes in delicious local signature dishes and drinks.`;
         
         // Menu list
         const mlist = document.getElementById('rest-signature-dishes-list');
-        mlist.innerHTML = `
-            <li>✔️ Special Maharaja Thali (Keri Sangri, Dal Bati) — <strong>₹450</strong></li>
-            <li>✔️ Crispy Pyaaz Kachori (Heritage recipe) — <strong>₹90</strong></li>
-            <li>✔️ Kesar Lassi (Sweet saffron curd drink) — <strong>₹120</strong></li>
-        `;
+        if (isInd) {
+            mlist.innerHTML = `
+                <li>✔️ Special Maharaja Thali (Keri Sangri, Dal Bati) — <strong>₹450</strong></li>
+                <li>✔️ Crispy Pyaaz Kachori (Heritage recipe) — <strong>₹90</strong></li>
+                <li>✔️ Kesar Lassi (Sweet saffron curd drink) — <strong>₹120</strong></li>
+            `;
+        } else {
+            mlist.innerHTML = `
+                <li>✔️ Chef's Signature Steak & Fries — <strong>₹1,450</strong></li>
+                <li>✔️ Crispy Chicken Caesar Salad — <strong>₹850</strong></li>
+                <li>✔️ Classic Lemon Mint Iced Tea — <strong>₹250</strong></li>
+            `;
+        }
         
         // Amenities
         const amens = document.getElementById('detail-rest-amenities-strip');
         amens.innerHTML = `
-            <span class="amenity-pill-icon">🌿 Vegetarian Options</span>
+            <span class="amenity-pill-icon">${isInd ? '🌿 Vegetarian Options' : '🥩 Premium Cuts'}</span>
             <span class="amenity-pill-icon">🪑 Outdoor seating area</span>
             <span class="amenity-pill-icon">💳 Cards Accepted</span>
         `;
@@ -1335,9 +1365,9 @@ function navigateToDetail(name, category, addressFallback = "", skipPushState = 
         document.getElementById('detail-exp-name').textContent = item.name;
         document.getElementById('detail-exp-rating-bubbles').innerHTML = getBubbleRatingHtml(item.stars || 4.7);
         document.getElementById('detail-exp-reviews-count').textContent = `(${getReviewsListForVenue(item.name).length} reviews)`;
-        document.getElementById('detail-exp-address').textContent = addressFallback || item.address || `${item.name} Fort Gates, Jaipur, Rajasthan`;
+        document.getElementById('detail-exp-address').textContent = addressFallback || item.address || `${item.name} Gates, ${cityCap}`;
         
-        document.getElementById('detail-exp-overview-description').textContent = `${item.name} offers tourists a magnificent, historic look into legacy royal chambers, defense watchtowers, and stunning architecture. Hire local guides for details.`;
+        document.getElementById('detail-exp-overview-description').textContent = `${item.name} offers tourists a magnificent, historic look into legacy buildings, watchtowers, and stunning architecture. Hire local guides for details.`;
         
         const amens = document.getElementById('detail-exp-amenities-strip');
         amens.innerHTML = `
@@ -1358,15 +1388,56 @@ function setupGalleryStrip(containerId, name) {
     const el = document.getElementById(containerId);
     if (!el) return;
     
-    // TripAdvisor gallery photos
-    const imgs = [
-        "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80",
+    // TripAdvisor dynamic gallery photos based on type pools
+    const hotelPool = [
         "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80",
         "https://images.unsplash.com/photo-1582719478250-c89cae4db85b?auto=format&fit=crop&w=400&q=80",
         "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=400&q=80",
-        "https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=400&q=80"
+        "https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80",
+        "https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=400&q=80"
+    ];
+    const restPool = [
+        "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1537047902294-62a40c20a6ae?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80"
+    ];
+    const expPool = [
+        "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1508349937151-22b68b72d5b1?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1603262110263-fb0112e7cc33?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80"
     ];
     
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    hash = Math.abs(hash);
+    
+    let pool = expPool;
+    if (containerId.startsWith('hotel')) pool = hotelPool;
+    else if (containerId.startsWith('rest')) pool = restPool;
+    
+    const startIdx = hash % (pool.length - 4);
+    const imgs = pool.slice(startIdx, startIdx + 5);
     state.lightboxImages = imgs;
     
     el.innerHTML = imgs.map((src, idx) => {
@@ -2040,6 +2111,68 @@ function getBubbleRatingHtml(stars) {
     return `<div class="tripadvisor-bubbles" title="${stars} bubbles">${bubbles}</div>`;
 }
 
+function getVenuePhoto(name, type) {
+    const n = name.toLowerCase();
+    
+    // Check specific places for high quality matching images
+    if (n.includes("rambagh")) return "https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("rajvilas")) return "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("zostel")) return "https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("pearl palace")) return "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("mishthan") || n.includes("lmb")) return "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("peacock")) return "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("chokhi")) return "https://images.unsplash.com/photo-1585938338392-50a59970d8ee?auto=format&fit=crop&w=400&q=80";
+    
+    // Specific city monument matching (London, Paris, Goa, Delhi, Mumbai, Jaipur)
+    if (n.includes("london") && n.includes("bridge")) return "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("london") && n.includes("eye")) return "https://images.unsplash.com/photo-1508349937151-22b68b72d5b1?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("london")) return "https://images.unsplash.com/photo-1529655683826-09571830febe?auto=format&fit=crop&w=400&q=80";
+    
+    if (n.includes("paris")) return "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("goa") || n.includes("beach")) return "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("delhi") || n.includes("gate")) return "https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("mumbai") || n.includes("gateway")) return "https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=400&q=80";
+    
+    if (n.includes("amber")) return "https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("hawa mahal")) return "https://images.unsplash.com/photo-1603262110263-fb0112e7cc33?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("park")) return "https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80";
+
+    const hotelPics = [
+        "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&w=400&q=80"
+    ];
+    
+    const restPics = [
+        "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80"
+    ];
+    
+    const expPics = [
+        "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=400&q=80"
+    ];
+    
+    // Deterministic indexing based on name to get unique images per venue
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    hash = Math.abs(hash);
+    
+    if (type === 'hotel') return hotelPics[hash % hotelPics.length];
+    if (type === 'restaurant') return restPics[hash % restPics.length];
+    return expPics[hash % expPics.length];
+}
+
 function getPlaceholderSvg(name) {
     const colors = ["4F46E5","0EA5E9","10B981","F59E0B","EF4444","8B5CF6","EC4899","06B6D4"];
     const hash = Math.abs(name.split("").reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0));
@@ -2145,6 +2278,13 @@ function appendChatMessage(text, sender) {
 
 // --- GROUP EXPENSE SPLITTER LEDGER LOGIC ---
 state.ledgerExpenses = JSON.parse(localStorage.getItem('ta_expenses') || '[]');
+if (state.ledgerExpenses.length === 0) {
+    state.ledgerExpenses = [
+        { id: 101, desc: "Taj Luxury Hotel Stay", amount: 24000, paidBy: "Somya", splitters: ["Somya", "Amit", "Priya", "Rohan"] },
+        { id: 102, desc: "Sightseeing Tour Guide", amount: 3200, paidBy: "Amit", splitters: ["Somya", "Amit", "Priya", "Rohan"] },
+        { id: 103, desc: "Traditional Dinner Feast", amount: 4800, paidBy: "Priya", splitters: ["Somya", "Amit", "Priya", "Rohan"] }
+    ];
+}
 state.groupMembers = localStorage.getItem('ta_members') ? localStorage.getItem('ta_members').split(',') : ['Somya', 'Amit', 'Priya', 'Rohan'];
 
 function initializeLedgerView() {
@@ -2423,28 +2563,44 @@ function handleHomeOptimizerSubmit(event) {
     navigateToDestinationOverview(city, "India");
 }
 
+function capitalizeFirstLetter(str) {
+    if (!str) return '';
+    return str.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
+function isIndianCity(city) {
+    const indCities = ['jaipur', 'delhi', 'mumbai', 'goa', 'bangalore', 'kolkata', 'chennai', 'hyderabad', 'pune', 'agra', 'udaipur', 'himachal pradesh', 'kerala'];
+    return indCities.includes(city.toLowerCase());
+}
+
 function getFallbackHotels(city) {
+    const c = capitalizeFirstLetter(city);
+    const isInd = isIndianCity(city);
     return [
-        { id: "h1", name: "Taj Rambagh Palace", cost: 38000, stars: 5, sub_type: "Hotel", lat: 26.8981, lon: 75.8078, wifi: true, pool: true, parking: true, bar: true },
-        { id: "h2", name: "The Oberoi Rajvilas", cost: 32000, stars: 5, sub_type: "Resort", lat: 26.8791, lon: 75.8821, wifi: true, pool: true, parking: true, bar: true },
-        { id: "h3", name: "Zostel Backpacker Hostel", cost: 800, stars: 4, sub_type: "Hostel", lat: 26.9212, lon: 75.8234, wifi: true, pool: false, parking: true, bar: false },
-        { id: "h4", name: "Pearl Palace Heritage Guest House", cost: 3200, stars: 4.5, sub_type: "Guest House", lat: 26.9189, lon: 75.7891, wifi: true, pool: false, parking: true, bar: true }
+        { id: "h1", name: isInd ? `Taj ${c} Palace` : `The Grand ${c} Hotel`, cost: 18000, stars: 5, sub_type: "Hotel", lat: 26.8981, lon: 75.8078, wifi: true, pool: true, parking: true, bar: true },
+        { id: "h2", name: isInd ? `The Oberoi ${c} Vilas` : `The Ritz-Carlton ${c}`, cost: 16000, stars: 5, sub_type: "Resort", lat: 26.8791, lon: 75.8821, wifi: true, pool: true, parking: true, bar: true },
+        { id: "h3", name: `Zostel ${c} Backpacker Hostel`, cost: 800, stars: 4, sub_type: "Hostel", lat: 26.9212, lon: 75.8234, wifi: true, pool: false, parking: true, bar: false },
+        { id: "h4", name: `${c} Heritage Inn & Suites`, cost: 3200, stars: 4.5, sub_type: "Guest House", lat: 26.9189, lon: 75.7891, wifi: true, pool: false, parking: true, bar: true }
     ];
 }
 
 function getFallbackRestaurants(city) {
+    const c = capitalizeFirstLetter(city);
+    const isInd = isIndianCity(city);
     return [
-        { id: "r1", name: "Laxmi Mishthan Bhandar (LMB)", cost: 450, stars: 4.5, sub_type: "indian", price_tier: 2, lat: 26.9201, lon: 75.8281 },
-        { id: "r2", name: "Peacock Rooftop Cafe", cost: 600, stars: 4.7, sub_type: "cafe", price_tier: 2, lat: 26.9178, lon: 75.7901 },
-        { id: "r3", name: "Chokhi Dhani Ethnic Resort Dining", cost: 1200, stars: 4.8, sub_type: "indian", price_tier: 3, lat: 26.7681, lon: 75.8456 }
+        { id: "r1", name: isInd ? `${c} Mishthan Bhandar (LMB)` : `${c} Central Bistro`, cost: 450, stars: 4.5, sub_type: isInd ? "indian" : "bistro", price_tier: 2, lat: 26.9201, lon: 75.8281 },
+        { id: "r2", name: `Peacock Rooftop Cafe in ${c}`, cost: 600, stars: 4.7, sub_type: "cafe", price_tier: 2, lat: 26.9178, lon: 75.7901 },
+        { id: "r3", name: isInd ? `${c} Royal Chokhi Dhani` : `${c} Fine Dining Tavern`, cost: 1200, stars: 4.8, sub_type: isInd ? "indian" : "tavern", price_tier: 3, lat: 26.7681, lon: 75.8456 }
     ];
 }
 
 function getFallbackExperiences(city) {
+    const c = capitalizeFirstLetter(city);
+    const isInd = isIndianCity(city);
     return [
-        { id: "e1", name: "Amber Palace Heritage Walk", original_cost: 500, stars: 5, sub_type: "museum", lat: 26.9856, lon: 75.8512 },
-        { id: "e2", name: "Hawa Mahal Front View Photo Spot", original_cost: 0, stars: 4.8, sub_type: "viewpoint", lat: 26.9239, lon: 75.8267 },
-        { id: "e3", name: "Central Park Jaipur", original_cost: 0, stars: 4.3, sub_type: "park", lat: 26.9021, lon: 75.8090 }
+        { id: "e1", name: isInd ? `${c} Palace Heritage Walk` : `${c} Castle & Museum Tour`, original_cost: 500, stars: 5, sub_type: "museum", lat: 26.9856, lon: 75.8512 },
+        { id: "e2", name: isInd ? `${c} Fort View Photo Spot` : `${c} Skyline Viewpoint`, original_cost: 0, stars: 4.8, sub_type: "viewpoint", lat: 26.9239, lon: 75.8267 },
+        { id: "e3", name: `Central Green Park of ${c}`, original_cost: 0, stars: 4.3, sub_type: "park", lat: 26.9021, lon: 75.8090 }
     ];
 }
 
