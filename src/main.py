@@ -65,6 +65,38 @@ def search_city(req: SearchRequest):
     # Fetch venues
     venues = fetch_venues(req.city, geo_data["bbox"], lat=geo_data["lat"], lon=geo_data["lon"])
     
+    # Assign heuristics
+    from src.optimizer import assign_heuristics
+    
+    processed_hotels = []
+    for h in venues.get("hotels", []):
+        cost, utility = assign_heuristics(h, "hotels", people=4)
+        h_copy = dict(h)
+        h_copy["cost"] = cost
+        h_copy["utility"] = utility
+        processed_hotels.append(h_copy)
+        
+    processed_restaurants = []
+    for r in venues.get("restaurants", []):
+        cost, utility = assign_heuristics(r, "restaurants", people=4)
+        r_copy = dict(r)
+        r_copy["cost"] = cost
+        r_copy["utility"] = utility
+        processed_restaurants.append(r_copy)
+        
+    processed_attractions = []
+    for a in venues.get("attractions", []):
+        cost, utility = assign_heuristics(a, "attractions", people=4)
+        a_copy = dict(a)
+        a_copy["cost"] = 0.0
+        a_copy["original_cost"] = cost
+        a_copy["utility"] = utility
+        processed_attractions.append(a_copy)
+        
+    processed_hotels.sort(key=lambda x: x.get("utility", 0.0), reverse=True)
+    processed_restaurants.sort(key=lambda x: x.get("utility", 0.0), reverse=True)
+    processed_attractions.sort(key=lambda x: x.get("utility", 0.0), reverse=True)
+    
     return {
         "geocoding": {
             "display_name": geo_data["display_name"],
@@ -78,18 +110,14 @@ def search_city(req: SearchRequest):
             "attractions": len(venues["attractions"])
         },
         "sample_venues": {
-            "hotels": [h["name"] for h in venues["hotels"][:8]],
-            "restaurants": [r["name"] for r in venues["restaurants"][:8]],
-            "attractions": [
-                a["name"] for a in sorted(
-                    venues["attractions"],
-                    key=lambda x: (
-                        100.0 if "marine drive" in x["name"].lower() or "chowpatty" in x["name"].lower() or "hawa mahal" in x["name"].lower() or "fort" in x["name"].lower() or "palace" in x["name"].lower() or "beach" in x["name"].lower()
-                        else (70.0 if x.get("sub_type") in ["museum", "viewpoint"] else 30.0)
-                    ),
-                    reverse=True
-                )[:15]
-            ]
+            "hotels": [h["name"] for h in processed_hotels[:8]],
+            "restaurants": [r["name"] for r in processed_restaurants[:8]],
+            "attractions": [a["name"] for a in processed_attractions[:15]]
+        },
+        "all_venues": {
+            "hotels": processed_hotels,
+            "restaurants": processed_restaurants,
+            "attractions": processed_attractions
         }
     }
 
@@ -250,6 +278,57 @@ def plan_trip(req: PlanRequest):
         s_bars = [a for a in s_attractions if a.get("sub_type") == "bar"]
         s_sightseeing = [a for a in s_attractions if a.get("sub_type") != "bar"]
         s_zones = cluster_attractions_by_location(s_sightseeing, k=days_alloc[i])
+
+        # Extract all venues with cost/utility assigned
+        from src.optimizer import assign_heuristics
+        
+        # 1. Hotels
+        all_hotels = []
+        for h in venues.get("hotels", []):
+            cost_val, util_val = assign_heuristics(h, "hotels", req.people)
+            h_copy = dict(h)
+            h_copy["cost"] = cost_val * days_alloc[i] if req.include_stay else 0.0
+            h_copy["utility"] = util_val if req.include_stay else 0.0
+            h_copy["optimized"] = (res.get("hotel") is not None and h["name"] == res["hotel"].get("name"))
+            all_hotels.append(h_copy)
+        all_hotels.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
+            
+        # 2. Restaurants
+        all_restaurants = []
+        opt_rest_names = [x["name"] for x in res.get("restaurants", [])]
+        for r in venues.get("restaurants", []):
+            cost_val, util_val = assign_heuristics(r, "restaurants", req.people)
+            r_copy = dict(r)
+            r_copy["cost"] = cost_val
+            r_copy["utility"] = util_val
+            r_copy["optimized"] = r["name"] in opt_rest_names
+            all_restaurants.append(r_copy)
+        all_restaurants.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
+            
+        # 3. Bars
+        all_bars = []
+        opt_bar_names = [x["name"] for x in s_bars]
+        for b in [a for a in venues.get("attractions", []) if a.get("sub_type") == "bar"]:
+            cost_val, util_val = assign_heuristics(b, "attractions", req.people)
+            b_copy = dict(b)
+            b_copy["cost"] = cost_val
+            b_copy["utility"] = util_val
+            b_copy["optimized"] = b["name"] in opt_bar_names
+            all_bars.append(b_copy)
+        all_bars.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
+            
+        # 4. Attractions / Sightseeing
+        all_sightseeing = []
+        opt_sight_names = [x["name"] for x in s_sightseeing]
+        for a in [a for a in venues.get("attractions", []) if a.get("sub_type") != "bar"]:
+            cost_val, util_val = assign_heuristics(a, "attractions", req.people)
+            a_copy = dict(a)
+            a_copy["cost"] = 0.0
+            a_copy["original_cost"] = cost_val
+            a_copy["utility"] = util_val
+            a_copy["optimized"] = a["name"] in opt_sight_names
+            all_sightseeing.append(a_copy)
+        all_sightseeing.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
         
         stop_plan = {
             "city": city_name,
@@ -258,6 +337,11 @@ def plan_trip(req: PlanRequest):
             "restaurants": res.get("restaurants", []),
             "bars": s_bars,
             "zones": s_zones,
+            "all_hotels": all_hotels,
+            "all_restaurants": all_restaurants,
+            "all_bars": all_bars,
+            "all_sightseeing": all_sightseeing,
+            "budget_exceeded": res.get("budget_exceeded", False),
             "local_cost": res["total_cost"]
         }
         stops_plans.append(stop_plan)
@@ -271,6 +355,39 @@ def plan_trip(req: PlanRequest):
             b_sightseeing = [a for a in b_attractions if a.get("sub_type") != "bar"]
             b_zones = cluster_attractions_by_location(b_sightseeing, k=days_alloc[i])
             
+            # Map backups
+            b_opt_rest_names = [x["name"] for x in b_res.get("restaurants", [])]
+            b_opt_bar_names = [x["name"] for x in b_bars]
+            b_opt_sight_names = [x["name"] for x in b_sightseeing]
+            
+            b_all_hotels = []
+            for h in all_hotels:
+                h_c = dict(h)
+                h_c["optimized"] = (b_res.get("hotel") is not None and h["name"] == b_res["hotel"].get("name"))
+                b_all_hotels.append(h_c)
+            b_all_hotels.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
+                
+            b_all_restaurants = []
+            for r in all_restaurants:
+                r_c = dict(r)
+                r_c["optimized"] = r["name"] in b_opt_rest_names
+                b_all_restaurants.append(r_c)
+            b_all_restaurants.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
+                
+            b_all_bars = []
+            for b in all_bars:
+                b_c = dict(b)
+                b_c["optimized"] = b["name"] in b_opt_bar_names
+                b_all_bars.append(b_c)
+            b_all_bars.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
+                
+            b_all_sightseeing = []
+            for a in all_sightseeing:
+                a_c = dict(a)
+                a_c["optimized"] = a["name"] in b_opt_sight_names
+                b_all_sightseeing.append(a_c)
+            b_all_sightseeing.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
+            
             b_stop_plan = {
                 "city": city_name,
                 "days": days_alloc[i],
@@ -278,6 +395,10 @@ def plan_trip(req: PlanRequest):
                 "restaurants": b_res.get("restaurants", []),
                 "bars": b_bars,
                 "zones": b_zones,
+                "all_hotels": b_all_hotels,
+                "all_restaurants": b_all_restaurants,
+                "all_bars": b_all_bars,
+                "all_sightseeing": b_all_sightseeing,
                 "local_cost": b_res["total_cost"]
             }
             stops_backup_plans.append(b_stop_plan)

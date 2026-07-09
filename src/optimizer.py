@@ -336,5 +336,15 @@ def optimize_trip_budget(
         else:
             primary_res["backup"] = None
         return primary_res
-
+    else:
+        # Fallback to unlimited budget to ensure a plan is ALWAYS generated
+        fallback_res = run_budget_knapsack(
+            hotels, restaurants, attractions, days, people, 9999999.0,
+            include_stay, include_transport, include_attractions, lat, lon
+        )
+        if fallback_res["status"] == "success":
+            fallback_res["budget_exceeded"] = True
+            fallback_res["backup"] = None
+            return fallback_res
+        
     return primary_res

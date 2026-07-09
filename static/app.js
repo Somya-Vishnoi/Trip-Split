@@ -505,6 +505,61 @@ function populateList(elementId, items, emptyMessage) {
 }
 
 // Modular rendering function for a plan (primary or backup)
+function renderVenueCardHtml(v, category, isRecommended = false) {
+    const isHearted = isVenueFavorite(v.name);
+    const heartIcon = isHearted ? "❤️" : "🤍";
+    const optBadge = isRecommended ? `<span class="recommended-badge">⭐ Recommended Choice</span>` : "";
+    const starsHtml = v.stars ? getBubbleRatingHtml(v.stars) : (v.utility ? getBubbleRatingHtml(Math.min(5, Math.ceil(v.utility / 30))) : "");
+    const subTypeLabel = v.sub_type ? v.sub_type.toUpperCase() : category.toUpperCase();
+    
+    let costText = "";
+    if (category === "hotel") {
+        costText = `Est. Total: ₹${formatCost(v.cost)}`;
+    } else if (category === "restaurant" || category === "bar") {
+        costText = `Est. Meal Cost: ₹${formatCost(v.cost)}`;
+    } else {
+        costText = v.original_cost === 0 ? "Free Entry" : `Est. Fee: ₹${formatCost(v.original_cost)}`;
+    }
+    
+    let enrichHtml = "";
+    if (v.enrichment) {
+        enrichHtml = `
+            <div class="enrich-desc" style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 0.25rem; line-height: 1.35;">${v.enrichment.description}</div>
+            <div class="enrich-meta" style="font-size: 0.7rem; color: #4B5563; font-style: italic; margin-top: 0.25rem;">
+                Vibe: ${v.enrichment.vibe} | Try: ${v.enrichment.extra_tips}
+            </div>
+        `;
+    }
+    
+    const escapedName = v.name.replace(/'/g, "\\'");
+    const categoryIcon = category === "hotel" ? "🏨" : category === "restaurant" ? "🍔" : category === "bar" ? "🍻" : "🏛️";
+    
+    // Add vote tag listing
+    const votesHtml = getVotingTagsHtml(v.name);
+    
+    return `
+        <div class="horizontal-card ${isRecommended ? 'recommended-border' : ''}">
+            ${optBadge}
+            ${renderVenueImageHtml(v.name, category)}
+            <div class="card-details-box" style="display: flex; flex-direction: column; justify-content: space-between; flex: 1; padding: 0.75rem 0.5rem 0.5rem 0.5rem; gap: 0.35rem;">
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.25rem;">
+                        <h5 class="venue-title" style="margin: 0; font-size: 0.88rem; font-weight: 700; color: var(--text-primary);">${v.name}</h5>
+                        <button onclick="toggleFavoriteVenue('${escapedName}', '${category}', '${categoryIcon}', ${v.lat}, ${v.lon})" style="background: none; border: none; cursor: pointer; font-size: 1rem; padding: 0.1rem; line-height: 1;">${heartIcon}</button>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.25rem; margin-top: 0.15rem; font-size: 0.72rem; color: var(--text-muted);">
+                        <span>${subTypeLabel}</span>
+                        ${starsHtml}
+                    </div>
+                    <div class="venue-cost-label" style="font-size: 0.8rem; font-weight: 700; color: var(--accent); margin-top: 0.25rem;">${costText}</div>
+                </div>
+                ${enrichHtml}
+                ${votesHtml}
+            </div>
+        </div>
+    `;
+}
+
 function renderPlanItinerary(plan) {
     if (!plan) return;
 
@@ -516,14 +571,22 @@ function renderPlanItinerary(plan) {
     
     const statusBadge = document.getElementById("plan-status");
     if (statusBadge) {
-        statusBadge.textContent = activePlanType === "backup" ? "Economy Backup Plan" : "Optimal Plan (Within Budget)";
-        statusBadge.className = activePlanType === "backup" ? "plan-status-badge backup" : "plan-status-badge";
-        if (activePlanType === "backup") {
-            statusBadge.style.background = "#FEF3C7";
-            statusBadge.style.color = "#D97706";
+        const isExceeded = plan.stops.some(s => s.budget_exceeded);
+        if (isExceeded) {
+            statusBadge.textContent = "Recommendation (Exceeds Target Budget)";
+            statusBadge.className = "plan-status-badge backup";
+            statusBadge.style.background = "#FEE2E2";
+            statusBadge.style.color = "#DC2626";
         } else {
-            statusBadge.style.background = "var(--success-light)";
-            statusBadge.style.color = "var(--success)";
+            statusBadge.textContent = activePlanType === "backup" ? "Economy Backup Plan" : "Optimal Plan (Within Budget)";
+            statusBadge.className = activePlanType === "backup" ? "plan-status-badge backup" : "plan-status-badge";
+            if (activePlanType === "backup") {
+                statusBadge.style.background = "#FEF3C7";
+                statusBadge.style.color = "#D97706";
+            } else {
+                statusBadge.style.background = "var(--success-light)";
+                statusBadge.style.color = "var(--success)";
+            }
         }
     }
 
@@ -565,233 +628,171 @@ function renderPlanItinerary(plan) {
         if (travelContainer) travelContainer.classList.add("hidden");
     }
 
-    // STEP 3: Render Itinerary Details Card Layout
     const wrapper = document.getElementById("plan-details-wrapper");
     if (wrapper) {
-        wrapper.innerHTML = ""; // Clear for fresh draw
+        wrapper.innerHTML = "";
 
-        if (plan.multi_city) {
-            // RENDER MULTI-STOP TRIP
-            plan.stops.forEach((stop, i) => {
-                const stopSection = document.createElement("div");
-                stopSection.className = "multi-stop-section";
-                stopSection.style.marginTop = "2rem";
-                stopSection.style.borderTop = "2.5px solid var(--border)";
-                stopSection.style.paddingTop = "1.5rem";
-                
-                stopSection.innerHTML = `
-                    <h2 style="font-size: 1.3rem; font-weight: 800; color: var(--accent); margin-bottom: 1rem;">
-                        Stop ${i + 1}: ${stop.city.toUpperCase()} (${stop.days} Days) — Est. Cost: ₹${formatCost(stop.local_cost)}
-                    </h2>
-                    <div class="optimized-layout-grid">
-                        <!-- Left: Accommodation Card -->
-                        <div class="opt-card opt-hotel-card stop-hotel-card-${i}">
-                            <h3>Accommodation</h3>
-                            <div class="stop-hotel-detail-${i} opt-detail"></div>
-                        </div>
-                        
-                        <!-- Middle: Food & Nightlife Card -->
-                        <div class="opt-card opt-food-card">
-                            <h3>Food & Nightlife</h3>
-                            <div class="plan-sub-section">
-                                <div class="food-block">
-                                    <h4>Selected Restaurants</h4>
-                                    <ul class="stop-restaurants-list-${i} opt-list"></ul>
-                                </div>
-                                <div class="nightlife-block stop-bars-container-${i}" style="margin-top: 1rem;">
-                                    <h4>Selected Bars & Clubs</h4>
-                                    <ul class="stop-bars-list-${i} opt-list"></ul>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Right: Sightseeing & Exploration Card -->
-                        <div class="opt-card opt-itinerary-card">
-                            <h3>Sightseeing & Exploration</h3>
-                            <div class="plan-sub-section stop-zones-section-${i}">
-                                <div class="stop-zones-container-${i} zones-timeline"></div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                wrapper.appendChild(stopSection);
-
-                // Populate Accommodation details & alternative stays
-                const hotelCardContainer = stopSection.querySelector(`.stop-hotel-card-${i}`);
-                const hotelDetail = stopSection.querySelector(`.stop-hotel-detail-${i}`);
-                if (stop.hotel && stop.hotel.id !== "virtual_depot") {
-                    const starsHtml = stop.hotel.stars ? getBubbleRatingHtml(stop.hotel.stars) : "";
-                    const hotelType = stop.hotel.sub_type ? stop.hotel.sub_type.toUpperCase() : "HOTEL";
-                    
-                    let enrichHtml = "";
-                    if (stop.hotel.enrichment) {
-                        enrichHtml = `
-                            <div class="enrich-desc" style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.5rem; line-height: 1.4;">${stop.hotel.enrichment.description}</div>
-                            <div class="enrich-meta" style="font-size: 0.78rem; margin-top: 0.35rem;">
-                                <span style="background: #F3E8FF; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 700; color: #7E22CE;">Vibe: ${stop.hotel.enrichment.vibe}</span>
-                            </div>
-                            <div class="enrich-tip" style="font-size: 0.78rem; color: #4B5563; font-style: italic; margin-top: 0.35rem;">Tip: ${stop.hotel.enrichment.extra_tips}</div>
-                        `;
-                    }
-
-                    // Alternative accommodation list to respect user choices
-                    let altHtml = "";
-                    if (currentSearchData && currentSearchData.sample_venues && currentSearchData.sample_venues.hotels) {
-                        const alts = currentSearchData.sample_venues.hotels.filter(name => name !== stop.hotel.name).slice(0, 3);
-                        if (alts.length > 0) {
-                            altHtml = `
-                                <div class="alt-hotels" style="margin-top: 0.75rem; border-top: 1px dashed var(--border); padding-top: 0.5rem;">
-                                    <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem;">Alternative Accommodations:</div>
-                                    <ul style="margin: 0; padding-left: 1rem; font-size: 0.75rem; color: #4B5563; line-height: 1.4; list-style-type: disc;">
-                                        ${alts.map(a => `<li>${a}</li>`).join("")}
-                                    </ul>
-                                </div>
-                            `;
-                        }
-                    }
-
-                    const isHearted = isVenueFavorite(stop.hotel.name);
-                    const heartIcon = isHearted ? "❤️" : "🤍";
-
-                    hotelDetail.innerHTML = `
-                        <div class="hotel-details-block">
-                            ${renderVenueImageHtml(stop.hotel.name, 'hotel')}
-                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.25rem;">
-                                <div class="hotel-name" style="font-weight: 700;">${stop.hotel.name}</div>
-                                <button onclick="toggleFavoriteVenue('${stop.hotel.name.replace(/'/g, "\\'")}', 'hotel', '🏨', ${stop.hotel.lat}, ${stop.hotel.lon})" style="background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.2rem;">${heartIcon}</button>
-                            </div>
-                            <div class="hotel-meta" style="display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap;">${hotelType} ${starsHtml}</div>
-                            <div class="hotel-cost">Est. Total: ₹${formatCost(stop.hotel.cost)}</div>
-                            ${enrichHtml}
-                            ${altHtml}
-                            ${getVotingTagsHtml(stop.hotel.name)}
-                        </div>
-                    `;
-                } else {
-                    if (hotelCardContainer) hotelCardContainer.classList.add("hidden");
-                }
-
-                // Render local food/bars
-                const rList = stopSection.querySelector(`.stop-restaurants-list-${i}`);
-                const bList = stopSection.querySelector(`.stop-bars-list-${i}`);
-                const bCont = stopSection.querySelector(`.stop-bars-container-${i}`);
-                renderFoodAndNightlifeElements(stop.restaurants, stop.bars, rList, bList, bCont);
-
-                // Render local zones
-                const zList = stopSection.querySelector(`.stop-zones-container-${i}`);
-                const zSect = stopSection.querySelector(`.stop-zones-section-${i}`);
-                renderExplorationZonesElements(stop.zones, zList, zSect);
-            });
-
-            // Draw stops and intercity route lines on Leaflet Map
-            plotMultiCityOnMap(plan.stops, plan.legs);
-
-        } else {
-            // RENDER SINGLE CITY (Standard original block layout)
-            const stop = plan.stops[0];
-            wrapper.innerHTML = `
-                <div class="optimized-layout-grid">
-                    <!-- Left: Accommodation Card -->
-                    <div class="opt-card opt-hotel-card" id="opt-hotel-card-container">
-                        <h3>Accommodation</h3>
-                        <div id="opt-hotel-detail" class="opt-detail"></div>
-                    </div>
-                    
-                    <!-- Middle: Food & Nightlife Card -->
-                    <div class="opt-card opt-food-card">
-                        <h3>Food & Nightlife</h3>
-                        <div class="plan-sub-section">
-                            <div class="food-block">
-                                <h4>Selected Restaurants</h4>
-                                <ul id="opt-restaurants-list" class="opt-list"></ul>
-                            </div>
-                            <div class="nightlife-block" id="opt-bars-container" style="margin-top: 1rem;">
-                                <h4>Selected Bars & Clubs</h4>
-                                <ul id="opt-bars-list" class="opt-list"></ul>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Right: Sightseeing & Exploration Card -->
-                    <div class="opt-card opt-itinerary-card">
-                        <h3>Sightseeing & Exploration</h3>
-                        <div class="plan-sub-section" id="opt-zones-section">
-                            <div id="opt-zones-container" class="zones-timeline"></div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            const hotelCardContainer = document.getElementById("opt-hotel-card-container");
-            const hotelDetail = document.getElementById("opt-hotel-detail");
+        plan.stops.forEach((stop, i) => {
+            const stopSection = document.createElement("div");
+            stopSection.className = "multi-stop-section";
+            stopSection.style.marginTop = "2rem";
+            stopSection.style.borderTop = "2.5px solid var(--border)";
+            stopSection.style.paddingTop = "1.5rem";
             
-            if (stop.hotel && stop.hotel.id !== "virtual_depot") {
-                const starsHtml = stop.hotel.stars ? getBubbleRatingHtml(stop.hotel.stars) : "";
-                const hotelType = stop.hotel.sub_type ? stop.hotel.sub_type.toUpperCase() : "HOTEL";
+            // 🏨 Stays Section
+            let staysHtml = "";
+            if (stop.all_hotels && stop.all_hotels.length > 0) {
+                const recommendedHotel = stop.all_hotels.find(h => h.optimized) || stop.all_hotels[0];
+                const otherHotels = stop.all_hotels.filter(h => h.name !== recommendedHotel.name);
                 
-                let enrichHtml = "";
-                if (stop.hotel.enrichment) {
-                    enrichHtml = `
-                        <div class="enrich-desc" style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.5rem; line-height: 1.4;">${stop.hotel.enrichment.description}</div>
-                        <div class="enrich-meta" style="font-size: 0.78rem; margin-top: 0.35rem;">
-                            <span style="background: #F3E8FF; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 700; color: #7E22CE;">Vibe: ${stop.hotel.enrichment.vibe}</span>
+                staysHtml = `
+                    <div class="stop-row stays-row">
+                        <div class="row-header">
+                            <h4>🏨 Stays & Accommodations in ${stop.city.toUpperCase()}</h4>
                         </div>
-                        <div class="enrich-tip" style="font-size: 0.78rem; color: #4B5563; font-style: italic; margin-top: 0.35rem;">Tip: ${stop.hotel.enrichment.extra_tips}</div>
-                    `;
-                }
-
-                // Suggest alternative stays under accommodation card
-                let altHtml = "";
-                if (currentSearchData && currentSearchData.sample_venues && currentSearchData.sample_venues.hotels) {
-                    const alts = currentSearchData.sample_venues.hotels.filter(name => name !== stop.hotel.name).slice(0, 3);
-                    if (alts.length > 0) {
-                        altHtml = `
-                            <div class="alt-hotels" style="margin-top: 0.75rem; border-top: 1px dashed var(--border); padding-top: 0.5rem;">
-                                <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem;">Alternative Accommodations:</div>
-                                <ul style="margin: 0; padding-left: 1rem; font-size: 0.75rem; color: #4B5563; line-height: 1.4; list-style-type: disc;">
-                                    ${alts.map(a => `<li>${a}</li>`).join("")}
-                                </ul>
+                        <div class="row-content-split">
+                            <div class="recommended-column">
+                                <div class="section-tag-label">Recommended Accommodation</div>
+                                ${renderVenueCardHtml(recommendedHotel, 'hotel', true)}
                             </div>
-                        `;
-                    }
-                }
-
-                const isHearted = isVenueFavorite(stop.hotel.name);
-                const heartIcon = isHearted ? "❤️" : "🤍";
-
-                hotelDetail.innerHTML = `
-                    <div class="hotel-details-block">
-                        ${renderVenueImageHtml(stop.hotel.name, 'hotel')}
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.25rem;">
-                            <div class="hotel-name" style="font-weight: 700;">${stop.hotel.name}</div>
-                            <button onclick="toggleFavoriteVenue('${stop.hotel.name.replace(/'/g, "\\'")}', 'hotel', '🏨', ${stop.hotel.lat}, ${stop.hotel.lon})" style="background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0.2rem;">${heartIcon}</button>
+                            <div class="candidates-column">
+                                <div class="section-tag-label">All Stays & Lodgings</div>
+                                <div class="horizontal-card-deck">
+                                    ${otherHotels.map(h => renderVenueCardHtml(h, 'hotel', false)).join("")}
+                                </div>
+                            </div>
                         </div>
-                        <div class="hotel-meta" style="display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap;">${hotelType} ${starsHtml}</div>
-                        <div class="hotel-cost">Est. Total: ₹${formatCost(stop.hotel.cost)}</div>
-                        ${enrichHtml}
-                        ${altHtml}
-                        ${getVotingTagsHtml(stop.hotel.name)}
                     </div>
                 `;
-            } else {
-                if (hotelCardContainer) hotelCardContainer.classList.add("hidden");
             }
 
-            // Render Food and Zones
-            const rList = document.getElementById("opt-restaurants-list");
-            const bList = document.getElementById("opt-bars-list");
-            const bCont = document.getElementById("opt-bars-container");
-            renderFoodAndNightlifeElements(stop.restaurants, stop.bars, rList, bList, bCont);
+            // 🍽️ Dining Section
+            let diningHtml = "";
+            if (stop.all_restaurants && stop.all_restaurants.length > 0) {
+                const recommendedRests = stop.all_restaurants.filter(r => r.optimized);
+                const otherRests = stop.all_restaurants.filter(r => !r.optimized);
+                
+                diningHtml = `
+                    <div class="stop-row dining-row" style="margin-top: 1.5rem;">
+                        <div class="row-header">
+                            <h4>🍽️ Places to Eat & Dining in ${stop.city.toUpperCase()}</h4>
+                        </div>
+                        <div class="row-content-split">
+                            <div class="recommended-column">
+                                <div class="section-tag-label">Recommended Meals</div>
+                                <div class="horizontal-card-deck" style="flex-direction: column; width: 100%;">
+                                    ${recommendedRests.map(r => renderVenueCardHtml(r, 'restaurant', true)).join("")}
+                                    ${recommendedRests.length === 0 ? '<div style="font-style:italic; font-size:0.8rem; color:var(--text-muted); padding:1rem; text-align:center;">None selected</div>' : ''}
+                                </div>
+                            </div>
+                            <div class="candidates-column">
+                                <div class="section-tag-label">All Dining Options</div>
+                                <div class="horizontal-card-deck">
+                                    ${otherRests.map(r => renderVenueCardHtml(r, 'restaurant', false)).join("")}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
 
-            const zList = document.getElementById("opt-zones-container");
-            const zSect = document.getElementById("opt-zones-section");
-            renderExplorationZonesElements(stop.zones, zList, zSect);
+            // 🍻 Nightlife Section
+            let nightlifeHtml = "";
+            if (stop.all_bars && stop.all_bars.length > 0) {
+                const recommendedBars = stop.all_bars.filter(b => b.optimized);
+                const otherBars = stop.all_bars.filter(b => !b.optimized);
+                
+                nightlifeHtml = `
+                    <div class="stop-row nightlife-row" style="margin-top: 1.5rem;">
+                        <div class="row-header">
+                            <h4>🍻 Bars, Pubs & Nightlife in ${stop.city.toUpperCase()}</h4>
+                        </div>
+                        <div class="row-content-split">
+                            <div class="recommended-column">
+                                <div class="section-tag-label">Recommended Drinks</div>
+                                <div class="horizontal-card-deck" style="flex-direction: column; width: 100%;">
+                                    ${recommendedBars.map(b => renderVenueCardHtml(b, 'bar', true)).join("")}
+                                    ${recommendedBars.length === 0 ? '<div style="font-style:italic; font-size:0.8rem; color:var(--text-muted); padding:1rem; text-align:center;">None selected</div>' : ''}
+                                </div>
+                            </div>
+                            <div class="candidates-column">
+                                <div class="section-tag-label">All Nightspots & Pubs</div>
+                                <div class="horizontal-card-deck">
+                                    ${otherBars.map(b => renderVenueCardHtml(b, 'bar', false)).join("")}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
 
-            // Draw Map
-            plotZonesOnMap(stop.zones, stop.hotel, stop.restaurants, stop.bars);
+            // 🏛️ Sightseeing Section
+            let sightseeingHtml = "";
+            if (stop.all_sightseeing && stop.all_sightseeing.length > 0) {
+                const recommendedSights = stop.all_sightseeing.filter(a => a.optimized);
+                const otherSights = stop.all_sightseeing.filter(a => !a.optimized);
+                
+                let zonesTimelineHtml = "";
+                if (stop.zones && stop.zones.length > 0) {
+                    zonesTimelineHtml = stop.zones.map((zone, zIdx) => `
+                        <div class="zone-timeline-step" style="border-left: 2px solid var(--accent); padding-left: 1rem; margin-bottom: 1.25rem; position: relative;">
+                            <div class="dot" style="position: absolute; left: -5px; top: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);"></div>
+                            <h5 style="margin: 0; font-size: 0.85rem; font-weight: 700; color: var(--accent);">${zone.name}</h5>
+                            <ul style="margin: 0.25rem 0 0 0; padding-left: 1rem; font-size: 0.78rem; color: var(--text-primary); line-height: 1.4;">
+                                ${zone.popular_places.map(p => `<li><strong>${p.name}</strong></li>`).join("")}
+                                ${zone.underrated_gems.map(u => `<li><strong>${u.name}</strong> (Gem 💎)</li>`).join("")}
+                            </ul>
+                        </div>
+                    `).join("");
+                } else {
+                    zonesTimelineHtml = '<div style="font-style:italic; font-size:0.8rem; color:var(--text-muted);">No timeline generated</div>';
+                }
+
+                sightseeingHtml = `
+                    <div class="stop-row sightseeing-row" style="margin-top: 1.5rem;">
+                        <div class="row-header">
+                            <h4>🏛️ Sightseeing & Tourist Attractions in ${stop.city.toUpperCase()}</h4>
+                        </div>
+                        <div class="row-content-split">
+                            <div class="recommended-column">
+                                <div class="section-tag-label">Recommended Itinerary</div>
+                                <div style="background: var(--surface-light); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
+                                    ${zonesTimelineHtml}
+                                </div>
+                            </div>
+                            <div class="candidates-column">
+                                <div class="section-tag-label">All Sights, Beaches & Places</div>
+                                <div class="horizontal-card-deck">
+                                    ${otherSights.map(a => renderVenueCardHtml(a, 'attraction', false)).join("")}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            stopSection.innerHTML = `
+                <h2 style="font-size: 1.3rem; font-weight: 800; color: var(--accent); margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent); padding-bottom: 0.5rem;">
+                    <span>Stop ${i + 1}: ${stop.city.toUpperCase()} (${stop.days} Days)</span>
+                    <span>Est. Cost: ₹${formatCost(stop.local_cost)}</span>
+                </h2>
+                <div class="stop-horizontal-row-container">
+                    ${staysHtml}
+                    ${diningHtml}
+                    ${nightlifeHtml}
+                    ${sightseeingHtml}
+                </div>
+            `;
+            wrapper.appendChild(stopSection);
+        });
+
+        // Draw Map
+        if (plan.multi_city) {
+            plotMultiCityOnMap(plan.stops, plan.legs);
+        } else {
+            plotZonesOnMap(plan.stops[0]);
         }
         
-        // Fetch and display real photos from Wikipedia
         loadRealVenueImages();
     }
 }
@@ -812,7 +813,7 @@ function renderVenueImageHtml(venueName, category) {
     const escapedName = venueName.replace(/'/g, "\\'");
     return `
         <div class="venue-img-container" onclick="openLightboxForVenue('${escapedName}')">
-            <img src="${placeholder}" class="venue-img" alt="${venueName}" data-venue="${venueName.replace(/"/g, '&quot;')}" data-category="${category}">
+            <img src="${placeholder}" class="venue-img" alt="${venueName}" data-venue="${venueName.replace(/"/g, '&quot;')}" data-category="${category}" onerror="this.onerror=null; this.src=getPlaceholderSvg('${escapedName}');">
             <button class="img-zoom-btn" onclick="event.stopPropagation(); openLightboxForVenue('${escapedName}')">🔍</button>
         </div>
     `;
@@ -838,6 +839,10 @@ async function loadRealVenueImages() {
                 venueImageCache[name] = url;
                 // Update ALL images with this venue name (handles duplicates)
                 document.querySelectorAll(`img.venue-img[data-venue="${CSS.escape(name)}"]`).forEach(el => {
+                    el.onerror = () => {
+                        el.src = getPlaceholderSvg(name);
+                        el.onerror = null;
+                    };
                     el.src = url;
                 });
             }
@@ -861,8 +866,9 @@ async function fetchWikipediaImage(placeName) {
     
     for (const term of searchTerms) {
         try {
-            // Wikipedia page summary API - returns real thumbnail
-            const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`;
+            // Wikipedia page summary API - titles require spaces replaced with underscores
+            const formattedTerm = term.replace(/\s+/g, "_");
+            const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(formattedTerm)}`;
             const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
@@ -883,7 +889,8 @@ async function fetchWikipediaImage(placeName) {
             const pages = data.query?.search;
             if (pages && pages.length > 0) {
                 const title = pages[0].title;
-                const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+                const formattedTitle = title.replace(/\s+/g, "_");
+                const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(formattedTitle)}`);
                 if (summaryRes.ok) {
                     const summaryData = await summaryRes.json();
                     if (summaryData.thumbnail?.source) {
@@ -1156,105 +1163,114 @@ function renderExplorationZonesElements(zones, container, zonesSection) {
 }
 
 // Draw single-city local zones, hotel, restaurants and bars on map
-function plotZonesOnMap(zones, hotel, restaurants, bars) {
+function plotZonesOnMap(stop) {
+    if (!map || !stop) return;
+    
     mapLayers.forEach(layer => {
         try { map.removeLayer(layer); } catch (e) {}
     });
     mapLayers = [];
 
-    if (!map) return;
-
     const allLatLngs = [];
 
-    if (hotel && hotel.id !== "virtual_depot") {
-        const hotelMarker = L.marker([hotel.lat, hotel.lon]).addTo(map);
-        hotelMarker.bindPopup(`<b>🏨 ${hotel.name}</b><br>Stay Location`);
-        mapLayers.push(hotelMarker);
-        allLatLngs.push([hotel.lat, hotel.lon]);
+    // Plot all stays in light blue circle markers, optimized stay as a main marker
+    if (stop.all_hotels) {
+        stop.all_hotels.forEach(h => {
+            if (h.optimized) {
+                const hotelMarker = L.marker([h.lat, h.lon]).addTo(map);
+                hotelMarker.bindPopup(`<b>🏨 Recommended Stay: ${h.name}</b><br>Est. Total: ₹${formatCost(h.cost)}`);
+                mapLayers.push(hotelMarker);
+                allLatLngs.push([h.lat, h.lon]);
+            } else {
+                const marker = L.circleMarker([h.lat, h.lon], {
+                    radius: 5,
+                    fillColor: "#3B82F6",
+                    color: "#FFFFFF",
+                    weight: 1,
+                    opacity: 0.6,
+                    fillOpacity: 0.4
+                }).addTo(map);
+                marker.bindPopup(`<b>🏨 Lodging Option: ${h.name}</b><br>Est. Total: ₹${formatCost(h.cost)}`);
+                mapLayers.push(marker);
+                allLatLngs.push([h.lat, h.lon]);
+            }
+        });
     }
 
-    if (restaurants) {
-        restaurants.forEach(r => {
+    // Plot all restaurants
+    if (stop.all_restaurants) {
+        stop.all_restaurants.forEach(r => {
+            const isOpt = r.optimized;
             const marker = L.circleMarker([r.lat, r.lon], {
-                radius: 7,
+                radius: isOpt ? 8 : 5,
                 fillColor: "#EA580C",
                 color: "#FFFFFF",
-                weight: 1.5,
-                opacity: 1,
-                fillOpacity: 0.85
+                weight: isOpt ? 2 : 1,
+                opacity: isOpt ? 1 : 0.6,
+                fillOpacity: isOpt ? 0.9 : 0.4
             }).addTo(map);
-            marker.bindPopup(`<b>🍽️ Restaurant: ${r.name}</b><br>Est. Cost: ₹${formatCost(r.cost)}`);
+            marker.bindPopup(`<b>🍽️ Restaurant: ${r.name}</b><br>Est. Meal: ₹${formatCost(r.cost)}${isOpt ? '<br>⭐ Recommended Choice' : ''}`);
             mapLayers.push(marker);
             allLatLngs.push([r.lat, r.lon]);
         });
     }
 
-    if (bars) {
-        bars.forEach(b => {
+    // Plot all bars
+    if (stop.all_bars) {
+        stop.all_bars.forEach(b => {
+            const isOpt = b.optimized;
             const marker = L.circleMarker([b.lat, b.lon], {
-                radius: 7,
+                radius: isOpt ? 8 : 5,
                 fillColor: "#9333EA",
                 color: "#FFFFFF",
-                weight: 1.5,
-                opacity: 1,
-                fillOpacity: 0.85
+                weight: isOpt ? 2 : 1,
+                opacity: isOpt ? 1 : 0.6,
+                fillOpacity: isOpt ? 0.9 : 0.4
             }).addTo(map);
-            marker.bindPopup(`<b>🍻 Nightlife: ${b.name}</b>`);
+            marker.bindPopup(`<b>🍻 Nightlife: ${b.name}</b><br>Est. Cost: ₹${formatCost(b.cost)}${isOpt ? '<br>⭐ Recommended Choice' : ''}`);
             mapLayers.push(marker);
             allLatLngs.push([b.lat, b.lon]);
         });
     }
 
+    // Plot all attractions
+    if (stop.all_sightseeing) {
+        stop.all_sightseeing.forEach(a => {
+            const isOpt = a.optimized;
+            const marker = L.circleMarker([a.lat, a.lon], {
+                radius: isOpt ? 8 : 5,
+                fillColor: "#10B981",
+                color: "#FFFFFF",
+                weight: isOpt ? 2 : 1,
+                opacity: isOpt ? 1 : 0.6,
+                fillOpacity: isOpt ? 0.9 : 0.4
+            }).addTo(map);
+            marker.bindPopup(`<b>🏛️ Sight: ${a.name}</b><br>Est. Fee: ${a.original_cost === 0 ? 'Free' : '₹' + formatCost(a.original_cost)}${isOpt ? '<br>⭐ Recommended Choice' : ''}`);
+            mapLayers.push(marker);
+            allLatLngs.push([a.lat, a.lon]);
+        });
+    }
+
+    // Draw the recommended zones connection lines
     const ZONE_COLORS = ["#2563EB", "#059669", "#DC2626", "#D97706", "#DB2777"];
-    if (zones) {
-        zones.forEach((zone, zoneIdx) => {
+    if (stop.zones) {
+        stop.zones.forEach((zone, zoneIdx) => {
             const color = ZONE_COLORS[zoneIdx % ZONE_COLORS.length];
             const zoneCoords = [];
-
-            if (zone.popular_places) {
-                zone.popular_places.forEach(item => {
-                    const marker = L.circleMarker([item.lat, item.lon], {
-                        radius: 8,
-                        fillColor: "#DC2626",
-                        color: "#FFFFFF",
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.9
-                    }).addTo(map);
-                    
-                    const costText = item.cost === 0 ? "Free" : `₹${formatCost(item.cost)}`;
-                    marker.bindPopup(`<b>🏛️ ${item.name}</b><br>Popular Sight<br>Cost: ${costText}`);
-                    mapLayers.push(marker);
-                    zoneCoords.push([item.lat, item.lon]);
-                    allLatLngs.push([item.lat, item.lon]);
-                });
-            }
-
-            if (zone.underrated_gems) {
-                zone.underrated_gems.forEach(item => {
-                    const marker = L.circleMarker([item.lat, item.lon], {
-                        radius: 8,
-                        fillColor: "#059669",
-                        color: "#FFFFFF",
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.9
-                    }).addTo(map);
-                    
-                    const costText = item.cost === 0 ? "Free" : `₹${formatCost(item.cost)}`;
-                    marker.bindPopup(`<b>💎 ${item.name}</b><br>Underrated Gem<br>Cost: ${costText}`);
-                    mapLayers.push(marker);
-                    zoneCoords.push([item.lat, item.lon]);
-                    allLatLngs.push([item.lat, item.lon]);
-                });
-            }
+            
+            zone.popular_places.forEach(item => {
+                zoneCoords.push([item.lat, item.lon]);
+            });
+            zone.underrated_gems.forEach(item => {
+                zoneCoords.push([item.lat, item.lon]);
+            });
 
             if (zoneCoords.length > 1) {
                 const polyline = L.polyline(zoneCoords, {
                     color: color,
-                    weight: 2,
-                    opacity: 0.5,
-                    dashArray: "4, 4"
+                    weight: 2.5,
+                    opacity: 0.7,
+                    dashArray: "5, 5"
                 }).addTo(map);
                 mapLayers.push(polyline);
             }
@@ -1266,153 +1282,111 @@ function plotZonesOnMap(zones, hotel, restaurants, bars) {
     }
 }
 
-// Draw multi-city stops, local pins, and intercity connecting routes on map
 function plotMultiCityOnMap(stops, legs) {
+    if (!map) return;
+
     mapLayers.forEach(layer => {
         try { map.removeLayer(layer); } catch (e) {}
     });
     mapLayers = [];
 
-    if (!map) return;
-
     const allLatLngs = [];
     const intercityPoints = [];
     const STOP_COLORS = ["#2563EB", "#059669", "#DC2626", "#D97706", "#DB2777"];
 
-    // 1. Loop through stops to draw hotel, restaurant, and sightseeing pins
+    // Loop through each stop and plot all stays/restaurants/sights
     stops.forEach((stop, idx) => {
         const stopColor = STOP_COLORS[idx % STOP_COLORS.length];
         
-        if (stop.hotel) {
-            const hMarker = L.marker([stop.hotel.lat, stop.hotel.lon]).addTo(map);
-            const label = stop.hotel.id === "virtual_depot" ? "City Center" : "Accommodation";
-            hMarker.bindPopup(`
-                <div style="text-align: center;">
-                    <b style="color: var(--accent); font-size: 1rem;">${stop.city.toUpperCase()}</b><br>
-                    <strong>${stop.hotel.name}</strong><br>
-                    <i>${label}</i>
-                </div>
-            `);
-            mapLayers.push(hMarker);
-            allLatLngs.push([stop.hotel.lat, stop.hotel.lon]);
-            intercityPoints.push([stop.hotel.lat, stop.hotel.lon]);
+        // Plot stays
+        if (stop.all_hotels) {
+            stop.all_hotels.forEach(h => {
+                if (h.optimized) {
+                    const hMarker = L.marker([h.lat, h.lon]).addTo(map);
+                    hMarker.bindPopup(`<b>🏨 Recommended Stay: ${h.name}</b><br>Stop: ${stop.city.toUpperCase()}`);
+                    mapLayers.push(hMarker);
+                    allLatLngs.push([h.lat, h.lon]);
+                    intercityPoints.push([h.lat, h.lon]);
+                } else {
+                    const marker = L.circleMarker([h.lat, h.lon], {
+                        radius: 4,
+                        fillColor: "#3B82F6",
+                        color: "#FFFFFF",
+                        weight: 1,
+                        opacity: 0.5,
+                        fillOpacity: 0.3
+                    }).addTo(map);
+                    marker.bindPopup(`<b>🏨 Lodging: ${h.name}</b><br>Stop: ${stop.city.toUpperCase()}`);
+                    mapLayers.push(marker);
+                    allLatLngs.push([h.lat, h.lon]);
+                }
+            });
         }
 
-        if (stop.restaurants) {
-            stop.restaurants.forEach(r => {
+        // Plot restaurants
+        if (stop.all_restaurants) {
+            stop.all_restaurants.forEach(r => {
+                const isOpt = r.optimized;
                 const marker = L.circleMarker([r.lat, r.lon], {
-                    radius: 6,
+                    radius: isOpt ? 7 : 4,
                     fillColor: "#EA580C",
                     color: "#FFFFFF",
-                    weight: 1.5,
-                    opacity: 1,
-                    fillOpacity: 0.8
+                    weight: isOpt ? 1.5 : 1,
+                    opacity: isOpt ? 0.9 : 0.5,
+                    fillOpacity: isOpt ? 0.8 : 0.3
                 }).addTo(map);
-                marker.bindPopup(`<b>🍽️ Restaurant: ${r.name}</b><br>City: ${stop.city}`);
+                marker.bindPopup(`<b>🍽️ Restaurant: ${r.name}</b><br>Stop: ${stop.city.toUpperCase()}`);
                 mapLayers.push(marker);
                 allLatLngs.push([r.lat, r.lon]);
             });
         }
 
-        if (stop.bars) {
-            stop.bars.forEach(b => {
+        // Plot bars
+        if (stop.all_bars) {
+            stop.all_bars.forEach(b => {
+                const isOpt = b.optimized;
                 const marker = L.circleMarker([b.lat, b.lon], {
-                    radius: 6,
+                    radius: isOpt ? 7 : 4,
                     fillColor: "#9333EA",
                     color: "#FFFFFF",
-                    weight: 1.5,
-                    opacity: 1,
-                    fillOpacity: 0.8
+                    weight: isOpt ? 1.5 : 1,
+                    opacity: isOpt ? 0.9 : 0.5,
+                    fillOpacity: isOpt ? 0.8 : 0.3
                 }).addTo(map);
-                marker.bindPopup(`<b>🍻 Nightlife: ${b.name}</b><br>City: ${stop.city}`);
+                marker.bindPopup(`<b>🍻 Nightlife: ${b.name}</b><br>Stop: ${stop.city.toUpperCase()}`);
                 mapLayers.push(marker);
                 allLatLngs.push([b.lat, b.lon]);
             });
         }
 
-        if (stop.zones) {
-            stop.zones.forEach(zone => {
-                const zoneCoords = [];
-                
-                if (zone.popular_places) {
-                    zone.popular_places.forEach(item => {
-                        const marker = L.circleMarker([item.lat, item.lon], {
-                            radius: 7,
-                            fillColor: "#DC2626",
-                            color: "#FFFFFF",
-                            weight: 2,
-                            opacity: 1,
-                            fillOpacity: 0.85
-                        }).addTo(map);
-                        marker.bindPopup(`<b>🏛️ ${item.name}</b><br>Popular Sight<br>City: ${stop.city}`);
-                        mapLayers.push(marker);
-                        zoneCoords.push([item.lat, item.lon]);
-                        allLatLngs.push([item.lat, item.lon]);
-                    });
-                }
-                
-                if (zone.underrated_gems) {
-                    zone.underrated_gems.forEach(item => {
-                        const marker = L.circleMarker([item.lat, item.lon], {
-                            radius: 7,
-                            fillColor: "#059669",
-                            color: "#FFFFFF",
-                            weight: 2,
-                            opacity: 1,
-                            fillOpacity: 0.85
-                        }).addTo(map);
-                        marker.bindPopup(`<b>💎 ${item.name}</b><br>Underrated Gem<br>City: ${stop.city}`);
-                        mapLayers.push(marker);
-                        zoneCoords.push([item.lat, item.lon]);
-                        allLatLngs.push([item.lat, item.lon]);
-                    });
-                }
-
-                if (zoneCoords.length > 1) {
-                    const polyline = L.polyline(zoneCoords, {
-                        color: stopColor,
-                        weight: 2,
-                        opacity: 0.4,
-                        dashArray: "4, 4"
-                    }).addTo(map);
-                    mapLayers.push(polyline);
-                }
+        // Plot sights
+        if (stop.all_sightseeing) {
+            stop.all_sightseeing.forEach(a => {
+                const isOpt = a.optimized;
+                const marker = L.circleMarker([a.lat, a.lon], {
+                    radius: isOpt ? 7 : 4,
+                    fillColor: "#10B981",
+                    color: "#FFFFFF",
+                    weight: isOpt ? 1.5 : 1,
+                    opacity: isOpt ? 0.9 : 0.5,
+                    fillOpacity: isOpt ? 0.8 : 0.3
+                }).addTo(map);
+                marker.bindPopup(`<b>🏛️ Sight: ${a.name}</b><br>Stop: ${stop.city.toUpperCase()}`);
+                mapLayers.push(marker);
+                allLatLngs.push([a.lat, a.lon]);
             });
         }
     });
 
-    // 2. Connect the stops using legs coordinates
-    if (legs && legs.length > 0) {
-        const legPath = [];
-        
-        legs.forEach(leg => {
-            const fromStop = stops.find(s => s.city.toLowerCase() === leg.from.toLowerCase());
-            const toStop = stops.find(s => s.city.toLowerCase() === leg.to.toLowerCase());
-            
-            let fromPt = fromStop ? [fromStop.hotel.lat, fromStop.hotel.lon] : null;
-            let toPt = toStop ? [toStop.hotel.lat, toStop.hotel.lon] : null;
-            
-            // Fallback coordinate mapping
-            if (!fromPt && stops.length > 0) {
-                fromPt = [stops[0].hotel.lat, stops[0].hotel.lon];
-            }
-            if (!toPt && stops.length > 0) {
-                toPt = [stops[stops.length - 1].hotel.lat, stops[stops.length - 1].hotel.lon];
-            }
-            
-            if (fromPt) legPath.push(fromPt);
-            if (toPt) legPath.push(toPt);
-        });
-
-        if (legPath.length > 0) {
-            const intercityLine = L.polyline(legPath, {
-                color: "#6D28D9",
-                weight: 4,
-                opacity: 0.8,
-                dashArray: "8, 8"
-            }).addTo(map);
-            mapLayers.push(intercityLine);
-        }
+    // Connecting route lines between stops
+    if (intercityPoints.length > 1) {
+        const polyline = L.polyline(intercityPoints, {
+            color: "#7C3AED",
+            weight: 3.5,
+            opacity: 0.85,
+            dashArray: "8, 8"
+        }).addTo(map);
+        mapLayers.push(polyline);
     }
 
     if (allLatLngs.length > 0) {

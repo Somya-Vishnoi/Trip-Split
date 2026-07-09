@@ -1293,6 +1293,20 @@ input:focus, select.custom-select:focus {
     border: 1px solid #FCA5A5 !important;
 }
 
+#assistant-chat-btn {
+    width: auto !important;
+    margin-top: 0 !important;
+    white-space: nowrap;
+    padding: 0.5rem 1rem !important;
+    box-shadow: none !important;
+}
+
+#assistant-chat-input {
+    flex: 1 !important;
+    min-width: 0 !important;
+    background: #FFFFFF !important;
+}
+
 /* ========================================================
    Footer Section
    ======================================================= */
@@ -1404,5 +1418,97 @@ input:focus, select.custom-select:focus {
 
 .hidden {
     display: none !important;
+}
+
+/* =======================================================
+   TripAdvisor Row Layout Splits
+   ======================================================= */
+.stop-horizontal-row-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    width: 100%;
+}
+
+.stop-row {
+    background: #FFFFFF !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 16px !important;
+    padding: 1.5rem !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03) !important;
+}
+
+.row-header {
+    border-bottom: 1.5px solid var(--border) !important;
+    padding-bottom: 0.75rem !important;
+    margin-bottom: 1.25rem !important;
+}
+
+.row-header h4 {
+    font-family: var(--font-heading) !important;
+    font-size: 1.1rem !important;
+    font-weight: 800 !important;
+    color: var(--text-primary) !important;
+    margin: 0 !important;
+}
+
+.row-content-split {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.recommended-column {
+    flex: 0 0 310px !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.candidates-column {
+    flex: 1 !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.section-tag-label {
+    font-size: 0.72rem !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    color: var(--text-secondary) !important;
+    margin-bottom: 0.4rem !important;
+}
+
+.recommended-border {
+    border: 2px solid var(--accent) !important;
+    background: #FAF5FF !important;
+    position: relative !important;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.08) !important;
+}
+
+.recommended-badge {
+    position: absolute;
+    top: -10px;
+    left: 10px;
+    background: var(--accent);
+    color: #FFFFFF;
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 0.15rem 0.55rem;
+    border-radius: 20px;
+    z-index: 10;
+    box-shadow: 0 2px 6px rgba(124, 58, 237, 0.3);
+}
+
+@media (max-width: 992px) {
+    .row-content-split {
+        flex-direction: column;
+    }
+    .recommended-column {
+        flex: 1 !important;
+    }
 }
 
