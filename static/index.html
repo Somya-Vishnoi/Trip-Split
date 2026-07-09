@@ -118,6 +118,39 @@
                 </div>
             </section>
 
+            <!-- Core Budget Optimizer USP Widget -->
+            <section class="core-optimizer-section" style="max-width:850px; margin:-45px auto 2.5rem auto; position:relative; z-index:10; padding:0 1.25rem;">
+                <div class="budget-planner-card" style="background:#FFFFFF; box-shadow:0 12px 35px rgba(0,0,0,0.08); border:1px solid var(--border); border-radius:16px; padding:2rem;">
+                    <h3 style="font-size:1.3rem; font-weight:800; text-align:center; color:var(--text-primary); margin-bottom:0.25rem;">⚡ Group Budget Planner & Split Optimizer</h3>
+                    <p style="font-size:0.85rem; color:var(--text-muted); text-align:center; margin-bottom:1.5rem;">Input destination, travelers count, and joint budget limit to optimize hotel, dining, and sightseeing splits.</p>
+                    
+                    <form id="home-optimizer-form" onsubmit="handleHomeOptimizerSubmit(event)" style="display:flex; flex-direction:column; gap:1.25rem;">
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
+                            <div style="position:relative;">
+                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">📍 Where to?</label>
+                                <input type="text" id="opt-home-destination" placeholder="e.g. Jaipur, Goa, Delhi, Mumbai" required style="width:100%; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; outline:none; background:#fff;" onfocus="showHomeOptAutocomplete()" oninput="handleHomeOptInput(this.value)" autocomplete="off">
+                                <div id="opt-home-autocomplete" class="autocomplete-dropdown hidden" style="position:absolute; top:100%; left:0; right:0; z-index:99; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.08); max-height:220px; overflow-y:auto;"></div>
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">💰 Total Group Budget (₹ INR)</label>
+                                <input type="number" id="opt-home-budget" value="30000" min="1000" required style="width:100%; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; outline:none;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">📅 Days</label>
+                                <input type="number" id="opt-home-days" value="3" min="1" max="15" required style="width:100%; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; outline:none;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">👥 Group Size (People)</label>
+                                <input type="number" id="opt-home-people" value="3" min="1" max="20" required style="width:100%; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; outline:none;">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-primary" style="width:100%; padding:0.85rem; font-size:0.95rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:0.5rem; border-radius:8px;">
+                            🚀 Run Optimization & Split Budget
+                        </button>
+                    </form>
+                </div>
+            </section>
+
             <!-- Quick Category Pills -->
             <section class="category-pills-section">
                 <div class="pills-container">
@@ -1037,6 +1070,7 @@
                         </div>
                     </div>
                 </div>
+            </div>
         </div>
 
         <!-- ========================================== -->

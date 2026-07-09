@@ -106,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Setup event listeners for forms, review modals, search inputs
     setupGlobalSearchAutocomplete();
+    setupHomeOptimizerAutocomplete();
     
     // Initialize date pickers
     const todayStr = new Date().toISOString().split('T')[0];
@@ -223,20 +224,41 @@ function navigateToView(viewId, param = '', skipPushState = false) {
     
     if (!skipPushState) {
         let url = '?view=' + viewId;
-        if (param) url += '&param=' + encodeURIComponent(param);
-        if (state.currentCity) url += '&city=' + encodeURIComponent(state.currentCity);
-        if (state.selectedCategory) url += '&cat=' + encodeURIComponent(state.selectedCategory);
-        if (state.selectedItemId) url += '&item=' + encodeURIComponent(state.selectedItemId);
-        if (state.selectedThreadId) url += '&thread=' + encodeURIComponent(state.selectedThreadId);
+        if (viewId === 'destination') {
+            if (state.currentCity) url += '&city=' + encodeURIComponent(state.currentCity);
+        } else if (viewId === 'hotel-results' || viewId === 'restaurant-results' || viewId === 'experience-results') {
+            if (state.currentCity) url += '&city=' + encodeURIComponent(state.currentCity);
+            if (state.selectedCategory) url += '&cat=' + encodeURIComponent(state.selectedCategory);
+        } else if (viewId === 'hotel-detail' || viewId === 'restaurant-detail' || viewId === 'experience-detail') {
+            if (state.currentCity) url += '&city=' + encodeURIComponent(state.currentCity);
+            if (state.selectedCategory) url += '&cat=' + encodeURIComponent(state.selectedCategory);
+            if (state.selectedItemId) url += '&item=' + encodeURIComponent(state.selectedItemId);
+        } else if (viewId === 'forum-thread') {
+            if (state.selectedThreadId) url += '&thread=' + encodeURIComponent(state.selectedThreadId);
+        } else if (param) {
+            url += '&param=' + encodeURIComponent(param);
+        }
         
-        window.history.pushState({
-            viewId: viewId,
-            param: param,
-            currentCity: state.currentCity,
-            selectedCategory: state.selectedCategory,
-            selectedItemId: state.selectedItemId,
-            selectedThreadId: state.selectedThreadId
-        }, '', url);
+        // Prevent duplicate history entries
+        const currentState = window.history.state;
+        const isSame = currentState && 
+                       currentState.viewId === viewId && 
+                       currentState.param === param && 
+                       currentState.currentCity === (state.currentCity || '') && 
+                       currentState.selectedCategory === (state.selectedCategory || '') && 
+                       currentState.selectedItemId === (state.selectedItemId || '') && 
+                       currentState.selectedThreadId === (state.selectedThreadId || '');
+                       
+        if (!isSame) {
+            window.history.pushState({
+                viewId: viewId,
+                param: param,
+                currentCity: state.currentCity || '',
+                selectedCategory: state.selectedCategory || '',
+                selectedItemId: state.selectedItemId || '',
+                selectedThreadId: state.selectedThreadId || ''
+            }, '', url);
+        }
     }
 }
 
@@ -611,17 +633,41 @@ async function navigateToDestinationOverview(city, country = "India", skipPushSt
             state.venues.experience = data.attractions || [];
             
             // Backups in case Overpass returns empty array (to keep college presentation working!)
-            if (state.venues.hotel.length === 0) populateFallbackVenues(city);
+            if (state.venues.hotel.length === 0) state.venues.hotel = getFallbackHotels(city);
+            if (state.venues.restaurant.length === 0) state.venues.restaurant = getFallbackRestaurants(city);
+            if (state.venues.experience.length === 0) state.venues.experience = getFallbackExperiences(city);
             
             // Build descriptions
             document.getElementById('dest-overview-blurb').textContent = `${city} is one of the most visited and iconic destinations in ${country}. Famous for its rich history, cultural landmarks, outstanding hospitality, and exquisite local cuisines. Plan and split budgets here seamlessly!`;
             
             // Render sample lists
             renderSampleLists();
+
+            // Trigger pending home budget optimization if requested
+            if (state.homeOptPending) {
+                const pending = state.homeOptPending;
+                state.homeOptPending = null;
+                
+                // Update inputs on the destination page
+                document.getElementById('dest-budget-input').value = pending.budget;
+                document.getElementById('dest-days-input').value = pending.days;
+                document.getElementById('dest-people-input').value = pending.people;
+                
+                // Run optimization
+                triggerDestTripOptimizer();
+            }
         }
     } catch (err) {
         populateFallbackVenues(city);
         renderSampleLists();
+        if (state.homeOptPending) {
+            const pending = state.homeOptPending;
+            state.homeOptPending = null;
+            document.getElementById('dest-budget-input').value = pending.budget;
+            document.getElementById('dest-days-input').value = pending.days;
+            document.getElementById('dest-people-input').value = pending.people;
+            triggerDestTripOptimizer();
+        }
     } finally {
         hidePageLoader();
     }
@@ -744,6 +790,9 @@ function renderTabbedSearchView(category) {
 
 // --- FILTERING & SEARCH RESULTS LISTS ---
 function loadCategoryResults(type, city) {
+    if (!state.venues[type] || state.venues[type].length === 0) {
+        populateFallbackVenues(city);
+    }
     // Sync current lists to filtered lists
     state.filteredVenues[type] = [...state.venues[type]];
     
@@ -797,7 +846,25 @@ function applySearchFilters(type) {
     } else if (type === 'restaurant') {
         const checkedCuisines = Array.from(document.querySelectorAll('.filter-rest-cuisine-cb:checked')).map(cb => cb.value);
         if (checkedCuisines.length > 0) {
-            source = source.filter(r => checkedCuisines.includes((r.sub_type || '').toLowerCase()));
+            source = source.filter(r => {
+                const nameL = r.name.toLowerCase();
+                const subL = (r.sub_type || 'restaurant').toLowerCase();
+                return checkedCuisines.some(c => {
+                    if (c === 'indian') {
+                        return subL === 'indian' || nameL.includes('dhaba') || nameL.includes('mishthan') || nameL.includes('bhandar') || nameL.includes('resort') || nameL.includes('dining') || (!nameL.includes('cafe') && !nameL.includes('pizza') && !nameL.includes('chinese'));
+                    }
+                    if (c === 'cafe') {
+                        return subL === 'cafe' || nameL.includes('cafe') || nameL.includes('coffee') || nameL.includes('bakery') || nameL.includes('bake');
+                    }
+                    if (c === 'chinese') {
+                        return subL === 'chinese' || nameL.includes('chinese') || nameL.includes('wok') || nameL.includes('noodle') || nameL.includes('asian');
+                    }
+                    if (c === 'italian') {
+                        return subL === 'italian' || nameL.includes('pizza') || nameL.includes('pasta') || nameL.includes('italian');
+                    }
+                    return false;
+                });
+            });
         }
         
         const checkedPriceTiers = Array.from(document.querySelectorAll('.filter-rest-price-cb:checked')).map(cb => parseInt(cb.value));
@@ -2276,4 +2343,109 @@ function calculateSettleUpLedger() {
         </li>
     `).join('');
 }
+
+// --- HOMEPAGE BUDGET OPTIMIZER & AUTOCOMPLETE ROUTINES ---
+state.homeOptPending = null;
+
+function setupHomeOptimizerAutocomplete() {
+    const input = document.getElementById('opt-home-destination');
+    const dropdown = document.getElementById('opt-home-autocomplete');
+    if (!input || !dropdown) return;
+    
+    input.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        if (query.length < 1) {
+            dropdown.classList.add('hidden');
+            return;
+        }
+        
+        const items = [
+            { label: 'Jaipur', sub: 'Rajasthan, India' },
+            { label: 'Goa', sub: 'India' },
+            { label: 'Delhi', sub: 'National Capital Territory, India' },
+            { label: 'Mumbai', sub: 'Maharashtra, India' }
+        ].filter(item => item.label.toLowerCase().includes(query.toLowerCase()));
+        
+        if (items.length === 0) {
+            dropdown.innerHTML = `<div style="padding:0.75rem; text-align:center; font-size:0.8rem; color:var(--text-muted);">Generic destination</div>`;
+            dropdown.classList.remove('hidden');
+            return;
+        }
+        
+        dropdown.innerHTML = items.map(item => `
+            <div class="autocomplete-item" onclick="selectHomeOptAutocomplete('${item.label}')" style="padding:0.5rem 0.75rem; cursor:pointer; font-size:0.85rem; display:flex; flex-direction:column;">
+                <strong style="color:var(--text-primary);">${item.label}</strong>
+                <span style="font-size:0.7rem; color:var(--text-muted);">${item.sub}</span>
+            </div>
+        `).join('');
+        dropdown.classList.remove('hidden');
+    });
+    
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#home-optimizer-form')) {
+            dropdown.classList.add('hidden');
+        }
+    });
+}
+
+function showHomeOptAutocomplete() {
+    const input = document.getElementById('opt-home-destination');
+    const dropdown = document.getElementById('opt-home-autocomplete');
+    if (input && input.value.trim().length > 0) {
+        dropdown.classList.remove('hidden');
+    }
+}
+
+function selectHomeOptAutocomplete(label) {
+    const input = document.getElementById('opt-home-destination');
+    const dropdown = document.getElementById('opt-home-autocomplete');
+    if (input) input.value = label;
+    if (dropdown) dropdown.classList.add('hidden');
+}
+
+function handleHomeOptimizerSubmit(event) {
+    event.preventDefault();
+    const city = document.getElementById('opt-home-destination').value.trim();
+    const budget = parseFloat(document.getElementById('opt-home-budget').value) || 30000;
+    const days = parseInt(document.getElementById('opt-home-days').value) || 3;
+    const people = parseInt(document.getElementById('opt-home-people').value) || 3;
+    
+    if (!city) return;
+    
+    // Store optimization state variables
+    state.homeOptPending = {
+        budget: budget,
+        days: days,
+        people: people
+    };
+    
+    // Route to destination page and load
+    navigateToDestinationOverview(city, "India");
+}
+
+function getFallbackHotels(city) {
+    return [
+        { id: "h1", name: "Taj Rambagh Palace", cost: 38000, stars: 5, sub_type: "Hotel", lat: 26.8981, lon: 75.8078, wifi: true, pool: true, parking: true, bar: true },
+        { id: "h2", name: "The Oberoi Rajvilas", cost: 32000, stars: 5, sub_type: "Resort", lat: 26.8791, lon: 75.8821, wifi: true, pool: true, parking: true, bar: true },
+        { id: "h3", name: "Zostel Backpacker Hostel", cost: 800, stars: 4, sub_type: "Hostel", lat: 26.9212, lon: 75.8234, wifi: true, pool: false, parking: true, bar: false },
+        { id: "h4", name: "Pearl Palace Heritage Guest House", cost: 3200, stars: 4.5, sub_type: "Guest House", lat: 26.9189, lon: 75.7891, wifi: true, pool: false, parking: true, bar: true }
+    ];
+}
+
+function getFallbackRestaurants(city) {
+    return [
+        { id: "r1", name: "Laxmi Mishthan Bhandar (LMB)", cost: 450, stars: 4.5, sub_type: "indian", price_tier: 2, lat: 26.9201, lon: 75.8281 },
+        { id: "r2", name: "Peacock Rooftop Cafe", cost: 600, stars: 4.7, sub_type: "cafe", price_tier: 2, lat: 26.9178, lon: 75.7901 },
+        { id: "r3", name: "Chokhi Dhani Ethnic Resort Dining", cost: 1200, stars: 4.8, sub_type: "indian", price_tier: 3, lat: 26.7681, lon: 75.8456 }
+    ];
+}
+
+function getFallbackExperiences(city) {
+    return [
+        { id: "e1", name: "Amber Palace Heritage Walk", original_cost: 500, stars: 5, sub_type: "museum", lat: 26.9856, lon: 75.8512 },
+        { id: "e2", name: "Hawa Mahal Front View Photo Spot", original_cost: 0, stars: 4.8, sub_type: "viewpoint", lat: 26.9239, lon: 75.8267 },
+        { id: "e3", name: "Central Park Jaipur", original_cost: 0, stars: 4.3, sub_type: "park", lat: 26.9021, lon: 75.8090 }
+    ];
+}
+
 

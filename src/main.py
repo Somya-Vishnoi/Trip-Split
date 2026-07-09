@@ -437,20 +437,23 @@ def plan_trip(req: PlanRequest):
             "backup": None
         }
 
-    # 9. Run Gemini enrichment on all stops in parallel (Backup stops will hit SQLite cache instantly)
-    from concurrent.futures import ThreadPoolExecutor
+    # 9. Run Gemini enrichment on all stops sequentially (prevent concurrency-based 429 rate limits!)
+    import time
     try:
-        with ThreadPoolExecutor(max_workers=max(1, N)) as executor:
-            futures = [executor.submit(enrich_trip_plan, stop, stop["city"]) for stop in full_plan["stops"]]
-            for f in futures:
-                try:
-                    f.result(timeout=4.0)  # Strict 4-second timeout limit
-                except Exception as ex:
-                    print(f"[Gemini Parallel Enrichment Timeout/Error]: {ex}")
+        for stop in full_plan["stops"]:
+            try:
+                enrich_trip_plan(stop, stop["city"])
+                time.sleep(0.5)  # Safe small delay between sequential stops
+            except Exception as ex:
+                print(f"[Gemini Enrichment Stop Error]: {ex}")
 
         if full_plan["backup"]:
             for stop in full_plan["backup"]["stops"]:
-                enrich_trip_plan(stop, stop["city"])
+                try:
+                    enrich_trip_plan(stop, stop["city"])
+                    time.sleep(0.5)
+                except Exception:
+                    pass
     except Exception as e:
         print(f"[Enrichment Warning] Failed to run Gemini enrichment: {e}")
 
