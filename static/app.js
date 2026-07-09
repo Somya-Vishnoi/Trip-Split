@@ -533,21 +533,28 @@ function renderVenueCardHtml(v, category, isRecommended = false) {
     
     const escapedName = v.name.replace(/'/g, "\\'");
     const categoryIcon = category === "hotel" ? "🏨" : category === "restaurant" ? "🍔" : category === "bar" ? "🍻" : "🏛️";
+    const placeholder = getPlaceholderSvg(v.name);
     
     // Add vote tag listing
     const votesHtml = getVotingTagsHtml(v.name);
     
+    // Render TripAdvisor absolute elements on image container
+    const imageHtml = `
+        <div class="venue-img-container">
+            <img src="${placeholder}" class="venue-img" alt="${v.name}" data-venue="${v.name.replace(/"/g, '&quot;')}" data-category="${category}" onerror="this.onerror=null; this.src=getPlaceholderSvg('${escapedName}');" onclick="openLightboxForVenue('${escapedName}')">
+            <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${escapedName}', '${category}', '${categoryIcon}', ${v.lat}, ${v.lon}); this.innerHTML = isVenueFavorite('${escapedName}') ? '❤️' : '🤍';" title="Heart/Save venue">${heartIcon}</button>
+            <button class="img-zoom-btn" onclick="event.stopPropagation(); openLightboxForVenue('${escapedName}')">🔍</button>
+        </div>
+    `;
+
     return `
         <div class="horizontal-card ${isRecommended ? 'recommended-border' : ''}">
             ${optBadge}
-            ${renderVenueImageHtml(v.name, category)}
-            <div class="card-details-box" style="display: flex; flex-direction: column; justify-content: space-between; flex: 1; padding: 0.75rem 0.5rem 0.5rem 0.5rem; gap: 0.35rem;">
+            ${imageHtml}
+            <div class="card-details-box" style="display: flex; flex-direction: column; justify-content: space-between; flex: 1; padding: 0.25rem 0.5rem 0.5rem 0.5rem; gap: 0.35rem;">
                 <div>
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.25rem;">
-                        <h5 class="venue-title" style="margin: 0; font-size: 0.88rem; font-weight: 700; color: var(--text-primary);">${v.name}</h5>
-                        <button onclick="toggleFavoriteVenue('${escapedName}', '${category}', '${categoryIcon}', ${v.lat}, ${v.lon})" style="background: none; border: none; cursor: pointer; font-size: 1rem; padding: 0.1rem; line-height: 1;">${heartIcon}</button>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.25rem; margin-top: 0.15rem; font-size: 0.72rem; color: var(--text-muted);">
+                    <h5 class="venue-title" style="margin: 0; font-size: 0.88rem; font-weight: 700; color: var(--text-primary); text-overflow: ellipsis; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25;">${v.name}</h5>
+                    <div style="display: flex; align-items: center; gap: 0.25rem; margin-top: 0.2rem; font-size: 0.72rem; color: var(--text-muted);">
                         <span>${subTypeLabel}</span>
                         ${starsHtml}
                     </div>

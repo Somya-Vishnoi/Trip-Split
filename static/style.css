@@ -1115,6 +1115,30 @@ input:focus, select.custom-select:focus {
     box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
+.card-heart-btn {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.95);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    cursor: pointer;
+    z-index: 5;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    transition: var(--transition);
+}
+
+.card-heart-btn:hover {
+    transform: scale(1.1);
+    background: #FFFFFF;
+}
+
 .venue-img-container:hover .img-zoom-btn {
     opacity: 1;
 }
