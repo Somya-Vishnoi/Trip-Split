@@ -11,6 +11,8 @@ const state = {
     currencySymbol: '₹',
     user: null, // null when logged out, object when logged in
     currentCity: '',
+    cityDataCache: {},
+    loadedCity: '',
     selectedCategory: 'hotels',
     activeSubtab: 'dest-overview',
     activeDetailSubtab: 'detail-overview',
@@ -33,6 +35,10 @@ const state = {
     // Lightbox gallery state
     lightboxImages: [],
     lightboxIndex: 0,
+
+    // Optimization state
+    lastPlanResult: null,
+    activePlanType: "primary",
 
     // In-memory reviews database indexed by venue name
     reviews: {},
@@ -122,7 +128,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load Homepage Carousels
     renderHomepageExperiences();
     renderHomepageHotels();
-    renderHomepageArticles();
     
     // Parse URL parameters on load for deep linking & history compatibility
     const urlParams = new URLSearchParams(window.location.search);
@@ -150,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Route to initial page view
     if (viewParam === 'destination' && state.currentCity) {
-        navigateToDestinationOverview(state.currentCity, 'India', true);
+        navigateToDestinationOverview(state.currentCity, 'India', true, urlParams.get('subtab') || 'dest-overview');
     } else if ((viewParam === 'hotel-detail' || viewParam === 'restaurant-detail' || viewParam === 'experience-detail') && state.selectedItemId) {
         let cat = viewParam === 'hotel-detail' ? 'hotel' : viewParam === 'restaurant-detail' ? 'restaurant' : 'experience';
         navigateToDetail(state.selectedItemId, cat, '', true);
@@ -166,15 +171,16 @@ document.addEventListener('DOMContentLoaded', () => {
 // Window Popstate Listener for Browser Back/Forward buttons
 window.addEventListener('popstate', (event) => {
     if (event.state) {
-        const { viewId, param, currentCity, selectedCategory, selectedItemId, selectedThreadId } = event.state;
+        const { viewId, param, currentCity, selectedCategory, selectedItemId, selectedThreadId, activeSubtab } = event.state;
         if (currentCity) state.currentCity = currentCity;
         if (selectedCategory) state.selectedCategory = selectedCategory;
         if (selectedItemId) state.selectedItemId = selectedItemId;
         if (selectedThreadId) state.selectedThreadId = selectedThreadId;
+        if (activeSubtab) state.activeSubtab = activeSubtab;
         
         // Navigate accordingly
         if (viewId === 'destination' && state.currentCity) {
-            navigateToDestinationOverview(state.currentCity, 'India', true);
+            navigateToDestinationOverview(state.currentCity, 'India', true, activeSubtab || 'dest-overview');
         } else if ((viewId === 'hotel-detail' || viewId === 'restaurant-detail' || viewId === 'experience-detail') && state.selectedItemId) {
             let cat = viewId === 'hotel-detail' ? 'hotel' : viewId === 'restaurant-detail' ? 'restaurant' : 'experience';
             navigateToDetail(state.selectedItemId, cat, '', true);
@@ -190,9 +196,36 @@ window.addEventListener('popstate', (event) => {
     }
 });
 
+function ensureContentInOriginalView(category) {
+    if (category === 'hotel') {
+        const content = document.getElementById('hotel-results-view-content');
+        const originalParent = document.getElementById('hotel-results-view');
+        if (content && originalParent && content.parentNode !== originalParent) {
+            originalParent.appendChild(content);
+        }
+    } else if (category === 'restaurant') {
+        const content = document.getElementById('restaurant-results-view-content');
+        const originalParent = document.getElementById('restaurant-results-view');
+        if (content && originalParent && content.parentNode !== originalParent) {
+            originalParent.appendChild(content);
+        }
+    } else if (category === 'experience') {
+        const content = document.getElementById('experience-results-view-content');
+        const originalParent = document.getElementById('experience-results-view');
+        if (content && originalParent && content.parentNode !== originalParent) {
+            originalParent.appendChild(content);
+        }
+    }
+}
+
 // --- ROUTER VIEW CONTROLLER ---
 function navigateToView(viewId, param = '', skipPushState = false) {
     state.currentView = viewId;
+    
+    // Move result content sections back to root views to avoid subtab capture
+    ensureContentInOriginalView('hotel');
+    ensureContentInOriginalView('restaurant');
+    ensureContentInOriginalView('experience');
     
     // Hide all views
     document.querySelectorAll('.view-container').forEach(el => el.classList.add('hidden'));
@@ -226,6 +259,7 @@ function navigateToView(viewId, param = '', skipPushState = false) {
         let url = '?view=' + viewId;
         if (viewId === 'destination') {
             if (state.currentCity) url += '&city=' + encodeURIComponent(state.currentCity);
+            if (state.activeSubtab) url += '&subtab=' + encodeURIComponent(state.activeSubtab);
         } else if (viewId === 'hotel-results' || viewId === 'restaurant-results' || viewId === 'experience-results') {
             if (state.currentCity) url += '&city=' + encodeURIComponent(state.currentCity);
             if (state.selectedCategory) url += '&cat=' + encodeURIComponent(state.selectedCategory);
@@ -247,7 +281,8 @@ function navigateToView(viewId, param = '', skipPushState = false) {
                        currentState.currentCity === (state.currentCity || '') && 
                        currentState.selectedCategory === (state.selectedCategory || '') && 
                        currentState.selectedItemId === (state.selectedItemId || '') && 
-                       currentState.selectedThreadId === (state.selectedThreadId || '');
+                       currentState.selectedThreadId === (state.selectedThreadId || '') &&
+                       currentState.activeSubtab === (state.activeSubtab || 'dest-overview');
                        
         if (!isSame) {
             window.history.pushState({
@@ -256,34 +291,97 @@ function navigateToView(viewId, param = '', skipPushState = false) {
                 currentCity: state.currentCity || '',
                 selectedCategory: state.selectedCategory || '',
                 selectedItemId: state.selectedItemId || '',
-                selectedThreadId: state.selectedThreadId || ''
+                selectedThreadId: state.selectedThreadId || '',
+                activeSubtab: state.activeSubtab || 'dest-overview'
             }, '', url);
         }
     }
 }
 
+function showCityPromptModal() {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('city-prompt-modal');
+        const input = document.getElementById('city-prompt-input');
+        const cancelBtn = document.getElementById('city-prompt-cancel-btn');
+        const submitBtn = document.getElementById('city-prompt-submit-btn');
+        
+        if (!modal || !input || !cancelBtn || !submitBtn) {
+            const fallbackCity = prompt("Where are you going? Enter a city name:");
+            resolve(fallbackCity);
+            return;
+        }
+        
+        input.value = "";
+        modal.classList.remove('hidden');
+        input.focus();
+        
+        const cleanUp = () => {
+            modal.classList.add('hidden');
+            submitBtn.removeEventListener('click', handleSubmit);
+            cancelBtn.removeEventListener('click', handleCancel);
+            input.removeEventListener('keypress', handleKeyPress);
+        };
+        
+        const handleSubmit = () => {
+            const val = input.value.trim();
+            cleanUp();
+            resolve(val);
+        };
+        
+        const handleCancel = () => {
+            cleanUp();
+            resolve(null);
+        };
+        
+        const handleKeyPress = (e) => {
+            if (e.key === 'Enter') {
+                handleSubmit();
+            }
+        };
+        
+        submitBtn.addEventListener('click', handleSubmit);
+        cancelBtn.addEventListener('click', handleCancel);
+        input.addEventListener('keypress', handleKeyPress);
+    });
+}
+
 // Navigates directly from pills/search into the category search pages
 function navigateToCategoryResults(category, skipPushState = false) {
-    state.selectedCategory = category;
-    const city = state.currentCity;
-    
-    if (!city) {
-        // Redirect to homepage and focus the main search box
-        navigateToView('home', '', skipPushState);
-        const input = document.getElementById('global-search-input');
-        if (input) {
-            input.focus();
-            input.placeholder = "Please type a destination to see listings...";
-            input.style.borderColor = "var(--accent)";
-            input.style.boxShadow = "0 0 0 3px rgba(124, 58, 237, 0.2)";
-            setTimeout(() => {
-                input.style.borderColor = "";
-                input.style.boxShadow = "";
-                input.placeholder = "Places to go, hotels, restaurants...";
-            }, 5000);
-        }
+    if (category === 'flights' || category === 'cars' || category === 'cruises') {
+        alert("✈️ Flights & 🚗 Rental Cars integrations are coming soon! Please check our Hotels, Restaurants, and Things to Do listings.");
         return;
     }
+
+    state.selectedCategory = category;
+    let city = state.currentCity;
+    
+    if (!city) {
+        showCityPromptModal().then(customCity => {
+            if (!customCity || !customCity.trim()) {
+                // Redirect to homepage and focus the main search box
+                navigateToView('home', '', skipPushState);
+                const input = document.getElementById('global-search-input');
+                if (input) {
+                    input.focus();
+                    input.placeholder = "Please type a destination to see listings...";
+                    input.style.borderColor = "var(--accent)";
+                    input.style.boxShadow = "0 0 0 3px rgba(124, 58, 237, 0.2)";
+                    setTimeout(() => {
+                        input.style.borderColor = "";
+                        input.style.boxShadow = "";
+                        input.placeholder = "Places to go, hotels, restaurants...";
+                    }, 5000);
+                }
+                return;
+            }
+            state.currentCity = customCity.trim();
+            navigateToCategoryResults(category, skipPushState);
+        });
+        return;
+    }
+    
+    const catType = category === 'restaurants' ? 'restaurant' : category === 'attractions' ? 'experience' : 'hotel';
+    ensureContentInOriginalView(catType);
     
     if (category === 'restaurants') {
         document.getElementById('rest-city-name-label').textContent = city;
@@ -323,6 +421,11 @@ function handleCurrencyChange(curr) {
     } else if (state.currentView === 'experience-results') {
         renderExperienceResultsList();
     }
+}
+
+function escapeForOnclick(str) {
+    if (!str) return '';
+    return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, "&quot;");
 }
 
 function formatCost(amountInInr) {
@@ -449,86 +552,171 @@ function toggleMobileDrawer() {
 
 // --- HOMEPAGE RENDERING ---
 function renderHomepageExperiences() {
-    const list = document.getElementById('experiences-deck');
-    if (!list) return;
-    
-    const exps = [
-        { name: "Jaipur TukTuk Street Food guided safari", cost: 1500, stars: 5, reviews: 140, type: "Tours", badge: "LIKELY TO SELL OUT", img: "https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=400&q=80" },
-        { name: "Private Taj Mahal Day Trip by Gatimaan Express Train", cost: 4800, stars: 5, reviews: 820, type: "Day Trips", badge: "POPULAR EXCURSION", img: "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=400&q=80" },
-        { name: "Old Delhi Spice Market & Rickshaw Ride Heritage Walk", cost: 950, stars: 4.5, reviews: 290, type: "Sightseeing", badge: "", img: "https://images.unsplash.com/photo-1585123334904-845d60e97b29?auto=format&fit=crop&w=400&q=80" },
-        { name: "Amber Palace Elephants sanctuary eco tour", cost: 2500, stars: 4.5, reviews: 110, type: "Outdoor Sights", badge: "ECO CHOICE", img: "https://images.unsplash.com/photo-1504618223053-559bdef9dd5a?auto=format&fit=crop&w=400&q=80" }
-    ];
-    
-    list.innerHTML = exps.map(item => `
-        <li class="card-item-el" onclick="navigateToDetail('${item.name.replace(/'/g, "\\'")}', 'experience')">
-            <div class="card-img-container">
-                <img src="${item.img}" alt="${item.name}">
-                ${item.badge ? `<span class="card-badge">${item.badge}</span>` : ''}
-            </div>
-            <div class="card-details">
-                <span class="card-category-label">${item.type}</span>
-                <strong class="card-item-title">${item.name}</strong>
-                <div class="card-rating-row">
-                    ${getBubbleRatingHtml(item.stars)}
-                    <span>(${item.reviews})</span>
-                </div>
-                <div class="card-price-row">from ₹${item.cost.toLocaleString('en-IN')}</div>
-            </div>
-        </li>
-    `).join('');
+    const inputEl = document.getElementById('home-reccos-city-input');
+    const city = inputEl ? inputEl.value.trim() : '';
+    handleHomeReccosCityChange(city);
 }
 
 function renderHomepageHotels() {
-    const list = document.getElementById('personalized-hotels-grid');
-    if (!list) return;
-    
-    const hotels = [
-        { name: "Taj Rambagh Palace Jaipur", cost: 35000, stars: 5, reviews: 490, img: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80" },
-        { name: "Umaid Bhawan Palace Jodhpur", cost: 42000, stars: 5, reviews: 310, img: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=400&q=80" },
-        { name: "Trident Hotel Udaipur", cost: 11500, stars: 4.5, reviews: 680, img: "https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=400&q=80" }
-    ];
-    
-    list.innerHTML = hotels.map(item => `
-        <div class="card-item-el" onclick="navigateToDetail('${item.name}', 'hotel')">
-            <div class="card-img-container">
-                <img src="${item.img}" alt="${item.name}">
-            </div>
-            <div class="card-details">
-                <span class="card-category-label">Luxury Stays</span>
-                <strong class="card-item-title">${item.name}</strong>
-                <div class="card-rating-row">
-                    ${getBubbleRatingHtml(item.stars)}
-                    <span>(${item.reviews})</span>
-                </div>
-                <div class="card-price-row">from ₹${item.cost.toLocaleString('en-IN')} / night</div>
-            </div>
-        </div>
-    `).join('');
+    const inputEl = document.getElementById('home-hotels-city-input');
+    const city = inputEl ? inputEl.value.trim() : '';
+    handleHomeHotelsCityChange(city);
 }
 
-function renderHomepageArticles() {
-    const list = document.getElementById('articles-deck');
+async function handleHomeReccosCityChange(city) {
+    if (!city || typeof city !== 'string') {
+        const inputEl = document.getElementById('home-reccos-city-input');
+        city = inputEl ? inputEl.value.trim() : '';
+    }
+    
+    const list = document.getElementById('experiences-deck');
     if (!list) return;
+
+    if (!city) {
+        list.innerHTML = `<div style="padding:2rem; text-align:center; width:100%; color:var(--text-secondary); font-weight:600;">Type a city above and click "Go" to discover experiences!</div>`;
+        return;
+    }
     
-    const blogs = [
-        { title: "Rajasthan 7-Day Golden Triangle Guide", author: "Aarav Sharma", img: "https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=400&q=80" },
-        { title: "Best places to try street Pyaz Kachori in old Johari Bazar", author: "Sania Malik", img: "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80" },
-        { title: "A complete guide to Goa's pristine South coast beaches", author: "John Doe", img: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80" }
-    ];
+    list.innerHTML = `<div style="padding:2rem; text-align:center; width:100%; color:var(--text-muted);"><span class="spinner" style="display:inline-block; width:20px; height:20px; border-radius:50%; border:2px solid var(--border); border-top-color:var(--accent); animation:spin 1s linear infinite;"></span> Loading top experiences for ${city}...</div>`;
     
-    list.innerHTML = blogs.map(item => `
-        <li class="card-item-el" style="width:300px;">
-            <div class="card-img-container" style="height:150px;">
-                <img src="${item.img}" alt="${item.title}">
-            </div>
-            <div class="card-details">
-                <span class="card-category-label">Travel Article</span>
-                <strong class="card-item-title" style="font-size:0.88rem;">${item.title}</strong>
-                <span style="font-size:0.75rem; color:var(--text-muted);">Written by ${item.author}</span>
-            </div>
-        </li>
-    `).join('');
+    try {
+        const res = await fetch(`/api/search`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ city: city })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            const av = data.all_venues || data;
+            const exps = av.attractions || [];
+            
+            if (exps.length > 0) {
+                list.innerHTML = exps.slice(0, 15).map(item => {
+                    const escName = escapeForOnclick(item.name);
+                    return `
+                        <li class="card-item-el" onclick="navigateToDetail('${escName}', 'experience')">
+                            <div class="card-img-container" style="height:160px; background:#E5E7EB;">
+                                <img src="${getVenuePhoto(item.name, 'experience')}" alt="${item.name}" style="width:100%; height:100%; object-fit:cover;">
+                            </div>
+                            <div class="card-details" style="padding:0.75rem;">
+                                <span class="card-category-label" style="font-size:0.65rem; font-weight:800; text-transform:uppercase; color:var(--text-muted);">${item.sub_type || 'experience'}</span>
+                                <strong class="card-item-title" style="display:block; font-size:0.85rem; margin:0.2rem 0; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${item.name}</strong>
+                                <div class="card-rating-row" style="margin-top:0.2rem;">
+                                    ${getBubbleRatingHtml(item.stars || 4.5)}
+                                    <span style="font-size:0.75rem; color:var(--text-muted); margin-left:0.25rem;">(120 reviews)</span>
+                                </div>
+                                <div class="card-price-row" style="font-weight:700; font-size:0.85rem; margin-top:0.35rem; color:var(--text-primary);">${item.original_cost === 0 ? "Free Entry" : 'from ₹' + (item.original_cost || 500).toLocaleString('en-IN')}</div>
+                            </div>
+                        </li>
+                    `;
+                }).join('');
+                return;
+            }
+        }
+    } catch(e) {
+        console.error(e);
+    }
+    
+    // Offline / fallback handler
+    const fallbackExps = getFallbackExperiences(city);
+    list.innerHTML = fallbackExps.slice(0, 4).map(item => {
+        const escName = escapeForOnclick(item.name);
+        return `
+            <li class="card-item-el" onclick="navigateToDetail('${escName}', 'experience')">
+                <div class="card-img-container" style="height:160px; background:#E5E7EB;">
+                    <img src="${getVenuePhoto(item.name, 'experience')}" alt="${item.name}" style="width:100%; height:100%; object-fit:cover;">
+                </div>
+                <div class="card-details" style="padding:0.75rem;">
+                    <span class="card-category-label" style="font-size:0.65rem; font-weight:800; text-transform:uppercase; color:var(--text-muted);">${item.sub_type || 'experience'}</span>
+                    <strong class="card-item-title" style="display:block; font-size:0.85rem; margin:0.2rem 0; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${item.name}</strong>
+                    <div class="card-rating-row" style="margin-top:0.2rem;">
+                        ${getBubbleRatingHtml(item.stars || 4.5)}
+                        <span style="font-size:0.75rem; color:var(--text-muted); margin-left:0.25rem;">(80 reviews)</span>
+                    </div>
+                    <div class="card-price-row" style="font-weight:700; font-size:0.85rem; margin-top:0.35rem; color:var(--text-primary);">${item.original_cost === 0 ? "Free Entry" : 'from ₹' + (item.original_cost || 500).toLocaleString('en-IN')}</div>
+                </div>
+            </li>
+        `;
+    }).join('');
 }
+
+async function handleHomeHotelsCityChange(city) {
+    if (!city || typeof city !== 'string') {
+        const inputEl = document.getElementById('home-hotels-city-input');
+        city = inputEl ? inputEl.value.trim() : '';
+    }
+    
+    const list = document.getElementById('personalized-hotels-grid');
+    if (!list) return;
+
+    if (!city) {
+        list.innerHTML = `<div style="padding:2rem; text-align:center; width:100%; color:var(--text-secondary); font-weight:600;">Type a city above and click "Go" to find hotels!</div>`;
+        return;
+    }
+    
+    list.innerHTML = `<div style="padding:2rem; text-align:center; width:100%; color:var(--text-muted);"><span class="spinner" style="display:inline-block; width:20px; height:20px; border-radius:50%; border:2px solid var(--border); border-top-color:var(--accent); animation:spin 1s linear/infinite;"></span> Loading popular stays for ${city}...</div>`;
+    
+    try {
+        const res = await fetch(`/api/search`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ city: city })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            const av = data.all_venues || data;
+            const hotels = av.hotels || [];
+            
+            if (hotels.length > 0) {
+                list.innerHTML = hotels.slice(0, 10).map(item => {
+                    const escName = escapeForOnclick(item.name);
+                    return `
+                        <div class="card-item-el" onclick="navigateToDetail('${escName}', 'hotel')">
+                            <div class="card-img-container" style="height:160px; background:#E5E7EB;">
+                                <img src="${getVenuePhoto(item.name, 'hotel')}" alt="${item.name}" style="width:100%; height:100%; object-fit:cover;">
+                            </div>
+                            <div class="card-details" style="padding:0.75rem;">
+                                <span class="card-category-label" style="font-size:0.65rem; font-weight:800; text-transform:uppercase; color:var(--text-muted);">${item.sub_type || 'hotel'}</span>
+                                <strong class="card-item-title" style="display:block; font-size:0.85rem; margin:0.2rem 0; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${item.name}</strong>
+                                <div class="card-rating-row" style="margin-top:0.2rem;">
+                                    ${getBubbleRatingHtml(item.stars || 4.5)}
+                                    <span style="font-size:0.75rem; color:var(--text-muted); margin-left:0.25rem;">(230 reviews)</span>
+                                </div>
+                                <div class="card-price-row" style="font-weight:700; font-size:0.85rem; margin-top:0.35rem; color:var(--text-primary);">from ₹${(item.cost || 8000).toLocaleString('en-IN')} / night</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                return;
+            }
+        }
+    } catch(e) {
+        console.error(e);
+    }
+    
+    // Offline / fallback handler
+    const fallbackHotels = getFallbackHotels(city);
+    list.innerHTML = fallbackHotels.slice(0, 3).map(item => {
+        const escName = escapeForOnclick(item.name);
+        return `
+            <div class="card-item-el" onclick="navigateToDetail('${escName}', 'hotel')">
+                <div class="card-img-container" style="height:160px; background:#E5E7EB;">
+                    <img src="${getVenuePhoto(item.name, 'hotel')}" alt="${item.name}" style="width:100%; height:100%; object-fit:cover;">
+                </div>
+                <div class="card-details" style="padding:0.75rem;">
+                    <span class="card-category-label" style="font-size:0.65rem; font-weight:800; text-transform:uppercase; color:var(--text-muted);">${item.sub_type || 'hotel'}</span>
+                    <strong class="card-item-title" style="display:block; font-size:0.85rem; margin:0.2rem 0; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${item.name}</strong>
+                    <div class="card-rating-row" style="margin-top:0.2rem;">
+                        ${getBubbleRatingHtml(item.stars || 4.5)}
+                        <span style="font-size:0.75rem; color:var(--text-muted); margin-left:0.25rem;">(140 reviews)</span>
+                    </div>
+                    <div class="card-price-row" style="font-weight:700; font-size:0.85rem; margin-top:0.35rem; color:var(--text-primary);">from ₹${(item.cost || 8000).toLocaleString('en-IN')} / night</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
 
 function scrollCarousel(id, dir) {
     const el = document.getElementById(id);
@@ -550,32 +738,46 @@ function setupGlobalSearchAutocomplete() {
             return;
         }
         
-        // Show grouped results
         const items = [
             { type: 'dest', label: 'Jaipur', sub: 'Rajasthan, India' },
             { type: 'dest', label: 'Goa', sub: 'India' },
             { type: 'dest', label: 'Delhi', sub: 'National Capital Territory, India' },
-            { type: 'dest', label: 'Mumbai', sub: 'Maharashtra, India' }
+            { type: 'dest', label: 'Mumbai', sub: 'Maharashtra, India' },
+            { type: 'dest', label: 'London', sub: 'United Kingdom' },
+            { type: 'dest', label: 'Paris', sub: 'France' },
+            { type: 'dest', label: 'New York', sub: 'United States' },
+            { type: 'dest', label: 'Shimla', sub: 'Himachal Pradesh, India' },
+            { type: 'dest', label: 'Manali', sub: 'Himachal Pradesh, India' }
         ].filter(item => item.label.toLowerCase().includes(query.toLowerCase()));
         
-        if (items.length === 0) {
-            dropdown.innerHTML = `<div style="padding:1rem; text-align:center; font-size:0.85rem; color:var(--text-muted);">No destinations matched. Press Enter to search generically.</div>`;
-            dropdown.classList.remove('hidden');
-            return;
+        let htmlContent = '';
+        if (items.length > 0) {
+            htmlContent = `
+                <div class="autocomplete-group-title">Destinations</div>
+                ${items.map(item => `
+                    <div class="autocomplete-item" onclick="selectAutocompleteDest('${item.label.replace(/'/g, "\\'")}', '${item.sub.replace(/'/g, "\\'")}')">
+                        <span class="item-icon">📍</span>
+                        <div>
+                            <span class="item-name">${item.label}</span>
+                            <div class="item-sub">${item.sub}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            `;
         }
         
-        dropdown.innerHTML = `
-            <div class="autocomplete-group-title">Destinations</div>
-            ${items.map(item => `
-                <div class="autocomplete-item" onclick="selectAutocompleteDest('${item.label}', '${item.sub}')">
-                    <span class="item-icon">📍</span>
-                    <div>
-                        <span class="item-name">${item.label}</span>
-                        <div class="item-sub">${item.sub}</div>
-                    </div>
+        // Add a clickable search option for the custom query
+        const queryEscaped = query.replace(/'/g, "\\'");
+        htmlContent += `
+            <div class="autocomplete-item" onclick="selectAutocompleteDest('${queryEscaped}', '')" style="border-top:1px solid var(--border);">
+                <span class="item-icon">🔍</span>
+                <div>
+                    <span class="item-name" style="color:var(--accent);">Search for "${query}"</span>
+                    <div class="item-sub">Explore custom location</div>
                 </div>
-            `).join('')}
+            </div>
         `;
+        dropdown.innerHTML = htmlContent;
         dropdown.classList.remove('hidden');
     });
     
@@ -613,8 +815,12 @@ function preFillCitySearch(city) {
 }
 
 // --- DESTINATION OVERVIEW CONTROLLER ---
-async function navigateToDestinationOverview(city, country = "India", skipPushState = false) {
+async function navigateToDestinationOverview(city, country = "India", skipPushState = false, subtab = 'dest-overview') {
+    if (country === "India") {
+        country = getCountryForCity(city);
+    }
     state.currentCity = city;
+    state.activeSubtab = subtab;
     navigateToView('destination', '', skipPushState);
     
     // Populate header photo based on city
@@ -634,8 +840,40 @@ async function navigateToDestinationOverview(city, country = "India", skipPushSt
     document.getElementById('city-title-heading').textContent = city.toUpperCase();
     document.getElementById('city-country-heading').textContent = country;
     
-    // Default subtab
-    switchDestSubtab('dest-overview');
+    // Switch to specified subtab
+    switchDestSubtab(subtab);
+    
+    const cityKey = city.toLowerCase().trim();
+    if (state.cityDataCache && state.cityDataCache[cityKey]) {
+        const cached = state.cityDataCache[cityKey];
+        state.venues.hotel = cached.hotels;
+        state.venues.restaurant = cached.restaurants;
+        state.venues.experience = cached.experiences;
+        state.loadedCity = cityKey;
+        
+        // Build descriptions
+        const blurbEl = document.getElementById('dest-overview-blurb');
+        if (blurbEl) {
+            blurbEl.textContent = `${capitalizeFirstLetter(city)} is one of the most visited and iconic destinations in ${country}. Famous for its rich history, cultural landmarks, outstanding hospitality, and exquisite local cuisines. Plan and split budgets here seamlessly!`;
+        }
+        
+        const forumTitle = document.getElementById('forum-city-title');
+        const forumDesc = document.getElementById('forum-city-desc');
+        if (forumTitle) forumTitle.textContent = `${capitalizeFirstLetter(city)} Travel Forum`;
+        if (forumDesc) forumDesc.textContent = `Connect with real travelers planning trips to ${capitalizeFirstLetter(city)}. Ask about transport, local weather, and hidden gems!`;
+        
+        renderSampleLists();
+        
+        if (state.homeOptPending) {
+            const pending = state.homeOptPending;
+            state.homeOptPending = null;
+            document.getElementById('dest-budget-input').value = pending.budget;
+            document.getElementById('dest-days-input').value = pending.days;
+            document.getElementById('dest-people-input').value = pending.people;
+            triggerDestTripOptimizer();
+        }
+        return;
+    }
     
     // Call backend API search to populate real hotels, restaurants, sights!
     showPageLoader();
@@ -647,38 +885,61 @@ async function navigateToDestinationOverview(city, country = "India", skipPushSt
         });
         if (res.ok) {
             const data = await res.json();
-            // Pre-process venues list
-            state.venues.hotel = data.hotels || [];
-            state.venues.restaurant = data.restaurants || [];
-            state.venues.experience = data.attractions || [];
+            const av = data.all_venues || data;
+            state.venues.hotel = av.hotels || [];
+            state.venues.restaurant = av.restaurants || [];
+            state.venues.experience = av.attractions || [];
             
-            // Backups in case Overpass returns empty array (to keep college presentation working!)
+            // If they are empty, fall back
             if (state.venues.hotel.length === 0) state.venues.hotel = getFallbackHotels(city);
             if (state.venues.restaurant.length === 0) state.venues.restaurant = getFallbackRestaurants(city);
             if (state.venues.experience.length === 0) state.venues.experience = getFallbackExperiences(city);
             
-            // Build descriptions
-            document.getElementById('dest-overview-blurb').textContent = `${city} is one of the most visited and iconic destinations in ${country}. Famous for its rich history, cultural landmarks, outstanding hospitality, and exquisite local cuisines. Plan and split budgets here seamlessly!`;
-            
-            // Render sample lists
-            renderSampleLists();
+            // Cache them
+            state.cityDataCache = state.cityDataCache || {};
+            state.cityDataCache[cityKey] = {
+                hotels: [...state.venues.hotel],
+                restaurants: [...state.venues.restaurant],
+                experiences: [...state.venues.experience]
+            };
+            state.loadedCity = cityKey;
+        } else {
+            // API non-ok, load fallbacks directly
+            populateFallbackVenues(city);
+            state.loadedCity = cityKey;
+        }
+        
+        // Build descriptions
+        const blurbEl = document.getElementById('dest-overview-blurb');
+        if (blurbEl) {
+            blurbEl.textContent = `${capitalizeFirstLetter(city)} is one of the most visited and iconic destinations in ${country}. Famous for its rich history, cultural landmarks, outstanding hospitality, and exquisite local cuisines. Plan and split budgets here seamlessly!`;
+        }
+        
+        // Update forum teaser with city name
+        const forumTitle = document.getElementById('forum-city-title');
+        const forumDesc = document.getElementById('forum-city-desc');
+        if (forumTitle) forumTitle.textContent = `${capitalizeFirstLetter(city)} Travel Forum`;
+        if (forumDesc) forumDesc.textContent = `Connect with real travelers planning trips to ${capitalizeFirstLetter(city)}. Ask about transport, local weather, and hidden gems!`;
+        
+        // Render sample lists
+        renderSampleLists();
 
-            // Trigger pending home budget optimization if requested
-            if (state.homeOptPending) {
-                const pending = state.homeOptPending;
-                state.homeOptPending = null;
-                
-                // Update inputs on the destination page
-                document.getElementById('dest-budget-input').value = pending.budget;
-                document.getElementById('dest-days-input').value = pending.days;
-                document.getElementById('dest-people-input').value = pending.people;
-                
-                // Run optimization
-                triggerDestTripOptimizer();
-            }
+        // Trigger pending home budget optimization if requested
+        if (state.homeOptPending) {
+            const pending = state.homeOptPending;
+            state.homeOptPending = null;
+            
+            // Update inputs on the destination page
+            document.getElementById('dest-budget-input').value = pending.budget;
+            document.getElementById('dest-days-input').value = pending.days;
+            document.getElementById('dest-people-input').value = pending.people;
+            
+            // Run optimization
+            triggerDestTripOptimizer();
         }
     } catch (err) {
         populateFallbackVenues(city);
+        state.loadedCity = cityKey;
         renderSampleLists();
         if (state.homeOptPending) {
             const pending = state.homeOptPending;
@@ -704,6 +965,11 @@ function switchDestSubtab(tabName) {
     
     if (tabName === 'dest-overview') {
         document.getElementById('dest-overview-tab').classList.remove('hidden');
+    } else if (tabName === 'dest-plan') {
+        document.getElementById('dest-plan-tab').classList.remove('hidden');
+        if (state.lastPlanResult) {
+            renderPlanItinerary(state.lastPlanResult);
+        }
     } else if (tabName === 'dest-hotels') {
         document.getElementById('dest-hotels-tab').classList.remove('hidden');
         renderTabbedSearchView('hotel');
@@ -713,29 +979,24 @@ function switchDestSubtab(tabName) {
     } else if (tabName === 'dest-attractions') {
         document.getElementById('dest-attractions-tab').classList.remove('hidden');
         renderTabbedSearchView('experience');
-    } else {
-        document.getElementById('dest-guide-tab').classList.remove('hidden');
+    }
+    
+    // Update history state and URL query string to preserve active subtab
+    const currentState = window.history.state;
+    if (currentState && currentState.viewId === 'destination') {
+        const url = `?view=destination&city=${encodeURIComponent(state.currentCity)}&subtab=${encodeURIComponent(tabName)}`;
+        window.history.replaceState({
+            ...currentState,
+            activeSubtab: tabName
+        }, '', url);
     }
 }
 
 // Fallback arrays to guarantee presentation results for college assignment
 function populateFallbackVenues(city) {
-    state.venues.hotel = [
-        { name: "Taj Rambagh Palace", cost: 38000, stars: 5, sub_type: "Hotel", lat: 26.8981, lon: 75.8078, wifi: true, pool: true, parking: true, bar: true },
-        { name: "The Oberoi Rajvilas", cost: 32000, stars: 5, sub_type: "Resort", lat: 26.8791, lon: 75.8821, wifi: true, pool: true, parking: true, bar: true },
-        { name: "Zostel Backpacker Hostel", cost: 800, stars: 4, sub_type: "Hostel", lat: 26.9212, lon: 75.8234, wifi: true, pool: false, parking: true, bar: false },
-        { name: "Pearl Palace Heritage Guest House", cost: 3200, stars: 4.5, sub_type: "Guest House", lat: 26.9189, lon: 75.7891, wifi: true, pool: false, parking: true, bar: true }
-    ];
-    state.venues.restaurant = [
-        { name: "Laxmi Mishthan Bhandar (LMB)", cost: 450, stars: 4.5, sub_type: "indian", price_tier: 2, lat: 26.9201, lon: 75.8281 },
-        { name: "Peacock Rooftop Cafe", cost: 600, stars: 4.7, sub_type: "cafe", price_tier: 2, lat: 26.9178, lon: 75.7901 },
-        { name: "Chokhi Dhani Ethnic Resort Dining", cost: 1200, stars: 4.8, sub_type: "indian", price_tier: 3, lat: 26.7681, lon: 75.8456 }
-    ];
-    state.venues.experience = [
-        { name: "Amber Palace Heritage Walk", original_cost: 500, stars: 5, sub_type: "museum", lat: 26.9856, lon: 75.8512 },
-        { name: "Hawa Mahal Front View Photo Spot", original_cost: 0, stars: 4.8, sub_type: "viewpoint", lat: 26.9239, lon: 75.8267 },
-        { name: "Central Park Jaipur", original_cost: 0, stars: 4.3, sub_type: "park", lat: 26.9021, lon: 75.8090 }
-    ];
+    state.venues.hotel = getFallbackHotels(city);
+    state.venues.restaurant = getFallbackRestaurants(city);
+    state.venues.experience = getFallbackExperiences(city);
 }
 
 function renderSampleLists() {
@@ -756,6 +1017,7 @@ function renderSubDeck(containerId, list, type) {
     el.innerHTML = list.map(item => {
         const isHearted = isVenueFavorite(item.name);
         const heartIcon = isHearted ? "❤️" : "🤍";
+        const escName = escapeForOnclick(item.name);
         
         let costLabel = `₹${item.cost ? item.cost.toLocaleString('en-IN') : '0'}`;
         if (type === 'experience') {
@@ -763,10 +1025,10 @@ function renderSubDeck(containerId, list, type) {
         }
         
         return `
-            <div class="card-item-el" onclick="navigateToDetail('${item.name.replace(/'/g, "\\'")}', '${type}')">
+            <div class="card-item-el" onclick="navigateToDetail('${escName}', '${type}')">
                 <div class="card-img-container">
-                    <img src="${getVenuePhoto(item.name, type)}" alt="${item.name}">
-                    <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${item.name.replace(/'/g, "\\'")}', '${type}', '', ${item.lat}, ${item.lon}); this.innerHTML = isVenueFavorite('${item.name.replace(/'/g, "\\'")}') ? '❤️' : '🤍';">${heartIcon}</button>
+                    <img src="${getVenuePhoto(item.name, type, state.currentCity)}" alt="${item.name}">
+                    <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${escName}', '${type}', '', ${item.lat}, ${item.lon}); this.innerHTML = isVenueFavorite('${escName}') ? '❤️' : '🤍';">${heartIcon}</button>
                 </div>
                 <div class="card-details">
                     <span class="card-category-label">${item.sub_type || type}</span>
@@ -785,24 +1047,29 @@ function renderSubDeck(containerId, list, type) {
 function renderTabbedSearchView(category) {
     if (category === 'hotel') {
         const container = document.getElementById('dest-hotels-tab');
-        const searchResultsView = document.getElementById('hotel-results-view').innerHTML;
-        container.innerHTML = searchResultsView;
-        
-        // Re-bind controls on the copy
+        const content = document.getElementById('hotel-results-view-content');
+        if (container && content && content.parentNode !== container) {
+            container.innerHTML = '';
+            container.appendChild(content);
+        }
         document.getElementById('results-city-name-label').textContent = state.currentCity;
         loadCategoryResults('hotel', state.currentCity);
     } else if (category === 'restaurant') {
         const container = document.getElementById('dest-restaurants-tab');
-        const searchResultsView = document.getElementById('restaurant-results-view').innerHTML;
-        container.innerHTML = searchResultsView;
-        
+        const content = document.getElementById('restaurant-results-view-content');
+        if (container && content && content.parentNode !== container) {
+            container.innerHTML = '';
+            container.appendChild(content);
+        }
         document.getElementById('rest-city-name-label').textContent = state.currentCity;
         loadCategoryResults('restaurant', state.currentCity);
     } else if (category === 'experience') {
         const container = document.getElementById('dest-attractions-tab');
-        const searchResultsView = document.getElementById('experience-results-view').innerHTML;
-        container.innerHTML = searchResultsView;
-        
+        const content = document.getElementById('experience-results-view-content');
+        if (container && content && content.parentNode !== container) {
+            container.innerHTML = '';
+            container.appendChild(content);
+        }
         document.getElementById('exp-city-name-label').textContent = state.currentCity;
         loadCategoryResults('experience', state.currentCity);
     }
@@ -810,8 +1077,24 @@ function renderTabbedSearchView(category) {
 
 // --- FILTERING & SEARCH RESULTS LISTS ---
 function loadCategoryResults(type, city) {
-    if (!state.venues[type] || state.venues[type].length === 0) {
-        populateFallbackVenues(city);
+    const cityKey = city.toLowerCase().trim();
+    if (state.loadedCity !== cityKey) {
+        if (state.cityDataCache && state.cityDataCache[cityKey]) {
+            const cached = state.cityDataCache[cityKey];
+            state.venues.hotel = cached.hotels;
+            state.venues.restaurant = cached.restaurants;
+            state.venues.experience = cached.experiences;
+        } else {
+            populateFallbackVenues(city);
+            // Cache fallback
+            state.cityDataCache = state.cityDataCache || {};
+            state.cityDataCache[cityKey] = {
+                hotels: [...state.venues.hotel],
+                restaurants: [...state.venues.restaurant],
+                experiences: [...state.venues.experience]
+            };
+        }
+        state.loadedCity = cityKey;
     }
     // Sync current lists to filtered lists
     state.filteredVenues[type] = [...state.venues[type]];
@@ -822,6 +1105,36 @@ function loadCategoryResults(type, city) {
 
 function applySearchFilters(type) {
     let source = [...state.venues[type]];
+    
+    // Resolve current sort dropdown selection
+    let sortVal = 'recommended';
+    if (type === 'hotel') {
+        sortVal = document.getElementById('results-sort-select')?.value || 'recommended';
+    } else if (type === 'restaurant') {
+        sortVal = document.getElementById('rest-sort-select')?.value || 'recommended';
+    } else if (type === 'experience') {
+        sortVal = document.getElementById('exp-sort-select')?.value || 'recommended';
+    }
+
+    if (sortVal === 'cost_asc') {
+        source.sort((a, b) => (a.cost || a.original_cost || 0) - (b.cost || b.original_cost || 0));
+    } else if (sortVal === 'cost_desc') {
+        source.sort((a, b) => (b.cost || b.original_cost || 0) - (a.cost || a.original_cost || 0));
+    } else if (sortVal === 'rating') {
+        source.sort((a, b) => (b.stars || b.rating || 4.5) - (a.stars || a.rating || 4.5));
+    } else {
+        // Recommend by rating (high to low) and budget (low to high)
+        source.sort((a, b) => {
+            const ratingA = a.stars || a.rating || 4.0;
+            const ratingB = b.stars || b.rating || 4.0;
+            if (ratingB !== ratingA) {
+                return ratingB - ratingA;
+            }
+            const costA = a.cost || a.original_cost || 0;
+            const costB = b.cost || b.original_cost || 0;
+            return costA - costB;
+        });
+    }
     
     if (type === 'hotel') {
         // Price Filter
@@ -958,12 +1271,13 @@ function renderHotelResultsList() {
     list.innerHTML = hotels.map(h => {
         const isHearted = isVenueFavorite(h.name);
         const heartIcon = isHearted ? "❤️" : "🤍";
+        const escName = escapeForOnclick(h.name);
         
         return `
-            <div class="row-card-item" onclick="navigateToDetail('${h.name.replace(/'/g, "\\'")}', 'hotel')">
+            <div class="row-card-item" onclick="navigateToDetail('${escName}', 'hotel')">
                 <div class="row-card-img">
-                    <img src="${getVenuePhoto(h.name, 'hotel')}" alt="${h.name}">
-                    <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${h.name.replace(/'/g, "\\'")}', 'hotel', '', ${h.lat}, ${h.lon}); this.innerHTML = isVenueFavorite('${h.name.replace(/'/g, "\\'")}') ? '❤️' : '🤍';">${heartIcon}</button>
+                    <img src="${getVenuePhoto(h.name, 'hotel', h.city || state.currentCity)}" alt="${h.name}">
+                    <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${escName}', 'hotel', '', ${h.lat}, ${h.lon}); this.innerHTML = isVenueFavorite('${escName}') ? '❤️' : '🤍';">${heartIcon}</button>
                 </div>
                 <div class="row-card-content">
                     <div>
@@ -979,8 +1293,8 @@ function renderHotelResultsList() {
                 <div class="row-card-right">
                     <div class="price-val-lbl">${formatCost(h.cost || 8000)}</div>
                     <span style="font-size:0.7rem; color:var(--text-muted);">per night</span>
-                    <button class="view-deal-btn" onclick="event.stopPropagation(); openPartnerComparisonDrawer('${h.name.replace(/'/g, "\\'")}')">View Deal</button>
-                    <a href="#" class="compare-prices-link" style="font-size:0.72rem; margin-top:0.4rem; text-decoration:none;" onclick="event.stopPropagation(); openPartnerComparisonDrawer('${h.name.replace(/'/g, "\\'")}')">Compare 4 prices</a>
+                    <button class="view-deal-btn" onclick="event.stopPropagation(); openPartnerComparisonDrawer('${escName}')">View Deal</button>
+                    <a href="#" class="compare-prices-link" style="font-size:0.72rem; margin-top:0.4rem; text-decoration:none;" onclick="event.stopPropagation(); openPartnerComparisonDrawer('${escName}')">Compare 4 prices</a>
                 </div>
             </div>
         `;
@@ -1004,12 +1318,13 @@ function renderRestaurantResultsList() {
         const isHearted = isVenueFavorite(r.name);
         const heartIcon = isHearted ? "❤️" : "🤍";
         const priceSymbols = "₹".repeat(r.price_tier || 2);
+        const escName = escapeForOnclick(r.name);
         
         return `
-            <div class="row-card-item" onclick="navigateToDetail('${r.name.replace(/'/g, "\\'")}', 'restaurant')">
+            <div class="row-card-item" onclick="navigateToDetail('${escName}', 'restaurant')">
                 <div class="row-card-img" style="width:200px;">
-                    <img src="${getVenuePhoto(r.name, 'restaurant')}" alt="${r.name}">
-                    <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${r.name.replace(/'/g, "\\'")}', 'restaurant', '', ${r.lat}, ${r.lon}); this.innerHTML = isVenueFavorite('${r.name.replace(/'/g, "\\'")}') ? '❤️' : '🤍';">${heartIcon}</button>
+                    <img src="${getVenuePhoto(r.name, 'restaurant', r.city || state.currentCity)}" alt="${r.name}">
+                    <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${escName}', 'restaurant', '', ${r.lat}, ${r.lon}); this.innerHTML = isVenueFavorite('${escName}') ? '❤️' : '🤍';">${heartIcon}</button>
                 </div>
                 <div class="row-card-content">
                     <div>
@@ -1046,12 +1361,13 @@ function renderExperienceResultsList() {
         const isHearted = isVenueFavorite(e.name);
         const heartIcon = isHearted ? "❤️" : "🤍";
         const costLbl = e.original_cost === 0 ? "Free Entry" : `₹${e.original_cost.toLocaleString('en-IN')}`;
+        const escName = escapeForOnclick(e.name);
         
         return `
-            <div class="row-card-item" onclick="navigateToDetail('${e.name.replace(/'/g, "\\'")}', 'experience')">
+            <div class="row-card-item" onclick="navigateToDetail('${escName}', 'experience')">
                 <div class="row-card-img" style="width:200px;">
-                    <img src="${getVenuePhoto(e.name, 'experience')}" alt="${e.name}">
-                    <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${e.name.replace(/'/g, "\\'")}', 'experience', '', ${e.lat}, ${e.lon}); this.innerHTML = isVenueFavorite('${e.name.replace(/'/g, "\\'")}') ? '❤️' : '🤍';">${heartIcon}</button>
+                    <img src="${getVenuePhoto(e.name, 'experience', e.city || state.currentCity)}" alt="${e.name}">
+                    <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${escName}', 'experience', '', ${e.lat}, ${e.lon}); this.innerHTML = isVenueFavorite('${escName}') ? '❤️' : '🤍';">${heartIcon}</button>
                 </div>
                 <div class="row-card-content">
                     <div>
@@ -1074,19 +1390,7 @@ function renderExperienceResultsList() {
 }
 
 function handleSortSelectChange(val, type) {
-    const list = state.filteredVenues[type];
-    
-    if (val === 'cost_asc') {
-        list.sort((a,b) => (a.cost || a.original_cost || 0) - (b.cost || b.original_cost || 0));
-    } else if (val === 'cost_desc') {
-        list.sort((a,b) => (b.cost || b.original_cost || 0) - (a.cost || a.original_cost || 0));
-    } else if (val === 'rating') {
-        list.sort((a,b) => (b.stars || 4.5) - (a.stars || 4.5));
-    }
-    
-    if (type === 'hotel') renderHotelResultsList();
-    else if (type === 'restaurant') renderRestaurantResultsList();
-    else if (type === 'experience') renderExperienceResultsList();
+    applySearchFilters(type);
 }
 
 // --- PARTNER COMPARISON DRAWER ---
@@ -1204,6 +1508,12 @@ function plotPinsOnResultsMap() {
 // --- ITEM DETAIL VIEWS MANAGER ---
 function navigateToDetail(name, category, addressFallback = "", skipPushState = false) {
     const cityCap = capitalizeFirstLetter(state.currentCity || 'Delhi');
+    
+    // Update breadcrumbs
+    document.querySelectorAll('.back-city-name-lbl').forEach(el => {
+        el.textContent = cityCap;
+    });
+
     const isInd = isIndianCity(state.currentCity);
     state.selectedItemId = name;
     state.selectedCategory = category;
@@ -1211,15 +1521,55 @@ function navigateToDetail(name, category, addressFallback = "", skipPushState = 
     // Find the item details in list caches
     let item = state.venues[category].find(v => v.name === name);
     if (!item) {
+        // Check if it's a famous homepage recommendation
+        const FAMOUS_PLACES_COORDINATES = {
+            "jaipur tuktuk street food guided safari": { lat: 26.9124, lon: 75.7873, city: "Jaipur", country: "India" },
+            "private taj mahal day trip by gatimaan express train": { lat: 27.1751, lon: 78.0421, city: "Agra", country: "India" },
+            "old delhi spice market & rickshaw ride heritage walk": { lat: 28.6562, lon: 77.2309, city: "Delhi", country: "India" },
+            "amber palace elephants sanctuary eco tour": { lat: 26.9856, lon: 75.8512, city: "Jaipur", country: "India" },
+            "taj rambagh palace jaipur": { lat: 26.8981, lon: 75.8122, city: "Jaipur", country: "India" },
+            "umaid bhawan palace jodhpur": { lat: 26.2798, lon: 73.0482, city: "Jodhpur", country: "India" },
+            "trident hotel udaipur": { lat: 24.5764, lon: 73.6738, city: "Udaipur", country: "India" }
+        };
+        const matchKey = name.toLowerCase().trim();
+        const coordData = FAMOUS_PLACES_COORDINATES[matchKey];
+        
+        let fallbackLat = 28.6139; // Delhi center default instead of Jaipur
+        let fallbackLon = 77.2090;
+        let fallbackCity = state.currentCity || "Delhi";
+        
+        if (coordData) {
+            fallbackLat = coordData.lat;
+            fallbackLon = coordData.lon;
+            fallbackCity = coordData.city;
+            state.currentCity = coordData.city;
+        } else if (state.currentCity) {
+            const cityLookup = {
+                'jaipur': { lat: 26.9124, lon: 75.7873 },
+                'goa': { lat: 15.3005, lon: 74.0855 },
+                'delhi': { lat: 28.6139, lon: 77.2090 },
+                'mumbai': { lat: 18.9750, lon: 72.8258 },
+                'london': { lat: 51.5074, lon: -0.1278 },
+                'paris': { lat: 48.8566, lon: 2.3522 },
+                'new york': { lat: 40.7128, lon: -74.0060 },
+                'tokyo': { lat: 35.6762, lon: 139.6503 }
+            };
+            const cKey = state.currentCity.toLowerCase().trim();
+            if (cityLookup[cKey]) {
+                fallbackLat = cityLookup[cKey].lat;
+                fallbackLon = cityLookup[cKey].lon;
+            }
+        }
+        
         // Build mock properties if not found
         item = {
             name: name,
             cost: 14000,
             original_cost: 1500,
             stars: 4.8,
-            sub_type: category === 'hotel' ? 'Luxury Stay' : category === 'restaurant' ? 'Indian Cafe' : 'Heritage Tour',
-            lat: 26.9124,
-            lon: 75.7873,
+            sub_type: category === 'hotel' ? 'Luxury Stay' : category === 'restaurant' ? 'Cafe & Dining' : 'Sights & Tour',
+            lat: fallbackLat,
+            lon: fallbackLon,
             wifi: true, pool: true, parking: true, bar: true,
             enrichment: {
                 description: `${name} is exceptionally popular with travelers. It boasts pristine aesthetics, highly professional staff service levels, and lies close to local transit.`,
@@ -2066,17 +2416,25 @@ async function triggerDestTripOptimizer() {
             const data = await res.json();
             
             // Check if stop exists
-            if (data.stops && data.stops.length > 0) {
-                const stop = data.stops[0];
+            const plan = data.plan;
+            if (plan && plan.stops && plan.stops.length > 0) {
+                const stop = plan.stops[0];
                 
-                // Show a successful modal dialog detailing the optimization split!
+                // Save plan results
+                state.lastPlanResult = plan;
+                state.activePlanType = "primary";
+                
+                // Render Plan
+                renderPlanItinerary(plan);
+                
+                // Switch to plan subtab
+                switchDestSubtab('dest-plan');
+                
+                // Save optimized trip
                 const optimizedHotel = stop.hotel ? stop.hotel.name : "None recommended";
                 const totalCost = formatCost(data.total_cost || budget);
                 const splitCost = formatCost(data.cost_per_person || (budget/people));
                 
-                alert(`🎉 TripSplit Optimizer Result:\n\n- Recommended Lodging Choice: ${optimizedHotel}\n- Optimized Total Estimated Cost: ${totalCost}\n- Split Cost (Per Person): ${splitCost}\n\nWe have saved this optimal route in your profile saved trips!`);
-                
-                // Save optimized trip
                 if (state.user) {
                     state.user.savedTrips = state.user.savedTrips || [];
                     const refNum = `TA-OPT-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -2091,14 +2449,318 @@ async function triggerDestTripOptimizer() {
                     localStorage.setItem('ta_user', JSON.stringify(state.user));
                     updateNavForUser();
                 }
+            } else {
+                alert(`⚠️ Optimization Error: ${data.message || "Failed to generate optimized itinerary. Try increasing budget."}`);
             }
+        } else {
+            const errText = await res.text();
+            alert(`⚠️ Optimization Error: ${errText || "Backend optimizer failed."}`);
         }
     } catch(e) {
-        alert("Failed to connect to TripSplit optimizer backend solver. Running mock local solver instead...");
-        alert(`🎉 TripSplit Optimizer Result:\n\n- Recommended Lodging Choice: Pearl Palace Heritage\n- Optimized Total Estimated Cost: ${formatCost(budget * 0.8)}\n- Split Cost (Per Person): ${formatCost((budget * 0.8)/people)}\n\nSaved to profile.`);
+        console.error(e);
+        alert("Failed to connect to TripSplit optimizer backend solver.");
     } finally {
         hidePageLoader();
     }
+}
+
+function renderVenueCardHtml(v, category, isRecommended = false) {
+    const isHearted = isVenueFavorite(v.name);
+    const heartIcon = isHearted ? "❤️" : "🤍";
+    const optBadge = isRecommended ? `<span class="recommended-badge">⭐ Recommended Choice</span>` : "";
+    const starsHtml = v.stars ? getBubbleRatingHtml(v.stars) : (v.utility ? getBubbleRatingHtml(Math.min(5, Math.ceil(v.utility / 30))) : "");
+    const subTypeLabel = v.sub_type ? v.sub_type.toUpperCase() : category.toUpperCase();
+    
+    let costText = "";
+    if (category === "hotel") {
+        costText = `Est. Nightly: ₹${(v.cost / (state.lastPlanResult?.days || 3) || 8000).toLocaleString('en-IN')}`;
+    } else if (category === "restaurant" || category === "bar") {
+        costText = `Est. Meal: ₹${(v.cost || 1200).toLocaleString('en-IN')}`;
+    } else {
+        costText = v.original_cost === 0 ? "Free Entry" : `Est. Fee: ₹${(v.original_cost || 500).toLocaleString('en-IN')}`;
+    }
+    
+    const imgUrl = getVenuePhoto(v.name, category, v.city || state.currentCity);
+    const escapedName = v.name.replace(/'/g, "\\'");
+    
+    return `
+        <div class="card-item-el ${isRecommended ? 'recommended-border' : ''}" style="width:280px; flex:0 0 auto; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #FFF; transition: transform 0.2s; position: relative;" onclick="navigateToDetail('${escapedName}', '${category === 'bar' ? 'experience' : category}')">
+            ${optBadge}
+            <div class="card-img-container" style="height: 140px; position: relative; background: #E5E7EB;">
+                <img src="${imgUrl}" alt="${v.name}" style="width:100%; height:100%; object-fit:cover;">
+                <button class="card-heart-btn" onclick="event.stopPropagation(); toggleFavoriteVenue('${escapedName}', '${category}', '', ${v.lat}, ${v.lon}); this.innerHTML = isVenueFavorite('${escapedName}') ? '❤️' : '🤍';" style="position: absolute; top: 0.5rem; right: 0.5rem; background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">${heartIcon}</button>
+            </div>
+            <div class="card-details" style="padding: 0.75rem;">
+                <span class="card-category-label" style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted);">${subTypeLabel}</span>
+                <strong class="card-item-title" style="display: block; font-size: 0.88rem; margin: 0.2rem 0; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 100%;">${v.name}</strong>
+                <div class="card-rating-row" style="margin-top: 0.2rem;">
+                    ${starsHtml}
+                </div>
+                <div class="card-price-row" style="margin-top: 0.4rem; font-weight: 700; font-size: 0.85rem; color: var(--text-primary);">${costText}</div>
+            </div>
+        </div>
+    `;
+}
+
+function renderPlanItinerary(plan) {
+    if (!plan) return;
+    
+    // Hide placeholder, show plan data
+    const placeholder = document.getElementById("plan-placeholder");
+    const dataDiv = document.getElementById("plan-data");
+    if (placeholder) placeholder.classList.add("hidden");
+    if (dataDiv) dataDiv.classList.remove("hidden");
+    
+    // Populate summary metrics
+    const totalCostEl = document.getElementById("plan-total-cost");
+    if (totalCostEl) totalCostEl.textContent = `₹${Math.round(plan.total_cost).toLocaleString('en-IN')}`;
+    const personCostEl = document.getElementById("plan-person-cost");
+    if (personCostEl) personCostEl.textContent = `₹${Math.round(plan.cost_per_person).toLocaleString('en-IN')}`;
+    
+    const statusBadge = document.getElementById("plan-status");
+    if (statusBadge) {
+        const isExceeded = plan.stops.some(s => s.budget_exceeded);
+        if (isExceeded) {
+            statusBadge.textContent = "Recommendation (Exceeds Target Budget)";
+            statusBadge.className = "plan-status-badge backup";
+            statusBadge.style.background = "#FEE2E2";
+            statusBadge.style.color = "#DC2626";
+        } else {
+            statusBadge.textContent = state.activePlanType === "backup" ? "Economy Backup Plan" : "Optimal Plan (Within Budget)";
+            statusBadge.className = state.activePlanType === "backup" ? "plan-status-badge backup" : "plan-status-badge";
+            if (state.activePlanType === "backup") {
+                statusBadge.style.background = "#FEF3C7";
+                statusBadge.style.color = "#D97706";
+            } else {
+                statusBadge.style.background = "var(--success-light)";
+                statusBadge.style.color = "var(--success)";
+            }
+        }
+    }
+    
+    // Render travel breakdown
+    const travelContainer = document.getElementById("travel-breakdown-container");
+    const travelDetails = document.getElementById("travel-breakdown-details");
+    if (plan.travel_cost && plan.travel_cost > 0) {
+        if (travelContainer) travelContainer.classList.remove("hidden");
+        if (travelDetails) {
+            const modeName = plan.travel_mode === "flight" ? "Flight" : 
+                             plan.travel_mode === "train_3ac" ? "Train (3AC)" : 
+                             plan.travel_mode === "train_sleeper" ? "Train (Sleeper)" : "Bus";
+            const routeLabels = plan.legs ? plan.legs.map(l => l.from).join(" ➔ ") + " ➔ " + plan.legs[plan.legs.length - 1].to : "";
+            const carbonFactor = plan.travel_mode === "flight" ? 0.15 : 
+                                 plan.travel_mode === "bus" ? 0.05 : 0.025;
+            const carbonValue = (plan.distance_km || 0) * plan.people * carbonFactor;
+            
+            travelDetails.innerHTML = `
+                <div style="margin-bottom:0.25rem;"><strong>Roundtrip Route:</strong> ${routeLabels}</div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>Distance: ${(plan.distance_km || 0).toFixed(1)} km | Mode: ${modeName}</div>
+                    <span class="carbon-badge">🌱 Carbon: ${carbonValue.toFixed(1)} kg CO₂</span>
+                </div>
+                <div style="margin-top:0.35rem; font-size:0.82rem; border-top:1.5px dashed var(--border); padding-top:0.35rem;">
+                    Travel Cost: <strong>₹${Math.round(plan.travel_cost).toLocaleString('en-IN')}</strong> | 
+                    Local Stops Budget: <strong>₹${Math.round(plan.local_trip_cost || (plan.total_cost - plan.travel_cost)).toLocaleString('en-IN')}</strong>
+                </div>
+            `;
+        }
+    } else {
+        if (travelContainer) travelContainer.classList.add("hidden");
+    }
+    
+    // Read checkbox toggle states (default to true if elements don't exist yet)
+    const showStays = document.getElementById("toggle-itin-stays") ? document.getElementById("toggle-itin-stays").checked : true;
+    const showDining = document.getElementById("toggle-itin-dining") ? document.getElementById("toggle-itin-dining").checked : true;
+    const showBars = document.getElementById("toggle-itin-bars") ? document.getElementById("toggle-itin-bars").checked : true;
+    const showSights = document.getElementById("toggle-itin-sights") ? document.getElementById("toggle-itin-sights").checked : true;
+
+    // Render stops
+    const wrapper = document.getElementById("plan-details-wrapper");
+    if (wrapper) {
+        wrapper.innerHTML = "";
+        
+        plan.stops.forEach((stop, sIdx) => {
+            const stopSection = document.createElement("div");
+            stopSection.className = "multi-stop-section";
+            stopSection.style.marginTop = sIdx > 0 ? "3rem" : "1rem";
+            
+            let stopHeaderHtml = `
+                <div style="background:var(--accent); color:#FFF; padding:1rem; border-radius:12px; margin-bottom:1.5rem; display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="margin:0; font-family:var(--font-heading); font-weight:800; font-size:1.25rem;">Stop ${sIdx + 1}: ${capitalizeFirstLetter(stop.city)} (${stop.days} Days)</h3>
+                    <span style="font-weight:700; font-size:0.9rem; background:rgba(255,255,255,0.2); padding:0.25rem 0.75rem; border-radius:6px;">Local Allocation: ₹${Math.round(stop.local_cost).toLocaleString('en-IN')}</span>
+                </div>
+            `;
+            
+            // 🏨 Accommodations row
+            let hotelsHtml = "";
+            if (showStays && stop.all_hotels && stop.all_hotels.length > 0) {
+                const recommendedHotel = stop.all_hotels.find(h => h.optimized) || stop.all_hotels[0];
+                const otherHotels = stop.all_hotels.filter(h => h.name !== recommendedHotel.name);
+                
+                hotelsHtml = `
+                    <div class="stop-row stays-row" style="margin-bottom:1.5rem;">
+                        <div class="row-header">
+                            <h4>🏨 Stays & Accommodations in ${capitalizeFirstLetter(stop.city)}</h4>
+                        </div>
+                        <div class="row-content-split">
+                            <div class="recommended-column">
+                                <div class="section-tag-label">Recommended Choice</div>
+                                ${renderVenueCardHtml(recommendedHotel, 'hotel', true)}
+                            </div>
+                            <div class="candidates-column">
+                                <div class="section-tag-label">All Stays & Lodgings</div>
+                                <div class="horizontal-card-deck" style="display:flex; gap:1rem; overflow-x:auto; padding-bottom:0.5rem; flex-wrap:nowrap; max-width:100%;">
+                                    ${otherHotels.map(h => renderVenueCardHtml(h, 'hotel', false)).join("")}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 🍽️ Dining row
+            let diningHtml = "";
+            if (showDining && stop.all_restaurants && stop.all_restaurants.length > 0) {
+                const recommendedRests = stop.all_restaurants.filter(r => r.optimized);
+                const otherRests = stop.all_restaurants.filter(r => !r.optimized);
+                
+                diningHtml = `
+                    <div class="stop-row dining-row" style="margin-bottom:1.5rem;">
+                        <div class="row-header">
+                            <h4>🍽️ Dining & Places to Eat in ${capitalizeFirstLetter(stop.city)}</h4>
+                        </div>
+                        <div class="row-content-split">
+                            <div class="recommended-column">
+                                <div class="section-tag-label">Recommended Meals</div>
+                                <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                                    ${recommendedRests.map(r => renderVenueCardHtml(r, 'restaurant', true)).join("")}
+                                    ${recommendedRests.length === 0 ? '<div style="font-style:italic; font-size:0.8rem; color:var(--text-muted); padding:1rem; text-align:center; background:#f9f9f9; border-radius:8px;">None selected</div>' : ''}
+                                </div>
+                            </div>
+                            <div class="candidates-column">
+                                <div class="section-tag-label">All Dining Options</div>
+                                <div class="horizontal-card-deck" style="display:flex; gap:1rem; overflow-x:auto; padding-bottom:0.5rem; flex-wrap:nowrap; max-width:100%;">
+                                    ${otherRests.map(r => renderVenueCardHtml(r, 'restaurant', false)).join("")}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 🍻 Bars row
+            let barsHtml = "";
+            if (showBars && stop.all_bars && stop.all_bars.length > 0) {
+                const recommendedBars = stop.all_bars.filter(b => b.optimized);
+                const otherBars = stop.all_bars.filter(b => !b.optimized);
+                
+                barsHtml = `
+                    <div class="stop-row nightlife-row" style="margin-bottom:1.5rem;">
+                        <div class="row-header">
+                            <h4>🍻 Bars & Nightlife in ${capitalizeFirstLetter(stop.city)}</h4>
+                        </div>
+                        <div class="row-content-split">
+                            <div class="recommended-column">
+                                <div class="section-tag-label">Recommended Drinks</div>
+                                <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                                    ${recommendedBars.map(b => renderVenueCardHtml(b, 'bar', true)).join("")}
+                                    ${recommendedBars.length === 0 ? '<div style="font-style:italic; font-size:0.8rem; color:var(--text-muted); padding:1rem; text-align:center; background:#f9f9f9; border-radius:8px;">None selected</div>' : ''}
+                                </div>
+                            </div>
+                            <div class="candidates-column">
+                                <div class="section-tag-label">All Nightspots & Pubs</div>
+                                <div class="horizontal-card-deck" style="display:flex; gap:1rem; overflow-x:auto; padding-bottom:0.5rem; flex-wrap:nowrap; max-width:100%;">
+                                    ${otherBars.map(b => renderVenueCardHtml(b, 'bar', false)).join("")}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 🏛️ Sightseeing timeline row
+            let sightseeingHtml = "";
+            if (showSights && stop.all_sightseeing && stop.all_sightseeing.length > 0) {
+                const otherSights = stop.all_sightseeing.filter(a => !a.optimized);
+                
+                let zonesTimelineHtml = "";
+                if (stop.zones && stop.zones.length > 0) {
+                    zonesTimelineHtml = stop.zones.map((zone, zIdx) => `
+                        <div class="zone-timeline-step" style="border-left: 2px solid var(--accent); padding-left: 1rem; margin-bottom: 1.25rem; position: relative;">
+                            <div class="dot" style="position: absolute; left: -5px; top: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);"></div>
+                            <h5 style="margin: 0; font-size: 0.88rem; font-weight: 700; color: var(--accent);">${zone.name}</h5>
+                            <ul style="margin: 0.25rem 0 0 0; padding-left: 1rem; font-size: 0.8rem; color: var(--text-primary); line-height: 1.5;">
+                                ${zone.popular_places.map(p => `<li><strong>${p.name}</strong></li>`).join("")}
+                                ${zone.underrated_gems.map(u => `<li><strong>${u.name}</strong> (Gem 💎)</li>`).join("")}
+                            </ul>
+                        </div>
+                    `).join("");
+                } else {
+                    zonesTimelineHtml = '<div style="font-style:italic; font-size:0.8rem; color:var(--text-muted); padding:1rem; text-align:center;">No timeline zones generated</div>';
+                }
+                
+                sightseeingHtml = `
+                    <div class="stop-row sightseeing-row" style="margin-bottom:1.5rem;">
+                        <div class="row-header">
+                            <h4>🏛️ Sightseeing & Top Things to Do in ${capitalizeFirstLetter(stop.city)}</h4>
+                        </div>
+                        <div class="row-content-split">
+                            <div class="recommended-column">
+                                <div class="section-tag-label">Exploration Plan</div>
+                                <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 1rem;">
+                                    ${zonesTimelineHtml}
+                                </div>
+                            </div>
+                            <div class="candidates-column">
+                                <div class="section-tag-label">All Sights & Attractions</div>
+                                <div class="horizontal-card-deck" style="display:flex; gap:1rem; overflow-x:auto; padding-bottom:0.5rem; flex-wrap:nowrap; max-width:100%;">
+                                    ${otherSights.map(a => renderVenueCardHtml(a, 'experience', false)).join("")}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            stopSection.innerHTML = `
+                ${stopHeaderHtml}
+                <div class="stop-horizontal-row-container">
+                    ${hotelsHtml}
+                    ${diningHtml}
+                    ${barsHtml}
+                    ${sightseeingHtml}
+                </div>
+            `;
+            
+            wrapper.appendChild(stopSection);
+        });
+    }
+}
+
+function handleItineraryToggleChange() {
+    if (state.lastPlanResult) {
+        const plan = state.activePlanType === "backup" ? state.lastPlanResult.backup : state.lastPlanResult;
+        renderPlanItinerary(plan);
+    }
+}
+
+function toggleOptimalPlanType() {
+    if (!state.lastPlanResult) return;
+    
+    const toggleBtn = document.getElementById("toggle-backup-btn");
+    if (state.activePlanType === "primary" && state.lastPlanResult.backup) {
+        state.activePlanType = "backup";
+        if (toggleBtn) toggleBtn.textContent = "Switch to Optimal Option";
+        renderPlanItinerary(state.lastPlanResult.backup);
+    } else {
+        state.activePlanType = "primary";
+        if (toggleBtn) toggleBtn.textContent = "Switch to Economy Option";
+        renderPlanItinerary(state.lastPlanResult);
+    }
+}
+
+function exportPlanToPDF() {
+    window.print();
 }
 
 // --- UTILITY STYLES RENDERERS ---
@@ -2111,38 +2773,265 @@ function getBubbleRatingHtml(stars) {
     return `<div class="tripadvisor-bubbles" title="${stars} bubbles">${bubbles}</div>`;
 }
 
-function getVenuePhoto(name, type) {
+function getVenuePhoto(name, type, city = '') {
     const n = name.toLowerCase();
+    const c = (city || state.currentCity || '').toLowerCase().trim();
     
-    // Check specific places for high quality matching images
+    // City-specific high-vibe Unsplash photo pools
+    const cityPools = {
+        'london': {
+            hotel: [
+                "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80",
+                "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=400&q=80",
+                "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80"
+            ],
+            restaurant: [
+                "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80",
+                "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=400&q=80",
+                "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80"
+            ],
+            experience: [
+                "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=400&q=80", // Tower Bridge
+                "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=400&q=80", // skyline
+                "https://images.unsplash.com/photo-1529655683826-09571830febe?auto=format&fit=crop&w=400&q=80" // big ben
+            ]
+        },
+        'goa': {
+            hotel: [
+                "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80",
+                "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=400&q=80",
+                "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80"
+            ],
+            restaurant: [
+                "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80",
+                "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=400&q=80",
+                "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80"
+            ],
+            experience: [
+                "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80", // beach
+                "https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=400&q=80", // aguada
+                "https://images.unsplash.com/photo-1432405972618-c6b0cfba8793?auto=format&fit=crop&w=400&q=80" // falls
+            ]
+        },
+        'paris': {
+            hotel: [
+                "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80",
+                "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80",
+                "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=400&q=80"
+            ],
+            restaurant: [
+                "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80",
+                "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=400&q=80",
+                "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80"
+            ],
+            experience: [
+                "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80", // eiffel
+                "https://images.unsplash.com/photo-1499856871958-5b9647a61585?auto=format&fit=crop&w=400&q=80",
+                "https://images.unsplash.com/photo-1503152394-c571994fd383?auto=format&fit=crop&w=400&q=80"
+            ]
+        }
+    };
+    
+    // --- JAIPUR ---
     if (n.includes("rambagh")) return "https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=400&q=80";
     if (n.includes("rajvilas")) return "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80";
-    if (n.includes("zostel")) return "https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=400&q=80";
     if (n.includes("pearl palace")) return "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("samode")) return "https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=400&q=80";
     if (n.includes("mishthan") || n.includes("lmb")) return "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80";
     if (n.includes("peacock")) return "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80";
     if (n.includes("chokhi")) return "https://images.unsplash.com/photo-1585938338392-50a59970d8ee?auto=format&fit=crop&w=400&q=80";
-    
-    // Specific city monument matching (London, Paris, Goa, Delhi, Mumbai, Jaipur)
-    if (n.includes("london") && n.includes("bridge")) return "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=400&q=80";
-    if (n.includes("london") && n.includes("eye")) return "https://images.unsplash.com/photo-1508349937151-22b68b72d5b1?auto=format&fit=crop&w=400&q=80";
-    if (n.includes("london")) return "https://images.unsplash.com/photo-1529655683826-09571830febe?auto=format&fit=crop&w=400&q=80";
-    
-    if (n.includes("paris")) return "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80";
-    if (n.includes("goa") || n.includes("beach")) return "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80";
-    if (n.includes("delhi") || n.includes("gate")) return "https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&w=400&q=80";
-    if (n.includes("mumbai") || n.includes("gateway")) return "https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=400&q=80";
-    
-    if (n.includes("amber")) return "https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("tapri")) return "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("suvarna")) return "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("amber") || n.includes("amer")) return "https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=400&q=80";
     if (n.includes("hawa mahal")) return "https://images.unsplash.com/photo-1603262110263-fb0112e7cc33?auto=format&fit=crop&w=400&q=80";
-    if (n.includes("park")) return "https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80";
-
+    if (n.includes("nahargarh")) return "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("jal mahal")) return "https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("jantar mantar")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("albert hall")) return "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?auto=format&fit=crop&w=400&q=80";
+    
+    // --- HIMACHAL / SHIMLA / MANALI ---
+    if (n.includes("wildflower hall")) return "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("oberoi cecil")) return "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("johnson")) return "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("snow valley")) return "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("manu allaya")) return "https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("combermere")) return "https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("cafe 1947")) return "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("baljees")) return "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("wake & bake") || n.includes("wake and bake")) return "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("cafe simla")) return "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("hide out")) return "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("hidimba") || n.includes("hadimba")) return "https://images.unsplash.com/photo-1626621331169-5f34be280ed9?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("solang")) return "https://images.unsplash.com/photo-1585409677983-0f6c41ca9c3b?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("rohtang")) return "https://images.unsplash.com/photo-1491002052546-bf38f186af56?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("ridge") || n.includes("mall road")) return "https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("jakhu") || n.includes("jakhoo")) return "https://images.unsplash.com/photo-1626621331169-5f34be280ed9?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("kufri")) return "https://images.unsplash.com/photo-1491002052546-bf38f186af56?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("triund")) return "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("jogini")) return "https://images.unsplash.com/photo-1432405972618-c6b0cfba8793?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("beas") && n.includes("raft")) return "https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("christ church")) return "https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("drifter")) return "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("lazy dog")) return "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("il forno")) return "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("himalayan resort")) return "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("hotel beas")) return "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("old manali")) return "https://images.unsplash.com/photo-1585409677983-0f6c41ca9c3b?auto=format&fit=crop&w=400&q=80";
+    
+    // --- GOA ---
+    if (n.includes("aguada")) return "https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("leela") && n.includes("goa")) return "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("w goa")) return "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("fontainhas") || n.includes("panjim inn") || n.includes("old quarter")) return "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("gunpowder")) return "https://images.unsplash.com/photo-1585938338392-50a59970d8ee?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("thalassa")) return "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("curlies")) return "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("martin")) return "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("basilica") || n.includes("bom jesus")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("dudhsagar")) return "https://images.unsplash.com/photo-1432405972618-c6b0cfba8793?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("anjuna")) return "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("calangute") || n.includes("palolem")) return "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80";
+    
+    // --- DELHI ---
+    if (n.includes("imperial") && n.includes("delhi")) return "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("lalit")) return "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("broadway") && n.includes("delhi")) return "https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("karim")) return "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("bukhara")) return "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("indian accent")) return "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("paranthe wali")) return "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("big chill")) return "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("red fort") || n.includes("lal qila")) return "https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("qutub") || n.includes("qutb")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("india gate") || n.includes("rajpath")) return "https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("humayun")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("chandni chowk")) return "https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("lodhi garden") || n.includes("lodi garden")) return "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("akshardham")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    
+    // --- MUMBAI ---
+    if (n.includes("taj mahal palace")) return "https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("oberoi") && n.includes("mumbai")) return "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("itc maratha")) return "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("abode bombay")) return "https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("leopold")) return "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("britannia")) return "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("trishna")) return "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("bademiya")) return "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("mondegar")) return "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("gateway of india")) return "https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("marine drive")) return "https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("elephanta")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("shivaji terminus") || n.includes("cst")) return "https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("juhu") || n.includes("chowpatty")) return "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("dharavi")) return "https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("haji ali")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    
+    // --- VARANASI ---
+    if (n.includes("nadesar")) return "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("brijrama")) return "https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("blue lassi")) return "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("kashi") && n.includes("chat")) return "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("vaatika")) return "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("dashashwamedh") || n.includes("ghat aarti")) return "https://images.unsplash.com/photo-1561361513-2d000a50f0dc?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("boat ride") && n.includes("ganges")) return "https://images.unsplash.com/photo-1561361513-2d000a50f0dc?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("sarnath")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("vishwanath")) return "https://images.unsplash.com/photo-1561361513-2d000a50f0dc?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("manikarnika")) return "https://images.unsplash.com/photo-1561361513-2d000a50f0dc?auto=format&fit=crop&w=400&q=80";
+    
+    // --- UDAIPUR ---
+    if (n.includes("lake palace")) return "https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("udaivilas")) return "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("jagat niwas")) return "https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("ambrai")) return "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("savage garden")) return "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("1559")) return "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("millets of mewar")) return "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("pichola")) return "https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("jagdish")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("saheliyon")) return "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("monsoon palace")) return "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?auto=format&fit=crop&w=400&q=80";
+    
+    // --- AGRA ---
+    if (n.includes("amarvilas")) return "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("itc mughal")) return "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("pinch of spice")) return "https://images.unsplash.com/photo-1585938338392-50a59970d8ee?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("esphahan")) return "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("taj mahal") && !n.includes("palace")) return "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("agra fort")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("mehtab bagh")) return "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("fatehpur sikri")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("itimad")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    
+    // --- BANGALORE ---
+    if (n.includes("leela") && n.includes("bengal")) return "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("taj west end")) return "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("ritz-carlton") || n.includes("ritz carlton")) return "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("mtr") || n.includes("mavalli")) return "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("vidyarthi bhavan")) return "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("toit")) return "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("koshy")) return "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("nagarjuna")) return "https://images.unsplash.com/photo-1585938338392-50a59970d8ee?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("bangalore palace")) return "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("lalbagh")) return "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("cubbon")) return "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("iskcon")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("nandi hills")) return "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("commercial street")) return "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=400&q=80";
+    
+    // --- KOLKATA ---
+    if (n.includes("oberoi grand")) return "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("taj bengal")) return "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("the park") && n.includes("kolkata")) return "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("peter cat")) return "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("flurys")) return "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("ballygunge")) return "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("arsalan")) return "https://images.unsplash.com/photo-1585938338392-50a59970d8ee?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("victoria memorial")) return "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("howrah")) return "https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("indian museum")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("dakshineswar")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("kumartuli")) return "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=400&q=80";
+    
+    // --- GENERIC KEYWORD MATCHING ---
+    // Cities
+    if (n.includes("london")) return "https://images.unsplash.com/photo-1529655683826-09571830febe?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("paris")) return "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("delhi")) return "https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("mumbai")) return "https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("goa")) return "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("shimla") || n.includes("manali") || n.includes("himachal")) return "https://images.unsplash.com/photo-1585409677983-0f6c41ca9c3b?auto=format&fit=crop&w=400&q=80";
+    
+    // Venue type keywords
+    if (n.includes("zostel") || n.includes("hostel")) return "https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("oyo") || n.includes("flagship")) return "https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("temple") || n.includes("mandir") || n.includes("church") || n.includes("cathedral") || n.includes("dargah") || n.includes("mosque")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("fort") || n.includes("palace") || n.includes("haveli") || n.includes("castle")) return "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("waterfall") || n.includes("falls")) return "https://images.unsplash.com/photo-1432405972618-c6b0cfba8793?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("beach") || n.includes("shore") || n.includes("coast")) return "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("mountain") || n.includes("hill") || n.includes("trek") || n.includes("valley") || n.includes("peak") || n.includes("pass")) return "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("lake") || n.includes("river") || n.includes("backwater")) return "https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("garden") || n.includes("park") || n.includes("botanical")) return "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("museum") || n.includes("memorial") || n.includes("monument")) return "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("market") || n.includes("bazaar") || n.includes("shopping")) return "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("cafe") || n.includes("coffee") || n.includes("bakery")) return "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("dhaba") || n.includes("street food") || n.includes("chaat") || n.includes("lassi")) return "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("bar") || n.includes("pub") || n.includes("lounge") || n.includes("brew")) return "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("fine dining") || n.includes("luxury")) return "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("sunset") || n.includes("sunrise") || n.includes("viewpoint") || n.includes("view")) return "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("walk") || n.includes("heritage") || n.includes("tour")) return "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("adventure") || n.includes("sport") || n.includes("raft")) return "https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("snow") || n.includes("ice") || n.includes("ski")) return "https://images.unsplash.com/photo-1491002052546-bf38f186af56?auto=format&fit=crop&w=400&q=80";
+    if (n.includes("boat") || n.includes("ferry") || n.includes("kayak") || n.includes("cruise")) return "https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?auto=format&fit=crop&w=400&q=80";
+    
+    // Deterministic photo pools as final fallback
     const hotelPics = [
         "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80",
         "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80",
         "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=400&q=80",
         "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=400&q=80",
-        "https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&w=400&q=80"
+        "https://images.unsplash.com/photo-1445019980597-93fa8acb246c?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=400&q=80"
     ];
     
     const restPics = [
@@ -2150,7 +3039,8 @@ function getVenuePhoto(name, type) {
         "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80",
         "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=400&q=80",
         "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80",
-        "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80"
+        "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1585938338392-50a59970d8ee?auto=format&fit=crop&w=400&q=80"
     ];
     
     const expPics = [
@@ -2158,7 +3048,8 @@ function getVenuePhoto(name, type) {
         "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80",
         "https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&w=400&q=80",
         "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=400&q=80",
-        "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=400&q=80"
+        "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=400&q=80",
+        "https://images.unsplash.com/photo-1585409677983-0f6c41ca9c3b?auto=format&fit=crop&w=400&q=80"
     ];
     
     // Deterministic indexing based on name to get unique images per venue
@@ -2280,12 +3171,38 @@ function appendChatMessage(text, sender) {
 state.ledgerExpenses = JSON.parse(localStorage.getItem('ta_expenses') || '[]');
 if (state.ledgerExpenses.length === 0) {
     state.ledgerExpenses = [
-        { id: 101, desc: "Taj Luxury Hotel Stay", amount: 24000, paidBy: "Somya", splitters: ["Somya", "Amit", "Priya", "Rohan"] },
-        { id: 102, desc: "Sightseeing Tour Guide", amount: 3200, paidBy: "Amit", splitters: ["Somya", "Amit", "Priya", "Rohan"] },
-        { id: 103, desc: "Traditional Dinner Feast", amount: 4800, paidBy: "Priya", splitters: ["Somya", "Amit", "Priya", "Rohan"] }
+        { id: 101, desc: "Hotel Stay Deposit", amount: 12000, paidBy: "Somya", category: "Stay", splitType: "equal", shares: { "Somya": 3000, "Amit": 3000, "Priya": 3000, "Rohan": 3000 } },
+        { id: 102, desc: "Local Tour Guide Guide", amount: 3200, paidBy: "Amit", category: "Sights", splitType: "equal", shares: { "Somya": 800, "Amit": 800, "Priya": 800, "Rohan": 800 } },
+        { id: 103, desc: "Group Dinner Feast", amount: 4800, paidBy: "Priya", category: "Food", splitType: "equal", shares: { "Somya": 1200, "Amit": 1200, "Priya": 1200, "Rohan": 1200 } }
     ];
 }
-state.groupMembers = localStorage.getItem('ta_members') ? localStorage.getItem('ta_members').split(',') : ['Somya', 'Amit', 'Priya', 'Rohan'];
+state.groupMembers = localStorage.getItem('ta_members') ? localStorage.getItem('ta_members').split(',').map(m => m.trim()) : ['Somya', 'Amit', 'Priya', 'Rohan'];
+state.charts = { pie: null, bar: null };
+
+function switchLedgerSubtab(tabName) {
+    document.querySelectorAll('.ledger-pane').forEach(pane => pane.style.display = 'none');
+    document.querySelectorAll('.ledger-tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.style.color = 'var(--text-muted)';
+        btn.style.borderBottom = 'none';
+        btn.style.marginBottom = '0';
+    });
+
+    const activePane = document.getElementById(`pane-ledger-${tabName}`);
+    if (activePane) activePane.style.display = 'flex';
+
+    const activeBtn = document.getElementById(`btn-ledger-${tabName}`);
+    if (activeBtn) {
+        activeBtn.classList.add('active');
+        activeBtn.style.color = 'var(--text-primary)';
+        activeBtn.style.borderBottom = '2px solid var(--accent)';
+        activeBtn.style.marginBottom = '-0.85rem';
+    }
+
+    if (tabName === 'analytics') {
+        renderLedgerCharts();
+    }
+}
 
 function initializeLedgerView() {
     // Fill Group Members input field
@@ -2300,16 +3217,10 @@ function initializeLedgerView() {
         paidBySelect.innerHTML = state.groupMembers.map(m => `<option value="${m}">${m}</option>`).join('');
     }
     
-    // Populate Split checkboxes
-    const cboxes = document.getElementById('exp-split-checkboxes');
-    if (cboxes) {
-        cboxes.innerHTML = state.groupMembers.map(m => `
-            <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.78rem; font-weight:600; cursor:pointer;">
-                <input type="checkbox" class="exp-splitter-cb" value="${m}" checked>
-                <span>${m}</span>
-            </label>
-        `).join('');
-    }
+    // Reset dynamic split fields pane
+    handleSplitTypeChange('equal');
+    const splitTypeSelect = document.getElementById('exp-split-type');
+    if (splitTypeSelect) splitTypeSelect.value = 'equal';
     
     // Render History & Balances
     renderLedgerHistoryList();
@@ -2325,16 +3236,107 @@ function handleGroupMembersChange(value) {
     initializeLedgerView();
 }
 
+function handleSplitTypeChange(type) {
+    const panel = document.getElementById('dynamic-split-panel');
+    const fields = document.getElementById('dynamic-split-fields');
+    const title = document.getElementById('dynamic-split-title');
+    if (!panel || !fields) return;
+
+    if (type === 'equal' || type === 'self') {
+        panel.style.display = 'none';
+        fields.innerHTML = '';
+        return;
+    }
+
+    panel.style.display = 'flex';
+    
+    if (type === 'selective') {
+        title.textContent = 'Include Specific Members';
+        fields.innerHTML = state.groupMembers.map(m => `
+            <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.82rem; cursor:pointer;">
+                <input type="checkbox" class="selective-split-cb" value="${m}" checked>
+                <span>${m}</span>
+            </label>
+        `).join('');
+    } else if (type === 'custom') {
+        title.textContent = 'Exact Share per Member (₹)';
+        fields.innerHTML = state.groupMembers.map(m => `
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; font-size:0.82rem;">
+                <span>${m}</span>
+                <input type="number" class="custom-split-val" data-name="${m}" min="0" placeholder="₹ 0" style="width:100px; padding:0.3rem; border:1px solid var(--border); border-radius:4px; font-size:0.8rem;">
+            </div>
+        `).join('');
+    } else if (type === 'ratio') {
+        title.textContent = 'Weight Ratio per Member';
+        fields.innerHTML = state.groupMembers.map(m => `
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; font-size:0.82rem;">
+                <span>${m}</span>
+                <input type="number" class="ratio-split-val" data-name="${m}" min="0" value="1" step="any" style="width:100px; padding:0.3rem; border:1px solid var(--border); border-radius:4px; font-size:0.8rem;">
+            </div>
+        `).join('');
+    }
+}
+
 function handleLogExpenseSubmit(e) {
     e.preventDefault();
     const desc = document.getElementById('exp-desc').value.trim();
     const amount = parseFloat(document.getElementById('exp-amount').value);
     const paidBy = document.getElementById('exp-paid-by').value;
+    const category = document.getElementById('exp-category').value;
+    const splitType = document.getElementById('exp-split-type').value;
     
-    const splitters = Array.from(document.querySelectorAll('.exp-splitter-cb:checked')).map(cb => cb.value);
-    if (splitters.length === 0) {
-        alert("Please select at least one person to split the expense between!");
-        return;
+    const shares = {};
+    
+    if (splitType === 'equal') {
+        const shareAmt = amount / state.groupMembers.length;
+        state.groupMembers.forEach(m => shares[m] = shareAmt);
+    } else if (splitType === 'self') {
+        state.groupMembers.forEach(m => shares[m] = 0);
+        shares[paidBy] = amount;
+    } else if (splitType === 'selective') {
+        const checked = Array.from(document.querySelectorAll('.selective-split-cb:checked')).map(cb => cb.value);
+        if (checked.length === 0) {
+            alert("⚠️ Please select at least one member to split this bill!");
+            return;
+        }
+        const shareAmt = amount / checked.length;
+        state.groupMembers.forEach(m => shares[m] = 0);
+        checked.forEach(m => shares[m] = shareAmt);
+    } else if (splitType === 'custom') {
+        let totalCustom = 0;
+        const inputs = document.querySelectorAll('.custom-split-val');
+        inputs.forEach(input => {
+            const val = parseFloat(input.value) || 0;
+            const name = input.dataset.name;
+            shares[name] = val;
+            totalCustom += val;
+        });
+        
+        // Validation: Sum must equal total amount within ₹1 tolerance
+        if (Math.abs(totalCustom - amount) > 1.5) {
+            alert(`⚠️ The sum of individual shares (₹${totalCustom.toLocaleString()}) does not match the total logged amount (₹${amount.toLocaleString()})! Please align the numbers.`);
+            return;
+        }
+    } else if (splitType === 'ratio') {
+        let totalRatio = 0;
+        const ratios = {};
+        const inputs = document.querySelectorAll('.ratio-split-val');
+        inputs.forEach(input => {
+            const val = parseFloat(input.value) || 0;
+            const name = input.dataset.name;
+            ratios[name] = val;
+            totalRatio += val;
+        });
+        
+        if (totalRatio <= 0) {
+            alert("⚠️ Ratio weights must add up to more than 0!");
+            return;
+        }
+        
+        state.groupMembers.forEach(m => {
+            const w = ratios[m] || 0;
+            shares[m] = (w / totalRatio) * amount;
+        });
     }
     
     const exp = {
@@ -2342,15 +3344,18 @@ function handleLogExpenseSubmit(e) {
         desc: desc,
         amount: amount,
         paidBy: paidBy,
-        splitters: splitters
+        category: category,
+        splitType: splitType,
+        shares: shares
     };
     
     state.ledgerExpenses.push(exp);
     localStorage.setItem('ta_expenses', JSON.stringify(state.ledgerExpenses));
     
-    // Reset Form fields
+    // Reset inputs
     document.getElementById('exp-desc').value = '';
     document.getElementById('exp-amount').value = '';
+    document.getElementById('settlement-form-card').style.display = 'none';
     
     initializeLedgerView();
 }
@@ -2358,12 +3363,14 @@ function handleLogExpenseSubmit(e) {
 function handleDeleteExpense(id) {
     state.ledgerExpenses = state.ledgerExpenses.filter(e => e.id !== id);
     localStorage.setItem('ta_expenses', JSON.stringify(state.ledgerExpenses));
+    document.getElementById('settlement-form-card').style.display = 'none';
     initializeLedgerView();
 }
 
 function handleClearLedger() {
     state.ledgerExpenses = [];
     localStorage.removeItem('ta_expenses');
+    document.getElementById('settlement-form-card').style.display = 'none';
     initializeLedgerView();
 }
 
@@ -2376,34 +3383,56 @@ function renderLedgerHistoryList() {
         return;
     }
     
-    list.innerHTML = state.ledgerExpenses.map(e => `
-        <li style="border:1px solid var(--border); border-radius:8px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center; background:#FAF9F6; font-size:0.85rem;">
-            <div>
-                <strong>${e.desc}</strong>
-                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.15rem;">
-                    Paid by <strong>${e.paidBy}</strong> • Split between: ${e.splitters.join(', ')}
+    list.innerHTML = state.ledgerExpenses.map(e => {
+        let details = `Paid by <strong>${e.paidBy}</strong>`;
+        if (e.category === 'Settle') {
+            details = `Settlement transaction: <strong>${e.paidBy}</strong> paid debt`;
+        } else {
+            const splitNames = Object.keys(e.shares || {}).filter(m => e.shares[m] > 0.05);
+            details += ` • Split: ${e.splitType || 'equal'} (${splitNames.join(', ')})`;
+        }
+        
+        const catBadge = `<span style="font-size:0.68rem; font-weight:800; text-transform:uppercase; padding:0.15rem 0.45rem; border-radius:100px; margin-left:0.5rem; background:rgba(124, 58, 237, 0.1); color:var(--accent);">${e.category || 'Misc'}</span>`;
+        
+        return `
+            <li style="border:1px solid var(--border); border-radius:8px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center; background:#FAF9F6; font-size:0.85rem;">
+                <div>
+                    <strong>${e.desc}</strong> ${catBadge}
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.15rem;">
+                        ${details}
+                    </div>
                 </div>
-            </div>
-            <div style="display:flex; align-items:center; gap:1rem;">
-                <strong style="color:var(--text-primary);">₹${e.amount.toLocaleString('en-IN')}</strong>
-                <button onclick="handleDeleteExpense(${e.id})" style="color:#DC2626; font-weight:700; font-size:1.1rem; line-height:1;">&times;</button>
-            </div>
-        </li>
-    `).join('');
+                <div style="display:flex; align-items:center; gap:1rem;">
+                    <strong style="color:var(--text-primary);">₹${Math.round(e.amount).toLocaleString('en-IN')}</strong>
+                    <button onclick="handleDeleteExpense(${e.id})" style="color:#DC2626; font-weight:700; font-size:1.1rem; line-height:1; border:none; background:none; cursor:pointer;" title="Delete Bill">&times;</button>
+                </div>
+            </li>
+        `;
+    }).reverse().join('');
 }
 
 function calculateSettleUpLedger() {
-    const blist = document.getElementById('ledger-balances-list');
-    const rlist = document.getElementById('ledger-resolutions-list');
+    const blist = document.getElementById('ledger-balances-list-tab');
+    const rlist = document.getElementById('ledger-resolutions-list-tab');
+    const sidebarBlist = document.getElementById('ledger-balances-list');
+    const sidebarRlist = document.getElementById('ledger-resolutions-list');
+    
     if (!blist || !rlist) return;
     
     // Initialize empty balances map
     const balances = {};
     state.groupMembers.forEach(m => balances[m] = 0);
     
+    let totalSpend = 0;
+    let billsCount = 0;
+    
     // Calculate net credit/debit for each person
     state.ledgerExpenses.forEach(e => {
-        const share = e.amount / e.splitters.length;
+        // Exclude settlement entries from total spend metrics
+        if (e.category !== 'Settle') {
+            totalSpend += e.amount;
+            billsCount++;
+        }
         
         // Add full paid amount to payer credit balance
         if (balances[e.paidBy] !== undefined) {
@@ -2411,18 +3440,24 @@ function calculateSettleUpLedger() {
         }
         
         // Subtract share from splitters debit balance
-        e.splitters.forEach(s => {
-            if (balances[s] !== undefined) {
-                balances[s] -= share;
+        const expenseShares = e.shares || {};
+        state.groupMembers.forEach(m => {
+            const share = expenseShares[m] || 0;
+            if (balances[m] !== undefined) {
+                balances[m] -= share;
             }
         });
     });
     
-    // Render balances list
-    blist.innerHTML = Object.keys(balances).map(m => {
+    // Update summary widget
+    document.getElementById('ledger-summary-total').textContent = `₹${Math.round(totalSpend).toLocaleString('en-IN')}`;
+    document.getElementById('ledger-summary-count').textContent = `${billsCount} bill${billsCount !== 1 ? 's' : ''}`;
+    
+    // Render balances lists (both tab sheet and sidebar)
+    const balancesHtml = Object.keys(balances).map(m => {
         const bal = balances[m];
-        const color = bal > 0.01 ? '#00AA6C' : bal < -0.01 ? '#DC2626' : 'var(--text-muted)';
-        const sign = bal > 0.01 ? '+' : '';
+        const color = bal > 0.05 ? '#00AA6C' : bal < -0.05 ? '#DC2626' : 'var(--text-muted)';
+        const sign = bal > 0.05 ? '+' : '';
         return `
             <li style="display:flex; justify-content:space-between; border-bottom:1.5px dashed var(--border); padding-bottom:2px;">
                 <span>${m}</span>
@@ -2430,6 +3465,9 @@ function calculateSettleUpLedger() {
             </li>
         `;
     }).join('');
+    
+    blist.innerHTML = balancesHtml;
+    if (sidebarBlist) sidebarBlist.innerHTML = balancesHtml;
     
     // Solve balances clearing using greedy match algorithm
     const debtors = [];
@@ -2472,16 +3510,288 @@ function calculateSettleUpLedger() {
         if (Math.abs(c.balance) < 0.05) creditors.shift();
     }
     
+    // Update Settlement status badge in summary
+    const summaryStatus = document.getElementById('ledger-summary-status');
+    if (summaryStatus) {
+        if (transactions.length === 0) {
+            summaryStatus.textContent = "Fully Settled";
+            summaryStatus.style.color = "var(--success)";
+        } else {
+            summaryStatus.textContent = `${transactions.length} Payment${transactions.length !== 1 ? 's' : ''} Due`;
+            summaryStatus.style.color = "var(--accent)";
+        }
+    }
+    
     if (transactions.length === 0) {
-        rlist.innerHTML = `<li style="color:var(--text-muted); font-size:0.8rem; font-weight:normal; text-align:center; padding:0.5rem 0;">Group is fully settled!</li>`;
+        const emptyMsg = `<li style="color:var(--text-muted); font-size:0.85rem; font-weight:normal; text-align:center; padding:1.5rem 0;">🎉 Group is fully settled!</li>`;
+        rlist.innerHTML = emptyMsg;
+        if (sidebarRlist) sidebarRlist.innerHTML = emptyMsg;
         return;
     }
     
+    // Render resolutions to tab view (with action settle button)
     rlist.innerHTML = transactions.map(t => `
-        <li style="border:1.5px solid var(--accent); background:#FAFBF9; border-radius:6px; padding:0.4rem 0.75rem; margin-bottom:0.35rem; font-size:0.82rem;">
-            💸 <strong>${t.from}</strong> owes <strong>${t.to}</strong>: <span style="font-size:0.9rem;">₹${t.amount.toLocaleString('en-IN')}</span>
+        <li style="border:1.5px solid var(--border); background:#FAF9F6; border-radius:10px; padding:0.6rem 1rem; display:flex; justify-content:space-between; align-items:center; font-size:0.9rem;">
+            <div>
+                💸 <strong>${t.from}</strong> owes <strong>${t.to}</strong>: <span style="font-weight:800; color:var(--accent);">₹${t.amount.toLocaleString('en-IN')}</span>
+            </div>
+            <button onclick="promptSettlement('${t.from}', '${t.to}', ${t.amount})" class="btn-primary" style="padding:0.35rem 0.75rem; font-size:0.75rem; border-radius:6px; font-weight:600;">Settle Up</button>
         </li>
     `).join('');
+    
+    // Render resolutions to sidebar list (no actions)
+    if (sidebarRlist) {
+        sidebarRlist.innerHTML = transactions.map(t => `
+            <li style="border:1.5px solid var(--accent); background:#FAFBF9; border-radius:6px; padding:0.4rem 0.75rem; margin-bottom:0.35rem; font-size:0.82rem;">
+                💸 <strong>${t.from}</strong> owes <strong>${t.to}</strong>: <span style="font-size:0.9rem;">₹${t.amount.toLocaleString('en-IN')}</span>
+            </li>
+        `).join('');
+    }
+}
+
+function promptSettlement(from, to, amount) {
+    const card = document.getElementById('settlement-form-card');
+    if (!card) return;
+    
+    card.style.display = 'block';
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    
+    document.getElementById('settle-from-hidden').value = from;
+    document.getElementById('settle-to-hidden').value = to;
+    document.getElementById('settle-amount-hidden').value = amount;
+    
+    document.getElementById('settlement-text-desc').innerHTML = `🤝 <strong>${from}</strong> will pay <strong>${to}</strong> an amount of <strong style="color:var(--accent);">₹${amount.toLocaleString()}</strong>`;
+}
+
+function handleSettlementSubmit(e) {
+    e.preventDefault();
+    const from = document.getElementById('settle-from-hidden').value;
+    const to = document.getElementById('settle-to-hidden').value;
+    const amount = parseFloat(document.getElementById('settle-amount-hidden').value);
+    const method = document.getElementById('settle-method').value;
+    
+    if (!from || !to || !amount) return;
+    
+    // Record special settlement expense entry
+    // Payer is the debtor ('from'), and the debtor pays for the creditor ('to')
+    const shares = {};
+    state.groupMembers.forEach(m => shares[m] = 0);
+    shares[to] = amount; // Payer ('from') gets credited by amount. Creditor ('to') gets debited by amount.
+    
+    const exp = {
+        id: Date.now(),
+        desc: `Settlement: ${from} paid ${to}`,
+        amount: amount,
+        paidBy: from,
+        category: "Settle",
+        splitType: "self",
+        shares: shares
+    };
+    
+    state.ledgerExpenses.push(exp);
+    localStorage.setItem('ta_expenses', JSON.stringify(state.ledgerExpenses));
+    
+    document.getElementById('settlement-form-card').style.display = 'none';
+    initializeLedgerView();
+    
+    alert(`🎉 Settlement recorded! ${from} paid ₹${amount.toLocaleString()} to ${to} via ${method}.`);
+}
+
+function renderLedgerCharts() {
+    if (typeof Chart === 'undefined') return;
+    
+    // 1. Spend by Category
+    const catData = { Stay: 0, Food: 0, Travel: 0, Sights: 0, Drinks: 0, Misc: 0 };
+    // 2. Share of Spend by Member (sum of individual shares owed)
+    const memberData = {};
+    state.groupMembers.forEach(m => memberData[m] = 0);
+    
+    state.ledgerExpenses.forEach(e => {
+        if (e.category === 'Settle') return; // Skip settlements
+        
+        catData[e.category || 'Misc'] += e.amount;
+        
+        const shares = e.shares || {};
+        state.groupMembers.forEach(m => {
+            memberData[m] += (shares[m] || 0);
+        });
+    });
+    
+    // Category Pie Chart
+    const pieCtx = document.getElementById('expense-pie-chart')?.getContext('2d');
+    if (pieCtx) {
+        if (state.charts.pie) state.charts.pie.destroy();
+        
+        const labels = Object.keys(catData).filter(c => catData[c] > 0);
+        const data = labels.map(c => catData[c]);
+        
+        const colors = {
+            Stay: '#7C3AED',
+            Food: '#F59E0B',
+            Travel: '#3B82F6',
+            Sights: '#10B981',
+            Drinks: '#EF4444',
+            Misc: '#6B7280'
+        };
+        const bgColors = labels.map(c => colors[c] || '#6B7280');
+        
+        if (labels.length === 0) {
+            labels.push("No Expenses Logged");
+            data.push(1);
+            bgColors.push('#E5E7EB');
+        }
+        
+        state.charts.pie = new Chart(pieCtx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: bgColors,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12, font: { size: 10, family: 'Plus Jakarta Sans' } }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Member Bar Chart
+    const barCtx = document.getElementById('member-bar-chart')?.getContext('2d');
+    if (barCtx) {
+        if (state.charts.bar) state.charts.bar.destroy();
+        
+        const labels = Object.keys(memberData);
+        const data = labels.map(m => Math.round(memberData[m]));
+        
+        state.charts.bar = new Chart(barCtx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Individual Spend Share (₹)',
+                    data: data,
+                    backgroundColor: 'rgba(124, 58, 237, 0.75)',
+                    borderColor: '#7C3AED',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { font: { family: 'Plus Jakarta Sans', size: 9 } }
+                    },
+                    x: {
+                        ticks: { font: { family: 'Plus Jakarta Sans', size: 10 } }
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    }
+}
+
+function exportLedgerCSV() {
+    if (state.ledgerExpenses.length === 0) {
+        alert("No bills logged to export.");
+        return;
+    }
+    
+    let csv = "ID,Description,Amount,PaidBy,Category,SplitType,SharesDetails\r\n";
+    state.ledgerExpenses.forEach(e => {
+        const shareStrs = [];
+        const shares = e.shares || {};
+        Object.keys(shares).forEach(m => {
+            if (shares[m] > 0) shareStrs.push(`${m}:${Math.round(shares[m])}`);
+        });
+        
+        csv += `${e.id},"${e.desc.replace(/"/g, '""')}",${e.amount},"${e.paidBy}","${e.category || 'Misc'}","${e.splitType || 'equal'}","${shareStrs.join(';')}"\r\n`;
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `TripSplit_Ledger_${state.currentCity || 'Trip'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function exportLedgerPDF() {
+    if (state.ledgerExpenses.length === 0) {
+        alert("No bills logged to export.");
+        return;
+    }
+    
+    const printWindow = window.open('', '_blank');
+    const billsHtml = state.ledgerExpenses.map(e => `
+        <tr>
+            <td>${e.desc}</td>
+            <td><strong>${e.category || 'Misc'}</strong></td>
+            <td>${e.paidBy}</td>
+            <td>${e.splitType || 'equal'}</td>
+            <td><strong>₹${Math.round(e.amount).toLocaleString('en-IN')}</strong></td>
+        </tr>
+    `).join('');
+    
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>TripSplit Ledger Invoice Summary - ${state.currentCity || 'Trip'}</title>
+            <style>
+                body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 2.5rem; color: #1F2937; }
+                h1 { margin-bottom: 0.5rem; font-size: 1.8rem; color: #7C3AED; }
+                h2 { margin-top: 1.5rem; font-size: 1.2rem; }
+                table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; margin-bottom: 2rem; }
+                th, td { border: 1px solid #E5E7EB; padding: 0.75rem 1rem; text-align: left; font-size: 0.88rem; }
+                th { background: #FAF9F6; font-weight: bold; }
+                .footer { font-size: 0.75rem; color: #6B7280; text-align: center; border-top: 1px solid #E5E7EB; padding-top: 1.5rem; margin-top: 3rem; }
+            </style>
+        </head>
+        <body>
+            <h1>⚖️ TripSplit Group Ledger Invoice</h1>
+            <p>Generated for group trip: <strong>${state.currentCity ? state.currentCity.toUpperCase() : 'Global Explore'}</strong></p>
+            <p>Group Members: <strong>${state.groupMembers.join(', ')}</strong></p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Paid By</th>
+                        <th>Split Method</th>
+                        <th>Total Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${billsHtml}
+                </tbody>
+            </table>
+            
+            <div class="footer">
+                Thank you for using TripSplit. Plan, split, and explore worldwide!
+            </div>
+            <script>
+                window.onload = function() { window.print(); }
+            </script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
 }
 
 // --- HOMEPAGE BUDGET OPTIMIZER & AUTOCOMPLETE ROUTINES ---
@@ -2503,21 +3813,34 @@ function setupHomeOptimizerAutocomplete() {
             { label: 'Jaipur', sub: 'Rajasthan, India' },
             { label: 'Goa', sub: 'India' },
             { label: 'Delhi', sub: 'National Capital Territory, India' },
-            { label: 'Mumbai', sub: 'Maharashtra, India' }
+            { label: 'Mumbai', sub: 'Maharashtra, India' },
+            { label: 'London', sub: 'United Kingdom' },
+            { label: 'Paris', sub: 'France' },
+            { label: 'New York', sub: 'United States' },
+            { label: 'Shimla', sub: 'Himachal Pradesh, India' },
+            { label: 'Manali', sub: 'Himachal Pradesh, India' }
         ].filter(item => item.label.toLowerCase().includes(query.toLowerCase()));
         
-        if (items.length === 0) {
-            dropdown.innerHTML = `<div style="padding:0.75rem; text-align:center; font-size:0.8rem; color:var(--text-muted);">Generic destination</div>`;
-            dropdown.classList.remove('hidden');
-            return;
+        let htmlContent = '';
+        if (items.length > 0) {
+            htmlContent = items.map(item => `
+                <div class="autocomplete-item" onclick="selectHomeOptAutocomplete('${item.label.replace(/'/g, "\\'")}')" style="padding:0.5rem 0.75rem; cursor:pointer; font-size:0.85rem; display:flex; flex-direction:column;">
+                    <strong style="color:var(--text-primary);">${item.label}</strong>
+                    <span style="font-size:0.7rem; color:var(--text-muted);">${item.sub}</span>
+                </div>
+            `).join('');
         }
         
-        dropdown.innerHTML = items.map(item => `
-            <div class="autocomplete-item" onclick="selectHomeOptAutocomplete('${item.label}')" style="padding:0.5rem 0.75rem; cursor:pointer; font-size:0.85rem; display:flex; flex-direction:column;">
-                <strong style="color:var(--text-primary);">${item.label}</strong>
-                <span style="font-size:0.7rem; color:var(--text-muted);">${item.sub}</span>
+        // Always append a clickable option to search/use the custom typed query
+        const queryEscaped = query.replace(/'/g, "\\'");
+        htmlContent += `
+            <div class="autocomplete-item" onclick="selectHomeOptAutocomplete('${queryEscaped}')" style="padding:0.5rem 0.75rem; cursor:pointer; font-size:0.85rem; border-top: 1px solid var(--border); display:flex; flex-direction:column; background: #fafafa;">
+                <strong style="color:var(--accent);">🔍 Use "${query}"</strong>
+                <span style="font-size:0.7rem; color:var(--text-muted);">Explore custom location</span>
             </div>
-        `).join('');
+        `;
+        
+        dropdown.innerHTML = htmlContent;
         dropdown.classList.remove('hidden');
     });
     
@@ -2569,39 +3892,440 @@ function capitalizeFirstLetter(str) {
 }
 
 function isIndianCity(city) {
-    const indCities = ['jaipur', 'delhi', 'mumbai', 'goa', 'bangalore', 'kolkata', 'chennai', 'hyderabad', 'pune', 'agra', 'udaipur', 'himachal pradesh', 'kerala'];
-    return indCities.includes(city.toLowerCase());
+    const indCities = ['jaipur', 'delhi', 'mumbai', 'goa', 'bangalore', 'bengaluru', 'kolkata', 'chennai', 'hyderabad', 'pune', 'agra', 'udaipur', 'himachal pradesh', 'shimla', 'manali', 'dharamshala', 'kerala', 'kochi', 'varanasi', 'rishikesh', 'mysore', 'mysuru', 'amritsar', 'jodhpur', 'jaisalmer', 'ooty', 'kodaikanal', 'darjeeling', 'gangtok', 'leh', 'ladakh', 'andaman', 'pondicherry', 'pushkar', 'mount abu', 'nainital', 'mussoorie', 'coorg', 'munnar', 'alleppey', 'hampi', 'khajuraho', 'lucknow', 'bhopal', 'chandigarh', 'srinagar', 'dehradun', 'haridwar'];
+    return indCities.includes(city.toLowerCase().trim());
 }
 
+function getCountryForCity(city) {
+    if (!city) return "India";
+    const c = city.toLowerCase().trim();
+    if (c === "new york") return "United States";
+    if (c === "london") return "United Kingdom";
+    if (c === "paris") return "France";
+    if (c === "tokyo") return "Japan";
+    
+    if (c.includes("united states") || c.includes("usa") || c.includes("ny")) return "United States";
+    if (c.includes("united kingdom") || c.includes("uk")) return "United Kingdom";
+    if (c.includes("france")) return "France";
+    if (c.includes("japan")) return "Japan";
+    
+    const list = [
+        { label: 'London', sub: 'United Kingdom' },
+        { label: 'Paris', sub: 'France' },
+        { label: 'Tokyo', sub: 'Japan' },
+        { label: 'New York', sub: 'United States' }
+    ];
+    for (let item of list) {
+        if (c.includes(item.label.toLowerCase())) {
+            return item.sub;
+        }
+    }
+    return "India";
+}
+
+// City-specific real fallback databases with accurate names, coordinates, and costs
+const CITY_FALLBACK_DB = {
+    'himachal pradesh': {
+        hotels: [
+            { id:'h1', name:'The Oberoi Wildflower Hall, Shimla', cost:28000, stars:5, sub_type:'Resort', lat:31.1048, lon:77.1734, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:'The Oberoi Cecil, Shimla', cost:18000, stars:5, sub_type:'Hotel', lat:31.1048, lon:77.1734, wifi:true, pool:false, parking:true, bar:true },
+            { id:'h3', name:'Johnson Lodge & Spa, Manali', cost:5500, stars:4, sub_type:'Hotel', lat:32.2396, lon:77.1887, wifi:true, pool:false, parking:true, bar:true },
+            { id:'h4', name:'Zostel Manali', cost:600, stars:3.5, sub_type:'Hostel', lat:32.2432, lon:77.1893, wifi:true, pool:false, parking:false, bar:false },
+            { id:'h5', name:'Snow Valley Resorts, Shimla', cost:7200, stars:4, sub_type:'Resort', lat:31.1080, lon:77.1620, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h6', name:'Manu Allaya Spa Resort, Manali', cost:9500, stars:4.5, sub_type:'Resort', lat:32.2290, lon:77.1780, wifi:true, pool:true, parking:true, bar:true }
+        ],
+        restaurants: [
+            { id:'r1', name:'Cafe 1947, Old Manali', cost:500, stars:4.6, sub_type:'cafe', price_tier:2, lat:32.2510, lon:77.1870 },
+            { id:'r2', name:'Johnson\'s Cafe, Manali', cost:700, stars:4.5, sub_type:'cafe', price_tier:2, lat:32.2396, lon:77.1887 },
+            { id:'r3', name:'Hidimba Devi Dhaba, Manali', cost:300, stars:4.3, sub_type:'indian', price_tier:1, lat:32.2420, lon:77.1880 },
+            { id:'r4', name:'Baljees Restaurant, Shimla', cost:600, stars:4.4, sub_type:'indian', price_tier:2, lat:31.1048, lon:77.1734 },
+            { id:'r5', name:'Wake & Bake Cafe, Dharamkot', cost:400, stars:4.7, sub_type:'cafe', price_tier:2, lat:32.2470, lon:76.3210 }
+        ],
+        experiences: [
+            { id:'e1', name:'Solang Valley Adventure Sports', original_cost:1500, stars:4.8, sub_type:'viewpoint', lat:32.3150, lon:77.1570 },
+            { id:'e2', name:'Hadimba Temple, Manali', original_cost:0, stars:4.7, sub_type:'museum', lat:32.2434, lon:77.1890 },
+            { id:'e3', name:'The Ridge & Mall Road Walk, Shimla', original_cost:0, stars:4.5, sub_type:'viewpoint', lat:31.1048, lon:77.1734 },
+            { id:'e4', name:'Rohtang Pass Snow Point', original_cost:600, stars:4.9, sub_type:'viewpoint', lat:32.3722, lon:77.2478 },
+            { id:'e5', name:'Jakhu Temple & Hanuman Statue, Shimla', original_cost:0, stars:4.3, sub_type:'museum', lat:31.1118, lon:77.1793 },
+            { id:'e6', name:'Triund Trek, Dharamshala', original_cost:0, stars:4.9, sub_type:'park', lat:32.2764, lon:76.3536 },
+            { id:'e7', name:'Kufri Fun World & Snow Sports', original_cost:800, stars:4.2, sub_type:'park', lat:31.0980, lon:77.2620 }
+        ]
+    },
+    'shimla': {
+        hotels: [
+            { id:'h1', name:'The Oberoi Wildflower Hall', cost:28000, stars:5, sub_type:'Resort', lat:31.1048, lon:77.1734, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:'The Oberoi Cecil', cost:18000, stars:5, sub_type:'Hotel', lat:31.1048, lon:77.1734, wifi:true, pool:false, parking:true, bar:true },
+            { id:'h3', name:'Hotel Combermere', cost:4500, stars:4, sub_type:'Hotel', lat:31.1040, lon:77.1730, wifi:true, pool:false, parking:true, bar:true },
+            { id:'h4', name:'Snow Valley Resorts', cost:7200, stars:4, sub_type:'Resort', lat:31.1080, lon:77.1620, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h5', name:'Zostel Shimla', cost:700, stars:3.5, sub_type:'Hostel', lat:31.1060, lon:77.1740, wifi:true, pool:false, parking:false, bar:false }
+        ],
+        restaurants: [
+            { id:'r1', name:'Baljees Restaurant', cost:600, stars:4.4, sub_type:'indian', price_tier:2, lat:31.1048, lon:77.1734 },
+            { id:'r2', name:'Cafe Simla Times', cost:500, stars:4.5, sub_type:'cafe', price_tier:2, lat:31.1042, lon:77.1730 },
+            { id:'r3', name:'Ashiana Restaurant at The Ridge', cost:800, stars:4.3, sub_type:'indian', price_tier:2, lat:31.1050, lon:77.1730 },
+            { id:'r4', name:'Hide Out Cafe, Mall Road', cost:400, stars:4.2, sub_type:'cafe', price_tier:1, lat:31.1045, lon:77.1735 }
+        ],
+        experiences: [
+            { id:'e1', name:'The Ridge & Mall Road Walk', original_cost:0, stars:4.5, sub_type:'viewpoint', lat:31.1048, lon:77.1734 },
+            { id:'e2', name:'Jakhu Temple & Hanuman Statue', original_cost:0, stars:4.3, sub_type:'museum', lat:31.1118, lon:77.1793 },
+            { id:'e3', name:'Christ Church Heritage Visit', original_cost:0, stars:4.6, sub_type:'museum', lat:31.1042, lon:77.1730 },
+            { id:'e4', name:'Kufri Fun World & Snow Sports', original_cost:800, stars:4.2, sub_type:'park', lat:31.0980, lon:77.2620 },
+            { id:'e5', name:'Jakhoo Hill Sunset Point', original_cost:0, stars:4.4, sub_type:'viewpoint', lat:31.1118, lon:77.1793 },
+            { id:'e6', name:'Shimla State Museum', original_cost:20, stars:4.0, sub_type:'museum', lat:31.1060, lon:77.1740 }
+        ]
+    },
+    'manali': {
+        hotels: [
+            { id:'h1', name:'The Himalayan Resort & Spa', cost:12000, stars:4.5, sub_type:'Resort', lat:32.2396, lon:77.1887, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:'Manu Allaya Spa Resort', cost:9500, stars:4.5, sub_type:'Resort', lat:32.2290, lon:77.1780, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h3', name:'Johnson Lodge & Spa', cost:5500, stars:4, sub_type:'Hotel', lat:32.2396, lon:77.1887, wifi:true, pool:false, parking:true, bar:true },
+            { id:'h4', name:'Zostel Manali', cost:600, stars:3.5, sub_type:'Hostel', lat:32.2432, lon:77.1893, wifi:true, pool:false, parking:false, bar:false },
+            { id:'h5', name:'Hotel Beas, Mall Road', cost:3200, stars:3.5, sub_type:'Hotel', lat:32.2410, lon:77.1890, wifi:true, pool:false, parking:true, bar:false }
+        ],
+        restaurants: [
+            { id:'r1', name:'Cafe 1947, Old Manali', cost:500, stars:4.6, sub_type:'cafe', price_tier:2, lat:32.2510, lon:77.1870 },
+            { id:'r2', name:'Johnson\'s Cafe', cost:700, stars:4.5, sub_type:'cafe', price_tier:2, lat:32.2396, lon:77.1887 },
+            { id:'r3', name:'Drifters\' Inn & Cafe', cost:400, stars:4.4, sub_type:'cafe', price_tier:2, lat:32.2480, lon:77.1860 },
+            { id:'r4', name:'Lazy Dog Lounge, Old Manali', cost:600, stars:4.3, sub_type:'cafe', price_tier:2, lat:32.2500, lon:77.1870 },
+            { id:'r5', name:'Il Forno Italian Pizzeria', cost:550, stars:4.4, sub_type:'italian', price_tier:2, lat:32.2440, lon:77.1880 }
+        ],
+        experiences: [
+            { id:'e1', name:'Solang Valley Adventure Sports', original_cost:1500, stars:4.8, sub_type:'viewpoint', lat:32.3150, lon:77.1570 },
+            { id:'e2', name:'Hadimba Temple', original_cost:0, stars:4.7, sub_type:'museum', lat:32.2434, lon:77.1890 },
+            { id:'e3', name:'Old Manali Village Walk', original_cost:0, stars:4.5, sub_type:'viewpoint', lat:32.2510, lon:77.1870 },
+            { id:'e4', name:'Rohtang Pass Snow Point', original_cost:600, stars:4.9, sub_type:'viewpoint', lat:32.3722, lon:77.2478 },
+            { id:'e5', name:'Jogini Waterfall Trek', original_cost:0, stars:4.6, sub_type:'park', lat:32.2530, lon:77.1860 },
+            { id:'e6', name:'Beas River Rafting', original_cost:1200, stars:4.7, sub_type:'beach', lat:32.2250, lon:77.1850 }
+        ]
+    },
+    'goa': {
+        hotels: [
+            { id:'h1', name:'Taj Fort Aguada Resort & Spa', cost:22000, stars:5, sub_type:'Resort', lat:15.4909, lon:73.7735, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:'The Leela Goa', cost:18000, stars:5, sub_type:'Resort', lat:15.1763, lon:73.9408, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h3', name:'W Goa', cost:15000, stars:5, sub_type:'Hotel', lat:15.1570, lon:73.9640, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h4', name:'Zostel Goa Anjuna', cost:500, stars:3.5, sub_type:'Hostel', lat:15.5835, lon:73.7418, wifi:true, pool:false, parking:false, bar:false },
+            { id:'h5', name:'Old Quarter by Jehan Numa, Fontainhas', cost:6500, stars:4.5, sub_type:'Guest House', lat:15.5010, lon:73.8280, wifi:true, pool:false, parking:true, bar:true },
+            { id:'h6', name:'Panjim Inn Heritage Hotel', cost:4200, stars:4, sub_type:'Hotel', lat:15.4989, lon:73.8282, wifi:true, pool:false, parking:true, bar:true }
+        ],
+        restaurants: [
+            { id:'r1', name:'Gunpowder, Assagao', cost:800, stars:4.7, sub_type:'indian', price_tier:2, lat:15.5747, lon:73.7715 },
+            { id:'r2', name:'Vinayak Family Restaurant, Assagao', cost:350, stars:4.3, sub_type:'indian', price_tier:1, lat:15.5750, lon:73.7720 },
+            { id:'r3', name:'Thalassa, Vagator', cost:1200, stars:4.6, sub_type:'cafe', price_tier:3, lat:15.6015, lon:73.7363 },
+            { id:'r4', name:'Curlies Beach Shack, Anjuna', cost:400, stars:4.2, sub_type:'cafe', price_tier:1, lat:15.5860, lon:73.7400 },
+            { id:'r5', name:'Martin\'s Corner, Betalbatim', cost:700, stars:4.5, sub_type:'indian', price_tier:2, lat:15.3120, lon:73.9100 }
+        ],
+        experiences: [
+            { id:'e1', name:'Basilica of Bom Jesus, Old Goa', original_cost:0, stars:4.8, sub_type:'museum', lat:15.5009, lon:73.9116 },
+            { id:'e2', name:'Fort Aguada & Lighthouse', original_cost:0, stars:4.6, sub_type:'viewpoint', lat:15.4922, lon:73.7735 },
+            { id:'e3', name:'Dudhsagar Waterfall Trek', original_cost:400, stars:4.9, sub_type:'park', lat:15.3144, lon:74.3143 },
+            { id:'e4', name:'Anjuna Flea Market', original_cost:0, stars:4.3, sub_type:'viewpoint', lat:15.5835, lon:73.7418 },
+            { id:'e5', name:'Calangute Beach Water Sports', original_cost:1500, stars:4.4, sub_type:'beach', lat:15.5437, lon:73.7554 },
+            { id:'e6', name:'Fontainhas Latin Quarter Walk', original_cost:0, stars:4.5, sub_type:'viewpoint', lat:15.5010, lon:73.8280 },
+            { id:'e7', name:'Palolem Beach Kayaking', original_cost:800, stars:4.7, sub_type:'beach', lat:15.0100, lon:74.0230 }
+        ]
+    },
+    'delhi': {
+        hotels: [
+            { id:'h1', name:'The Imperial New Delhi', cost:25000, stars:5, sub_type:'Hotel', lat:28.6260, lon:77.2200, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:'Taj Palace, Chanakyapuri', cost:20000, stars:5, sub_type:'Hotel', lat:28.5927, lon:77.1780, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h3', name:'The Lalit New Delhi', cost:12000, stars:5, sub_type:'Hotel', lat:28.6330, lon:77.2190, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h4', name:'Zostel South Delhi', cost:700, stars:3.5, sub_type:'Hostel', lat:28.5355, lon:77.2500, wifi:true, pool:false, parking:false, bar:false },
+            { id:'h5', name:'Hotel Broadway, Old Delhi', cost:3500, stars:3.5, sub_type:'Hotel', lat:28.6512, lon:77.2290, wifi:true, pool:false, parking:true, bar:true },
+            { id:'h6', name:'Bloomrooms @ Link Road', cost:3000, stars:3.5, sub_type:'Hotel', lat:28.6350, lon:77.2100, wifi:true, pool:false, parking:false, bar:false }
+        ],
+        restaurants: [
+            { id:'r1', name:'Karim\'s, Jama Masjid', cost:400, stars:4.7, sub_type:'indian', price_tier:2, lat:28.6507, lon:77.2334 },
+            { id:'r2', name:'Bukhara, ITC Maurya', cost:3500, stars:4.9, sub_type:'indian', price_tier:3, lat:28.5930, lon:77.1733 },
+            { id:'r3', name:'Indian Accent, The Lodhi', cost:4000, stars:4.8, sub_type:'indian', price_tier:3, lat:28.5930, lon:77.2240 },
+            { id:'r4', name:'Paranthe Wali Gali, Chandni Chowk', cost:200, stars:4.5, sub_type:'indian', price_tier:1, lat:28.6568, lon:77.2292 },
+            { id:'r5', name:'The Big Chill Cafe, Khan Market', cost:800, stars:4.4, sub_type:'cafe', price_tier:2, lat:28.6002, lon:77.2272 }
+        ],
+        experiences: [
+            { id:'e1', name:'Red Fort (Lal Qila)', original_cost:35, stars:4.7, sub_type:'museum', lat:28.6562, lon:77.2410 },
+            { id:'e2', name:'Qutub Minar Complex', original_cost:35, stars:4.8, sub_type:'museum', lat:28.5245, lon:77.1855 },
+            { id:'e3', name:'India Gate & Rajpath', original_cost:0, stars:4.6, sub_type:'viewpoint', lat:28.6129, lon:77.2295 },
+            { id:'e4', name:'Humayun\'s Tomb', original_cost:35, stars:4.7, sub_type:'museum', lat:28.5933, lon:77.2507 },
+            { id:'e5', name:'Chandni Chowk Heritage Walk', original_cost:0, stars:4.5, sub_type:'viewpoint', lat:28.6560, lon:77.2300 },
+            { id:'e6', name:'Lodhi Garden Morning Walk', original_cost:0, stars:4.4, sub_type:'park', lat:28.5930, lon:77.2190 },
+            { id:'e7', name:'Akshardham Temple', original_cost:0, stars:4.8, sub_type:'museum', lat:28.6127, lon:77.2773 }
+        ]
+    },
+    'mumbai': {
+        hotels: [
+            { id:'h1', name:'Taj Mahal Palace, Colaba', cost:30000, stars:5, sub_type:'Hotel', lat:18.9217, lon:72.8332, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:'The Oberoi Mumbai', cost:22000, stars:5, sub_type:'Hotel', lat:18.9260, lon:72.8230, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h3', name:'ITC Maratha, Andheri', cost:12000, stars:5, sub_type:'Hotel', lat:19.0970, lon:72.8660, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h4', name:'Zostel Mumbai', cost:700, stars:3.5, sub_type:'Hostel', lat:19.0178, lon:72.8478, wifi:true, pool:false, parking:false, bar:false },
+            { id:'h5', name:'Abode Bombay, Fort', cost:5000, stars:4, sub_type:'Hotel', lat:18.9350, lon:72.8350, wifi:true, pool:false, parking:false, bar:true }
+        ],
+        restaurants: [
+            { id:'r1', name:'Leopold Cafe, Colaba', cost:600, stars:4.3, sub_type:'cafe', price_tier:2, lat:18.9230, lon:72.8320 },
+            { id:'r2', name:'Britannia & Co., Fort', cost:500, stars:4.7, sub_type:'indian', price_tier:2, lat:18.9340, lon:72.8390 },
+            { id:'r3', name:'Trishna, Fort', cost:1500, stars:4.6, sub_type:'indian', price_tier:3, lat:18.9330, lon:72.8340 },
+            { id:'r4', name:'Bademiya, Colaba', cost:350, stars:4.4, sub_type:'indian', price_tier:1, lat:18.9200, lon:72.8340 },
+            { id:'r5', name:'Cafe Mondegar, Colaba', cost:500, stars:4.2, sub_type:'cafe', price_tier:2, lat:18.9225, lon:72.8315 }
+        ],
+        experiences: [
+            { id:'e1', name:'Gateway of India', original_cost:0, stars:4.6, sub_type:'museum', lat:18.9220, lon:72.8347 },
+            { id:'e2', name:'Marine Drive Sunset Walk', original_cost:0, stars:4.7, sub_type:'viewpoint', lat:18.9440, lon:72.8230 },
+            { id:'e3', name:'Elephanta Caves Ferry', original_cost:500, stars:4.5, sub_type:'museum', lat:18.9634, lon:72.9315 },
+            { id:'e4', name:'Chhatrapati Shivaji Terminus', original_cost:0, stars:4.6, sub_type:'museum', lat:18.9400, lon:72.8354 },
+            { id:'e5', name:'Juhu Beach & Chowpatty', original_cost:0, stars:4.2, sub_type:'beach', lat:19.0880, lon:72.8268 },
+            { id:'e6', name:'Dharavi Walking Tour', original_cost:800, stars:4.8, sub_type:'viewpoint', lat:19.0430, lon:72.8550 },
+            { id:'e7', name:'Haji Ali Dargah', original_cost:0, stars:4.5, sub_type:'museum', lat:18.9827, lon:72.8089 }
+        ]
+    },
+    'jaipur': {
+        hotels: [
+            { id:'h1', name:'Taj Rambagh Palace', cost:38000, stars:5, sub_type:'Hotel', lat:26.8981, lon:75.8078, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:'The Oberoi Rajvilas', cost:32000, stars:5, sub_type:'Resort', lat:26.8791, lon:75.8821, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h3', name:'Zostel Jaipur', cost:600, stars:3.5, sub_type:'Hostel', lat:26.9212, lon:75.8234, wifi:true, pool:false, parking:false, bar:false },
+            { id:'h4', name:'Pearl Palace Heritage Guest House', cost:3200, stars:4.5, sub_type:'Guest House', lat:26.9189, lon:75.7891, wifi:true, pool:false, parking:true, bar:true },
+            { id:'h5', name:'Samode Haveli', cost:14000, stars:4.5, sub_type:'Hotel', lat:26.9240, lon:75.8200, wifi:true, pool:true, parking:true, bar:true }
+        ],
+        restaurants: [
+            { id:'r1', name:'Laxmi Mishthan Bhandar (LMB)', cost:450, stars:4.5, sub_type:'indian', price_tier:2, lat:26.9201, lon:75.8281 },
+            { id:'r2', name:'Peacock Rooftop Cafe', cost:600, stars:4.7, sub_type:'cafe', price_tier:2, lat:26.9178, lon:75.7901 },
+            { id:'r3', name:'Chokhi Dhani Village Resort', cost:1200, stars:4.8, sub_type:'indian', price_tier:3, lat:26.7681, lon:75.8456 },
+            { id:'r4', name:'Tapri Central, C-Scheme', cost:300, stars:4.4, sub_type:'cafe', price_tier:1, lat:26.9100, lon:75.7900 },
+            { id:'r5', name:'Suvarna Mahal, Rambagh Palace', cost:3000, stars:4.9, sub_type:'indian', price_tier:3, lat:26.8981, lon:75.8078 }
+        ],
+        experiences: [
+            { id:'e1', name:'Amber Fort & Palace', original_cost:500, stars:4.9, sub_type:'museum', lat:26.9856, lon:75.8512 },
+            { id:'e2', name:'Hawa Mahal (Palace of Winds)', original_cost:50, stars:4.7, sub_type:'viewpoint', lat:26.9239, lon:75.8267 },
+            { id:'e3', name:'City Palace Museum', original_cost:500, stars:4.6, sub_type:'museum', lat:26.9260, lon:75.8235 },
+            { id:'e4', name:'Jantar Mantar Observatory', original_cost:200, stars:4.5, sub_type:'museum', lat:26.9248, lon:75.8242 },
+            { id:'e5', name:'Nahargarh Fort Sunset Point', original_cost:200, stars:4.8, sub_type:'viewpoint', lat:26.9379, lon:75.8161 },
+            { id:'e6', name:'Jal Mahal (Water Palace)', original_cost:0, stars:4.3, sub_type:'viewpoint', lat:26.9530, lon:75.8461 },
+            { id:'e7', name:'Albert Hall Museum', original_cost:150, stars:4.4, sub_type:'museum', lat:26.9116, lon:75.8070 }
+        ]
+    },
+    'bangalore': {
+        hotels: [
+            { id:'h1', name:'The Leela Palace Bengaluru', cost:20000, stars:5, sub_type:'Hotel', lat:12.9611, lon:77.6472, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:'Taj West End', cost:15000, stars:5, sub_type:'Hotel', lat:12.9699, lon:77.5798, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h3', name:'The Ritz-Carlton Bangalore', cost:18000, stars:5, sub_type:'Hotel', lat:12.9700, lon:77.5960, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h4', name:'Zostel Bangalore', cost:600, stars:3.5, sub_type:'Hostel', lat:12.9340, lon:77.6140, wifi:true, pool:false, parking:false, bar:false },
+            { id:'h5', name:'The Paul Bangalore', cost:8000, stars:4, sub_type:'Hotel', lat:12.9588, lon:77.6487, wifi:true, pool:true, parking:true, bar:true }
+        ],
+        restaurants: [
+            { id:'r1', name:'MTR (Mavalli Tiffin Room)', cost:250, stars:4.8, sub_type:'indian', price_tier:1, lat:12.9523, lon:77.5756 },
+            { id:'r2', name:'Vidyarthi Bhavan, Basavanagudi', cost:150, stars:4.7, sub_type:'indian', price_tier:1, lat:12.9465, lon:77.5716 },
+            { id:'r3', name:'Toit Brewpub, Indiranagar', cost:1000, stars:4.5, sub_type:'cafe', price_tier:2, lat:12.9784, lon:77.6408 },
+            { id:'r4', name:'Koshy\'s, St. Marks Road', cost:600, stars:4.3, sub_type:'cafe', price_tier:2, lat:12.9738, lon:77.5971 },
+            { id:'r5', name:'Nagarjuna, Residency Road', cost:500, stars:4.6, sub_type:'indian', price_tier:2, lat:12.9701, lon:77.6021 }
+        ],
+        experiences: [
+            { id:'e1', name:'Bangalore Palace', original_cost:230, stars:4.4, sub_type:'museum', lat:12.9988, lon:77.5920 },
+            { id:'e2', name:'Lalbagh Botanical Garden', original_cost:20, stars:4.6, sub_type:'park', lat:12.9507, lon:77.5848 },
+            { id:'e3', name:'Cubbon Park Morning Walk', original_cost:0, stars:4.5, sub_type:'park', lat:12.9763, lon:77.5929 },
+            { id:'e4', name:'ISKCON Temple Rajajinagar', original_cost:0, stars:4.7, sub_type:'museum', lat:13.0104, lon:77.5513 },
+            { id:'e5', name:'Nandi Hills Sunrise Trip', original_cost:0, stars:4.8, sub_type:'viewpoint', lat:13.3702, lon:77.6835 },
+            { id:'e6', name:'Commercial Street Shopping', original_cost:0, stars:4.2, sub_type:'viewpoint', lat:12.9810, lon:77.6070 }
+        ]
+    },
+    'kolkata': {
+        hotels: [
+            { id:'h1', name:'The Oberoi Grand', cost:16000, stars:5, sub_type:'Hotel', lat:22.5640, lon:88.3500, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:'Taj Bengal', cost:14000, stars:5, sub_type:'Hotel', lat:22.5300, lon:88.3450, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h3', name:'The Park Kolkata', cost:6000, stars:4, sub_type:'Hotel', lat:22.5440, lon:88.3510, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h4', name:'Zostel Kolkata', cost:500, stars:3.5, sub_type:'Hostel', lat:22.5650, lon:88.3520, wifi:true, pool:false, parking:false, bar:false }
+        ],
+        restaurants: [
+            { id:'r1', name:'Peter Cat, Park Street', cost:600, stars:4.6, sub_type:'indian', price_tier:2, lat:22.5510, lon:88.3530 },
+            { id:'r2', name:'Flurys, Park Street', cost:500, stars:4.5, sub_type:'cafe', price_tier:2, lat:22.5512, lon:88.3528 },
+            { id:'r3', name:'6 Ballygunge Place', cost:700, stars:4.7, sub_type:'indian', price_tier:2, lat:22.5280, lon:88.3650 },
+            { id:'r4', name:'Arsalan, Park Circus', cost:400, stars:4.6, sub_type:'indian', price_tier:2, lat:22.5380, lon:88.3580 }
+        ],
+        experiences: [
+            { id:'e1', name:'Victoria Memorial Hall', original_cost:30, stars:4.8, sub_type:'museum', lat:22.5448, lon:88.3426 },
+            { id:'e2', name:'Howrah Bridge Walk', original_cost:0, stars:4.5, sub_type:'viewpoint', lat:22.5851, lon:88.3468 },
+            { id:'e3', name:'Indian Museum', original_cost:50, stars:4.4, sub_type:'museum', lat:22.5582, lon:88.3515 },
+            { id:'e4', name:'Dakshineswar Kali Temple', original_cost:0, stars:4.7, sub_type:'museum', lat:22.6553, lon:88.3573 },
+            { id:'e5', name:'Kumartuli Idol Makers Lane', original_cost:0, stars:4.6, sub_type:'viewpoint', lat:22.5960, lon:88.3640 }
+        ]
+    },
+    'varanasi': {
+        hotels: [
+            { id:'h1', name:'Taj Nadesar Palace', cost:25000, stars:5, sub_type:'Hotel', lat:25.3176, lon:83.0100, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:'BrijRama Palace, Darbhanga Ghat', cost:15000, stars:5, sub_type:'Hotel', lat:25.3000, lon:83.0100, wifi:true, pool:false, parking:true, bar:true },
+            { id:'h3', name:'Zostel Varanasi', cost:500, stars:3.5, sub_type:'Hostel', lat:25.3100, lon:83.0120, wifi:true, pool:false, parking:false, bar:false },
+            { id:'h4', name:'Hotel Ganges View, Assi Ghat', cost:4500, stars:4, sub_type:'Hotel', lat:25.2890, lon:83.0060, wifi:true, pool:false, parking:true, bar:false }
+        ],
+        restaurants: [
+            { id:'r1', name:'Blue Lassi Shop', cost:100, stars:4.8, sub_type:'cafe', price_tier:1, lat:25.3120, lon:83.0110 },
+            { id:'r2', name:'Kashi Chat Bhandar', cost:100, stars:4.6, sub_type:'indian', price_tier:1, lat:25.3110, lon:83.0100 },
+            { id:'r3', name:'Pizzeria Vaatika Cafe', cost:400, stars:4.5, sub_type:'cafe', price_tier:2, lat:25.2920, lon:83.0050 },
+            { id:'r4', name:'Dosa Cafe, Assi Ghat', cost:250, stars:4.3, sub_type:'indian', price_tier:1, lat:25.2890, lon:83.0060 }
+        ],
+        experiences: [
+            { id:'e1', name:'Dashashwamedh Ghat Aarti', original_cost:0, stars:4.9, sub_type:'viewpoint', lat:25.3048, lon:83.0108 },
+            { id:'e2', name:'Sunrise Boat Ride on Ganges', original_cost:300, stars:4.9, sub_type:'viewpoint', lat:25.3000, lon:83.0100 },
+            { id:'e3', name:'Sarnath Buddhist Ruins', original_cost:20, stars:4.6, sub_type:'museum', lat:25.3814, lon:83.0225 },
+            { id:'e4', name:'Kashi Vishwanath Temple', original_cost:0, stars:4.8, sub_type:'museum', lat:25.3109, lon:83.0107 },
+            { id:'e5', name:'Manikarnika Ghat Walk', original_cost:0, stars:4.4, sub_type:'viewpoint', lat:25.3108, lon:83.0108 }
+        ]
+    },
+    'udaipur': {
+        hotels: [
+            { id:'h1', name:'Taj Lake Palace', cost:45000, stars:5, sub_type:'Hotel', lat:24.5740, lon:73.6812, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:'The Oberoi Udaivilas', cost:38000, stars:5, sub_type:'Resort', lat:24.5680, lon:73.6770, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h3', name:'Zostel Udaipur', cost:500, stars:3.5, sub_type:'Hostel', lat:24.5800, lon:73.6830, wifi:true, pool:false, parking:false, bar:false },
+            { id:'h4', name:'Jagat Niwas Palace Hotel', cost:4000, stars:4, sub_type:'Hotel', lat:24.5770, lon:73.6830, wifi:true, pool:false, parking:true, bar:true }
+        ],
+        restaurants: [
+            { id:'r1', name:'Ambrai Restaurant', cost:800, stars:4.7, sub_type:'indian', price_tier:2, lat:24.5760, lon:73.6810 },
+            { id:'r2', name:'Savage Garden', cost:600, stars:4.5, sub_type:'cafe', price_tier:2, lat:24.5780, lon:73.6820 },
+            { id:'r3', name:'Upre by 1559 AD', cost:1200, stars:4.6, sub_type:'indian', price_tier:3, lat:24.5790, lon:73.6830 },
+            { id:'r4', name:'Millets of Mewar', cost:400, stars:4.4, sub_type:'indian', price_tier:2, lat:24.5770, lon:73.6825 }
+        ],
+        experiences: [
+            { id:'e1', name:'City Palace Museum', original_cost:300, stars:4.8, sub_type:'museum', lat:24.5764, lon:73.6834 },
+            { id:'e2', name:'Lake Pichola Boat Ride', original_cost:400, stars:4.9, sub_type:'viewpoint', lat:24.5740, lon:73.6812 },
+            { id:'e3', name:'Jagdish Temple', original_cost:0, stars:4.5, sub_type:'museum', lat:24.5775, lon:73.6830 },
+            { id:'e4', name:'Saheliyon-ki-Bari Garden', original_cost:30, stars:4.3, sub_type:'park', lat:24.5875, lon:73.6810 },
+            { id:'e5', name:'Monsoon Palace Sunset', original_cost:80, stars:4.7, sub_type:'viewpoint', lat:24.5580, lon:73.6530 }
+        ]
+    },
+    'agra': {
+        hotels: [
+            { id:'h1', name:'The Oberoi Amarvilas', cost:35000, stars:5, sub_type:'Hotel', lat:27.1681, lon:78.0419, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:'ITC Mughal, A Luxury Collection', cost:15000, stars:5, sub_type:'Resort', lat:27.1567, lon:78.0390, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h3', name:'Zostel Agra', cost:500, stars:3.5, sub_type:'Hostel', lat:27.1750, lon:78.0200, wifi:true, pool:false, parking:false, bar:false },
+            { id:'h4', name:'Hotel Sheela, Taj Ganj', cost:1500, stars:3, sub_type:'Hotel', lat:27.1645, lon:78.0440, wifi:true, pool:false, parking:true, bar:false }
+        ],
+        restaurants: [
+            { id:'r1', name:'Pinch of Spice', cost:500, stars:4.5, sub_type:'indian', price_tier:2, lat:27.1860, lon:78.0100 },
+            { id:'r2', name:'Mama Chicken Mama Franky', cost:200, stars:4.2, sub_type:'indian', price_tier:1, lat:27.1850, lon:78.0110 },
+            { id:'r3', name:'Esphahan, Oberoi Amarvilas', cost:3000, stars:4.8, sub_type:'indian', price_tier:3, lat:27.1681, lon:78.0419 },
+            { id:'r4', name:'Bon Barbecue, Fatehabad Road', cost:700, stars:4.3, sub_type:'indian', price_tier:2, lat:27.1700, lon:78.0300 }
+        ],
+        experiences: [
+            { id:'e1', name:'Taj Mahal', original_cost:1100, stars:5.0, sub_type:'museum', lat:27.1751, lon:78.0421 },
+            { id:'e2', name:'Agra Fort', original_cost:550, stars:4.7, sub_type:'museum', lat:27.1795, lon:78.0211 },
+            { id:'e3', name:'Mehtab Bagh (Moonlight Garden)', original_cost:200, stars:4.5, sub_type:'park', lat:27.1823, lon:78.0422 },
+            { id:'e4', name:'Fatehpur Sikri', original_cost:610, stars:4.6, sub_type:'museum', lat:27.0939, lon:77.6612 },
+            { id:'e5', name:'Tomb of Itimad-ud-Daulah (Baby Taj)', original_cost:110, stars:4.4, sub_type:'museum', lat:27.1935, lon:78.0309 }
+        ]
+    }
+};
+
+// Alias common city name variants
+CITY_FALLBACK_DB['bengaluru'] = CITY_FALLBACK_DB['bangalore'];
+CITY_FALLBACK_DB['new delhi'] = CITY_FALLBACK_DB['delhi'];
+CITY_FALLBACK_DB['kochi'] = {
+    hotels: [
+        { id:'h1', name:'Taj Malabar Resort & Spa, Cochin', cost:14000, stars:5, sub_type:'Resort', lat:9.9657, lon:76.2385, wifi:true, pool:true, parking:true, bar:true },
+        { id:'h2', name:'Brunton Boatyard, Fort Kochi', cost:12000, stars:4.5, sub_type:'Hotel', lat:9.9650, lon:76.2400, wifi:true, pool:true, parking:true, bar:true },
+        { id:'h3', name:'Zostel Kochi', cost:500, stars:3.5, sub_type:'Hostel', lat:9.9600, lon:76.2420, wifi:true, pool:false, parking:false, bar:false },
+        { id:'h4', name:'Old Harbour Hotel, Fort Kochi', cost:6000, stars:4, sub_type:'Hotel', lat:9.9640, lon:76.2390, wifi:true, pool:true, parking:true, bar:true }
+    ],
+    restaurants: [
+        { id:'r1', name:'Fusion Bay, Fort Kochi', cost:600, stars:4.5, sub_type:'indian', price_tier:2, lat:9.9650, lon:76.2390 },
+        { id:'r2', name:'Kashi Art Cafe', cost:400, stars:4.6, sub_type:'cafe', price_tier:2, lat:9.9640, lon:76.2395 },
+        { id:'r3', name:'Dal Roti, Fort Kochi', cost:350, stars:4.4, sub_type:'indian', price_tier:1, lat:9.9645, lon:76.2400 }
+    ],
+    experiences: [
+        { id:'e1', name:'Chinese Fishing Nets, Fort Kochi', original_cost:0, stars:4.5, sub_type:'viewpoint', lat:9.9670, lon:76.2420 },
+        { id:'e2', name:'Mattancherry Palace', original_cost:5, stars:4.3, sub_type:'museum', lat:9.9580, lon:76.2590 },
+        { id:'e3', name:'Kerala Backwaters Houseboat', original_cost:5000, stars:4.9, sub_type:'viewpoint', lat:9.4981, lon:76.3388 },
+        { id:'e4', name:'Jew Town Antique Shopping', original_cost:0, stars:4.2, sub_type:'viewpoint', lat:9.9575, lon:76.2595 }
+    ]
+};
+CITY_FALLBACK_DB['kerala'] = CITY_FALLBACK_DB['kochi'];
+CITY_FALLBACK_DB['mysore'] = {
+    hotels: [
+        { id:'h1', name:'Radisson Blu Plaza, Mysore', cost:8000, stars:4.5, sub_type:'Hotel', lat:12.3051, lon:76.6551, wifi:true, pool:true, parking:true, bar:true },
+        { id:'h2', name:'The Windflower Resort & Spa', cost:6500, stars:4, sub_type:'Resort', lat:12.2958, lon:76.6394, wifi:true, pool:true, parking:true, bar:true },
+        { id:'h3', name:'Zostel Mysore', cost:500, stars:3.5, sub_type:'Hostel', lat:12.3100, lon:76.6550, wifi:true, pool:false, parking:false, bar:false }
+    ],
+    restaurants: [
+        { id:'r1', name:'Vinayaka Mylari, Nazarbad', cost:100, stars:4.7, sub_type:'indian', price_tier:1, lat:12.3070, lon:76.6550 },
+        { id:'r2', name:'Hotel RRR, Gandhi Square', cost:200, stars:4.5, sub_type:'indian', price_tier:1, lat:12.3060, lon:76.6540 },
+        { id:'r3', name:'Oyster Bay, Gokulam', cost:700, stars:4.3, sub_type:'indian', price_tier:2, lat:12.3120, lon:76.6450 }
+    ],
+    experiences: [
+        { id:'e1', name:'Mysore Palace', original_cost:70, stars:4.9, sub_type:'museum', lat:12.3051, lon:76.6551 },
+        { id:'e2', name:'Chamundi Hills & Temple', original_cost:0, stars:4.6, sub_type:'viewpoint', lat:12.2726, lon:76.6702 },
+        { id:'e3', name:'Brindavan Gardens', original_cost:20, stars:4.4, sub_type:'park', lat:12.4213, lon:76.5726 },
+        { id:'e4', name:'St. Philomena\'s Cathedral', original_cost:0, stars:4.5, sub_type:'museum', lat:12.3160, lon:76.6530 }
+    ]
+};
+CITY_FALLBACK_DB['mysuru'] = CITY_FALLBACK_DB['mysore'];
+
 function getFallbackHotels(city) {
+    const key = city.toLowerCase().trim();
+    if (CITY_FALLBACK_DB[key]) return CITY_FALLBACK_DB[key].hotels;
+    
     const c = capitalizeFirstLetter(city);
     const isInd = isIndianCity(city);
-    return [
-        { id: "h1", name: isInd ? `Taj ${c} Palace` : `The Grand ${c} Hotel`, cost: 18000, stars: 5, sub_type: "Hotel", lat: 26.8981, lon: 75.8078, wifi: true, pool: true, parking: true, bar: true },
-        { id: "h2", name: isInd ? `The Oberoi ${c} Vilas` : `The Ritz-Carlton ${c}`, cost: 16000, stars: 5, sub_type: "Resort", lat: 26.8791, lon: 75.8821, wifi: true, pool: true, parking: true, bar: true },
-        { id: "h3", name: `Zostel ${c} Backpacker Hostel`, cost: 800, stars: 4, sub_type: "Hostel", lat: 26.9212, lon: 75.8234, wifi: true, pool: false, parking: true, bar: false },
-        { id: "h4", name: `${c} Heritage Inn & Suites`, cost: 3200, stars: 4.5, sub_type: "Guest House", lat: 26.9189, lon: 75.7891, wifi: true, pool: false, parking: true, bar: true }
-    ];
+    
+    if (isInd) {
+        return [
+            { id:'h1', name:`Taj ${c} Palace`, cost:18000, stars:5, sub_type:'Hotel', lat:0, lon:0, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:`The Oberoi ${c} Resorts`, cost:15000, stars:5, sub_type:'Resort', lat:0, lon:0, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h3', name:`Zostel ${c} Backpackers`, cost:600, stars:3.5, sub_type:'Hostel', lat:0, lon:0, wifi:true, pool:false, parking:false, bar:false },
+            { id:'h4', name:`Pearl ${c} Heritage Inn`, cost:3200, stars:4.5, sub_type:'Guest House', lat:0, lon:0, wifi:true, pool:false, parking:true, bar:true },
+            { id:'h5', name:`Hotel ${c} Grand Central`, cost:2500, stars:3.5, sub_type:'Hotel', lat:0, lon:0, wifi:true, pool:false, parking:true, bar:false }
+        ];
+    } else {
+        // Global / Western style names
+        return [
+            { id:'h1', name:`The Ritz-Carlton, ${c}`, cost:32000, stars:5, sub_type:'Hotel', lat:0, lon:0, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h2', name:`The Plaza Hotel ${c}`, cost:28000, stars:5, sub_type:'Hotel', lat:0, lon:0, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h3', name:`${c} Downtown Marriott`, cost:15000, stars:4, sub_type:'Hotel', lat:0, lon:0, wifi:true, pool:true, parking:true, bar:true },
+            { id:'h4', name:`The ${c} Boutique Inn`, cost:8500, stars:4, sub_type:'Hotel', lat:0, lon:0, wifi:true, pool:false, parking:true, bar:true },
+            { id:'h5', name:`Central Backpackers Hostel ${c}`, cost:1800, stars:3.5, sub_type:'Hostel', lat:0, lon:0, wifi:true, pool:false, parking:false, bar:false }
+        ];
+    }
 }
 
 function getFallbackRestaurants(city) {
+    const key = city.toLowerCase().trim();
+    if (CITY_FALLBACK_DB[key]) return CITY_FALLBACK_DB[key].restaurants;
+    
     const c = capitalizeFirstLetter(city);
     const isInd = isIndianCity(city);
-    return [
-        { id: "r1", name: isInd ? `${c} Mishthan Bhandar (LMB)` : `${c} Central Bistro`, cost: 450, stars: 4.5, sub_type: isInd ? "indian" : "bistro", price_tier: 2, lat: 26.9201, lon: 75.8281 },
-        { id: "r2", name: `Peacock Rooftop Cafe in ${c}`, cost: 600, stars: 4.7, sub_type: "cafe", price_tier: 2, lat: 26.9178, lon: 75.7901 },
-        { id: "r3", name: isInd ? `${c} Royal Chokhi Dhani` : `${c} Fine Dining Tavern`, cost: 1200, stars: 4.8, sub_type: isInd ? "indian" : "tavern", price_tier: 3, lat: 26.7681, lon: 75.8456 }
-    ];
+    
+    if (isInd) {
+        return [
+            { id:'r1', name:`Royal ${c} Dhaba`, cost:450, stars:4.5, sub_type:'indian', price_tier:2, lat:0, lon:0 },
+            { id:'r2', name:`Peacock Rooftop Cafe, ${c}`, cost:600, stars:4.7, sub_type:'cafe', price_tier:2, lat:0, lon:0 },
+            { id:'r3', name:`${c} Sweets & Mishthan Bhandar`, cost:200, stars:4.3, sub_type:'indian', price_tier:1, lat:0, lon:0 },
+            { id:'r4', name:`The Spice Route Kitchen`, cost:800, stars:4.4, sub_type:'indian', price_tier:2, lat:0, lon:0 }
+        ];
+    } else {
+        return [
+            { id:'r1', name:`The ${c} Grill & Bistro`, cost:1500, stars:4.6, sub_type:'bistro', price_tier:2, lat:0, lon:0 },
+            { id:'r2', name:`Le Cafe de ${c}`, cost:900, stars:4.5, sub_type:'cafe', price_tier:2, lat:0, lon:0 },
+            { id:'r3', name:`${c} Pizzeria & Tavern`, cost:600, stars:4.4, sub_type:'italian', price_tier:1, lat:0, lon:0 },
+            { id:'r4', name:`The Steakhouse ${c}`, cost:2500, stars:4.7, sub_type:'steakhouse', price_tier:3, lat:0, lon:0 }
+        ];
+    }
 }
 
 function getFallbackExperiences(city) {
+    const key = city.toLowerCase().trim();
+    if (CITY_FALLBACK_DB[key]) return CITY_FALLBACK_DB[key].experiences;
+    
     const c = capitalizeFirstLetter(city);
     const isInd = isIndianCity(city);
-    return [
-        { id: "e1", name: isInd ? `${c} Palace Heritage Walk` : `${c} Castle & Museum Tour`, original_cost: 500, stars: 5, sub_type: "museum", lat: 26.9856, lon: 75.8512 },
-        { id: "e2", name: isInd ? `${c} Fort View Photo Spot` : `${c} Skyline Viewpoint`, original_cost: 0, stars: 4.8, sub_type: "viewpoint", lat: 26.9239, lon: 75.8267 },
-        { id: "e3", name: `Central Green Park of ${c}`, original_cost: 0, stars: 4.3, sub_type: "park", lat: 26.9021, lon: 75.8090 }
-    ];
+    
+    if (isInd) {
+        return [
+            { id:'e1', name:`${c} Palace Heritage Walk`, original_cost:500, stars:4.8, sub_type:'museum', lat:0, lon:0 },
+            { id:'e2', name:`${c} Fort View Photo Point`, original_cost:0, stars:4.7, sub_type:'viewpoint', lat:0, lon:0 },
+            { id:'e3', name:`Central Green Park of ${c}`, original_cost:0, stars:4.3, sub_type:'park', lat:0, lon:0 },
+            { id:'e4', name:`Local Craft Market & Bazaar`, original_cost:0, stars:4.4, sub_type:'viewpoint', lat:0, lon:0 }
+        ];
+    } else {
+        return [
+            { id:'e1', name:`${c} Castle & History Museum`, original_cost:1200, stars:4.8, sub_type:'museum', lat:0, lon:0 },
+            { id:'e2', name:`${c} Eye & City Observation Deck`, original_cost:2500, stars:4.6, sub_type:'viewpoint', lat:0, lon:0 },
+            { id:'e3', name:`Central Public Park of ${c}`, original_cost:0, stars:4.5, sub_type:'park', lat:0, lon:0 },
+            { id:'e4', name:`River Cruise & Sightseeing Tour`, original_cost:1800, stars:4.7, sub_type:'beach', lat:0, lon:0 }
+        ];
+    }
 }
 
 

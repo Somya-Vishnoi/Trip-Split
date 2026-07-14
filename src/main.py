@@ -65,6 +65,17 @@ def search_city(req: SearchRequest):
     # Fetch venues
     venues = fetch_venues(req.city, geo_data["bbox"], lat=geo_data["lat"], lon=geo_data["lon"])
     
+    # If Overpass returns too few results, supplement with real, popular venues generated via Gemini
+    if len(venues.get("hotels", [])) < 10 or len(venues.get("restaurants", [])) < 10 or len(venues.get("attractions", [])) < 12:
+        from src.gemini import generate_venues_via_gemini
+        gv_catalog = generate_venues_via_gemini(req.city)
+        if gv_catalog:
+            for cat in ["hotels", "restaurants", "attractions"]:
+                existing_names = {v.get("name", "").lower().strip() for v in venues.get(cat, []) if v.get("name")}
+                for gv in gv_catalog.get(cat, []):
+                    if gv.get("name") and gv["name"].lower().strip() not in existing_names:
+                        venues[cat].append(gv)
+                        
     # Assign heuristics
     from src.optimizer import assign_heuristics
     
@@ -252,6 +263,23 @@ def plan_trip(req: PlanRequest):
         venues = get_cached_response(cache_key)
         if not venues:
             venues = fetch_venues(city_name, bbox, lat=lat, lon=lon)
+            
+        # Supplement with Gemini venues if Overpass results are scarce
+        if venues and (len(venues.get("hotels", [])) < 10 or len(venues.get("restaurants", [])) < 10 or len(venues.get("attractions", [])) < 12):
+            from src.gemini import generate_venues_via_gemini
+            gv_catalog = generate_venues_via_gemini(city_name)
+            if gv_catalog:
+                # Copy lists to avoid mutating shared cache refs directly
+                venues = {
+                    "hotels": list(venues.get("hotels", [])),
+                    "restaurants": list(venues.get("restaurants", [])),
+                    "attractions": list(venues.get("attractions", []))
+                }
+                for cat in ["hotels", "restaurants", "attractions"]:
+                    existing_names = {v.get("name", "").lower().strip() for v in venues[cat] if v.get("name")}
+                    for gv in gv_catalog.get(cat, []):
+                        if gv.get("name") and gv["name"].lower().strip() not in existing_names:
+                            venues[cat].append(gv)
             
         if not venues or (not venues["hotels"] and not venues["restaurants"]):
              return {

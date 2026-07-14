@@ -22,8 +22,8 @@ def assign_heuristics(venue: Dict[str, Any], category: str, people: int) -> Tupl
 
         rooms_needed = math.ceil(people / 2.0)
         
-        # A. Luxury Classification
-        if stars_val >= 4 or "luxury" in name_lower or "resort" in name_lower or "spa" in name_lower:
+        # A. Luxury Classification (5 stars or explicitly luxury-branded)
+        if stars_val >= 5 or "luxury" in name_lower or "5-star" in name_lower or "5 star" in name_lower:
             cost_per_night = DEFAULT_COSTS["hotel_luxury"] * rooms_needed
             utility = DEFAULT_UTILITY["hotel_luxury"]
         # B. Hostel / Dorm (Charge per person for shared beds)

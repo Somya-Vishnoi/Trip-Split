@@ -11,7 +11,9 @@
     <!-- Leaflet Map CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <!-- Custom Style Sheet -->
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=3.0">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -45,7 +47,7 @@
 
             <!-- Right: Currency/Language, Sign In, Profile -->
             <div class="nav-actions">
-                <button class="nav-btn-icon" onclick="openLanguageModal()" title="Select Language/Currency">🌐 INR</button>
+                <button class="nav-btn-icon" onclick="openLanguageModal()" title="Select Language/Currency" style="font-weight: 700;">💱 INR</button>
                 
                 <!-- Non-logged in state -->
                 <button id="nav-signin-btn" class="nav-btn-primary" onclick="openSigninModal()">Sign In</button>
@@ -165,7 +167,13 @@
             <!-- Top Experiences Carousel -->
             <section class="home-carousel-section">
                 <div class="section-title-row">
-                    <h2>Top Experiences on TripSplit</h2>
+                    <h2 style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                        <span>Top Experiences in</span>
+                        <div class="inline-city-search-container" style="display:inline-flex; align-items:center; gap:0.35rem; border:1px solid var(--border); border-radius:20px; padding:0.25rem 0.5rem 0.25rem 0.75rem; background:#FFF; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                            <input type="text" id="home-reccos-city-input" placeholder="Type any city..." value="" style="border:none; outline:none; font-size:1rem; font-weight:800; color:var(--accent); width:140px; background:transparent;">
+                            <button onclick="handleHomeReccosCityChange()" style="border:none; background:var(--accent); color:#FFF; font-size:0.75rem; font-weight:800; padding:0.35rem 0.75rem; border-radius:15px; cursor:pointer; transition: opacity 0.2s;" onmouseover="this.style.opacity=0.9" onmouseout="this.style.opacity=1">Go</button>
+                        </div>
+                    </h2>
                     <div class="carousel-nav-arrows">
                         <button class="carousel-arrow prev" onclick="scrollCarousel('experiences-deck', -1)">◀</button>
                         <button class="carousel-arrow next" onclick="scrollCarousel('experiences-deck', 1)">▶</button>
@@ -178,21 +186,19 @@
                 </div>
             </section>
 
-            <!-- Editorial Choice Strip -->
-            <section class="awards-editorial-strip">
-                <div class="strip-content">
-                    <span class="strip-badge">2026 BEST OF THE BEST</span>
-                    <h2>Travellers' Choice Awards</h2>
-                    <p>Ranked properties, activities, and destinations voted by millions of global explorers. Explore the highest-rated stays, dinners, and events.</p>
-                    <button class="btn-primary dark-btn" onclick="navigateToCategoryResults('awards')">See the full list</button>
-                </div>
-            </section>
+            <!-- Editorial Choice Strip Removed -->
 
             <!-- Grid Content Rows -->
             <section class="editorial-rows-section">
                 <!-- Hotels You May Like -->
                 <div class="editorial-row">
-                    <h3>Hotels You May Like</h3>
+                    <h3 style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+                        <span>Popular Stays in</span>
+                        <div class="inline-city-search-container" style="display:inline-flex; align-items:center; gap:0.35rem; border:1px solid var(--border); border-radius:20px; padding:0.2rem 0.4rem 0.2rem 0.65rem; background:#FFF; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                            <input type="text" id="home-hotels-city-input" placeholder="Type any city..." value="" style="border:none; outline:none; font-size:0.88rem; font-weight:800; color:var(--accent); width:130px; background:transparent;">
+                            <button onclick="handleHomeHotelsCityChange()" style="border:none; background:var(--accent); color:#FFF; font-size:0.7rem; font-weight:800; padding:0.3rem 0.65rem; border-radius:15px; cursor:pointer; transition: opacity 0.2s;" onmouseover="this.style.opacity=0.9" onmouseout="this.style.opacity=1">Go</button>
+                        </div>
+                    </h3>
                     <div id="personalized-hotels-grid" class="horizontal-card-deck">
                         <!-- Cards here -->
                     </div>
@@ -233,13 +239,7 @@
                     </div>
                 </div>
 
-                <!-- Travel Articles -->
-                <div class="editorial-row" style="margin-top: 3rem;">
-                    <h3>Latest Travel Guides & Articles</h3>
-                    <div id="articles-deck" class="horizontal-card-deck">
-                        <!-- Blog style articles -->
-                    </div>
-                </div>
+                <!-- Travel Articles Removed -->
             </section>
         </div>
 
@@ -260,10 +260,10 @@
             <div class="city-subnav-sticky" id="city-subnav-bar">
                 <div class="nav-container">
                     <button class="subtab-btn active" data-subtab="dest-overview" onclick="switchDestSubtab('dest-overview')">Overview</button>
+                    <button class="subtab-btn" data-subtab="dest-plan" onclick="switchDestSubtab('dest-plan')">Split Itinerary Plan ⚡</button>
                     <button class="subtab-btn" data-subtab="dest-hotels" onclick="switchDestSubtab('dest-hotels')">Stays & Hotels</button>
                     <button class="subtab-btn" data-subtab="dest-restaurants" onclick="switchDestSubtab('dest-restaurants')">Restaurants</button>
                     <button class="subtab-btn" data-subtab="dest-attractions" onclick="switchDestSubtab('dest-attractions')">Things to Do</button>
-                    <button class="subtab-btn" data-subtab="dest-guide" onclick="switchDestSubtab('dest-guide')">Travel Guide & Forums</button>
                 </div>
             </div>
 
@@ -364,15 +364,51 @@
                     <div id="dest-attractions-page-container"></div>
                 </div>
 
-                <!-- Destination Forums & Guide Tab -->
-                <div id="dest-guide-tab" class="dest-subtab-pane hidden" style="margin-bottom: 4rem;">
-                    <h3>Community Travel Boards & Forums</h3>
-                    <div id="dest-forum-teaser" class="forum-teaser-box" style="background:#FAF9F6; border:1px solid var(--border); border-radius:12px; padding:2rem; margin-top:1rem; display:flex; justify-content:space-between; align-items:center; gap:2rem; flex-wrap:wrap;">
-                        <div>
-                            <h4>Jaipur Travel Forum</h4>
-                            <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:0.25rem;">Connect with real travelers planning trips to Jaipur. Ask about transport, local weather, and hidden temple routes!</p>
+                <!-- Destination Forums & Guide Tab Removed -->
+
+                <!-- Destination Split Itinerary Plan Tab -->
+                <div id="dest-plan-tab" class="dest-subtab-pane hidden" style="margin-bottom: 4rem;">
+                    <div id="plan-placeholder" class="plan-placeholder" style="padding: 3rem; text-align: center; color: var(--text-muted); background: #FAF9F6; border: 1px solid var(--border); border-radius: 12px; margin-top: 1rem;">
+                        <p style="font-size: 1.05rem; font-weight: 600; color: var(--text-primary);">No Optimal Plan Generated Yet</p>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.35rem; max-width: 480px; margin-left: auto; margin-right: auto; line-height: 1.5;">Fill out the TripSplit Optimizer Widget on the Overview tab or homepage and click "Optimize Custom Trip" to calculate your budget-split plan!</p>
+                    </div>
+                    <div id="plan-data" class="hidden" style="margin-top: 1rem;">
+                        <!-- Plan Summary Card -->
+                        <div class="plan-summary-card" style="background:#FFFFFF; border:1px solid var(--border); border-radius:16px; padding:1.5rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1.5rem; margin-bottom:1.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.03);">
+                            <div class="summary-meta">
+                                <h3 style="display:flex; align-items:center; gap:0.5rem; margin:0; font-family:var(--font-heading); font-weight:800; font-size:1.3rem;">💰 Optimal Budget Allocation</h3>
+                                <span id="plan-status" class="plan-status-badge" style="background:var(--success-light); color:var(--success); padding:0.25rem 0.75rem; border-radius:100px; font-size:0.75rem; font-weight:700; display:inline-block; margin-top:0.5rem;">Optimal Plan (Within Budget)</span>
+                                <div id="travel-breakdown-container" class="hidden" style="margin-top:0.75rem; font-size:0.82rem; color:var(--text-secondary); border-top:1px solid var(--border); padding-top:0.5rem;">
+                                    <div id="travel-breakdown-details"></div>
+                                </div>
+                            </div>
+                            <div class="price-summary" style="display:flex; gap:2rem;">
+                                <div class="price-item" style="display:flex; flex-direction:column;">
+                                    <span class="price-lbl" style="font-size:0.7rem; color:var(--text-muted); font-weight:800; text-transform:uppercase; letter-spacing:0.5px;">TOTAL COST</span>
+                                    <span class="price-val" id="plan-total-cost" style="font-size:1.75rem; font-weight:800; color:var(--accent);">₹0</span>
+                                </div>
+                                <div class="price-item" style="display:flex; flex-direction:column;">
+                                    <span class="price-lbl" style="font-size:0.7rem; color:var(--text-muted); font-weight:800; text-transform:uppercase; letter-spacing:0.5px;">PER PERSON</span>
+                                    <span class="price-val" id="plan-person-cost" style="font-size:1.75rem; font-weight:800; color:var(--text-primary);">₹0</span>
+                                </div>
+                            </div>
                         </div>
-                        <button class="btn-secondary" onclick="navigateToView('forums')">Browse Rajasthan Boards</button>
+                        
+                        <div class="plan-actions-row" style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem; justify-content: flex-end;">
+                            <button id="toggle-backup-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; font-weight: 600;" onclick="toggleOptimalPlanType()">Switch to Economy Option</button>
+                            <button id="export-pdf-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; font-weight: 600;" onclick="exportPlanToPDF()">Export to PDF</button>
+                        </div>
+                        
+                        <!-- Toggle Controls for Itinerary Items -->
+                        <div class="itinerary-toggles-row" style="background:#FAF9F6; border:1px solid var(--border); border-radius:12px; padding:0.75rem 1.25rem; display:flex; align-items:center; gap:1.5rem; margin-bottom:1.5rem; flex-wrap:wrap; font-size:0.88rem;">
+                            <strong style="color:var(--text-secondary);">Show in Itinerary:</strong>
+                            <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; font-weight:600;"><input type="checkbox" id="toggle-itin-stays" checked onchange="handleItineraryToggleChange()"> 🏨 Stays</label>
+                            <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; font-weight:600;"><input type="checkbox" id="toggle-itin-dining" checked onchange="handleItineraryToggleChange()"> 🍽️ Dining</label>
+                            <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; font-weight:600;"><input type="checkbox" id="toggle-itin-bars" checked onchange="handleItineraryToggleChange()"> 🍹 Nightspots</label>
+                            <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; font-weight:600;"><input type="checkbox" id="toggle-itin-sights" checked onchange="handleItineraryToggleChange()"> 🏛️ Sights</label>
+                        </div>
+                        
+                        <div id="plan-details-wrapper"></div>
                     </div>
                 </div>
 
@@ -384,7 +420,7 @@
         <!-- 3. HOTEL SEARCH RESULTS VIEW               -->
         <!-- ========================================== -->
         <div id="hotel-results-view" class="view-container hidden">
-            <div class="nav-container page-layout-sidebar-main">
+            <div id="hotel-results-view-content" class="nav-container page-layout-sidebar-main">
                 <!-- Left Sidebar Filters -->
                 <aside class="sidebar-filters-box">
                     <div class="filters-header">
@@ -505,6 +541,11 @@
         <!-- 4. HOTEL DETAIL VIEW                       -->
         <!-- ========================================== -->
         <div id="hotel-detail-view" class="view-container hidden">
+            <!-- Back Breadcrumb -->
+            <div class="nav-container" style="margin-top: 1.5rem; margin-bottom: -1rem;">
+                <a href="#" onclick="navigateToDestinationOverview(state.currentCity, 'India', true, 'dest-hotels'); return false;" style="font-weight: 700; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.88rem;">⬅️ Back to Stays in <span class="back-city-name-lbl">Goa</span></a>
+            </div>
+
             <!-- Full-width Photo Gallery strip -->
             <section class="gallery-strip-section" id="hotel-gallery-strip-container">
                 <!-- 5 image columns with badge showing "See all photos" at the end -->
@@ -665,7 +706,7 @@
         <!-- ========================================== -->
         <div id="restaurant-results-view" class="view-container hidden">
             <!-- Reuse sidebar filters layout with Restaurant specific options -->
-            <div class="nav-container page-layout-sidebar-main">
+            <div id="restaurant-results-view-content" class="nav-container page-layout-sidebar-main">
                 <aside class="sidebar-filters-box">
                     <div class="filters-header">
                         <h4>Filters</h4>
@@ -714,6 +755,11 @@
         </div>
 
         <div id="restaurant-detail-view" class="view-container hidden">
+            <!-- Back Breadcrumb -->
+            <div class="nav-container" style="margin-top: 1.5rem; margin-bottom: -1rem;">
+                <a href="#" onclick="navigateToDestinationOverview(state.currentCity, 'India', true, 'dest-restaurants'); return false;" style="font-weight: 700; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.88rem;">⬅️ Back to Restaurants in <span class="back-city-name-lbl">Goa</span></a>
+            </div>
+
             <!-- Restaurant Detail View has same components as hotel detail but Reservation widget -->
             <section class="gallery-strip-section" id="rest-gallery-strip-container"></section>
             
@@ -801,7 +847,7 @@
         <!-- 6. THINGS TO DO / EXPERIENCES VIEW         -->
         <!-- ========================================== -->
         <div id="experience-results-view" class="view-container hidden">
-            <div class="nav-container page-layout-sidebar-main">
+            <div id="experience-results-view-content" class="nav-container page-layout-sidebar-main">
                 <aside class="sidebar-filters-box">
                     <div class="filters-header">
                         <h4>Filters</h4>
@@ -848,6 +894,11 @@
         </div>
 
         <div id="experience-detail-view" class="view-container hidden">
+            <!-- Back Breadcrumb -->
+            <div class="nav-container" style="margin-top: 1.5rem; margin-bottom: -1rem;">
+                <a href="#" onclick="navigateToDestinationOverview(state.currentCity, 'India', true, 'dest-attractions'); return false;" style="font-weight: 700; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.88rem;">⬅️ Back to Attractions in <span class="back-city-name-lbl">Goa</span></a>
+            </div>
+
             <section class="gallery-strip-section" id="exp-gallery-strip-container"></section>
             
             <div class="nav-container page-layout-sidebar-main" style="margin-top:2rem; align-items:flex-start;">
@@ -966,7 +1017,7 @@
 
         <div id="forum-thread-view" class="view-container hidden" style="margin-bottom: 4rem;">
             <div class="nav-container">
-                <a href="#" onclick="navigateToView('forums'); return false;" style="font-weight:700; color:var(--accent); text-decoration:none; display:inline-block; margin-bottom:1rem;">⬅️ Back to Forum Boards</a>
+                <a href="#" onclick="navigateToView('forums', '', true); return false;" style="font-weight:700; color:var(--accent); text-decoration:none; display:inline-block; margin-bottom:1rem;">⬅️ Back to Forum Boards</a>
                 
                 <div class="thread-header-block" style="background:#FAF9F6; border:1px solid var(--border); border-radius:12px; padding:1.5rem; margin-bottom:1.5rem;">
                     <h2 id="thread-title-lbl">Jaipur itinerary travel tip needed?</h2>
@@ -1078,80 +1129,189 @@
         <!-- ========================================== -->
         <div id="ledger-view" class="view-container hidden" style="margin-bottom: 4rem;">
             <div class="nav-container">
-                <div class="forum-banner" style="background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); padding:2rem 3rem; border-radius:16px; margin-bottom:2rem; text-align:center;">
+                <div class="forum-banner" style="background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); padding:2rem 3rem; border-radius:16px; margin-bottom:1.5rem; text-align:center;">
                     <h2>⚖️ Group Expense Splitter</h2>
                     <p style="color:var(--text-muted); margin-top:0.25rem;">Log joint group bills, choose splitters, and calculate the exact minimum transactions to clear all debts.</p>
                 </div>
 
+                <!-- Ledger Sub-Navigation -->
+                <div class="ledger-subnav" style="display:flex; gap:1.25rem; border-bottom:2px solid var(--border); padding-bottom:0.75rem; margin-bottom:1.5rem; overflow-x:auto; scrollbar-width:none;">
+                    <button class="ledger-tab-btn active" id="btn-ledger-expenses" onclick="switchLedgerSubtab('expenses')" style="border:none; background:none; font-weight:700; cursor:pointer; color:var(--text-primary); border-bottom:2px solid var(--accent); padding-bottom:0.5rem; margin-bottom:-0.85rem; font-size:0.95rem; font-family:var(--font-heading);">📝 Expenses & Log</button>
+                    <button class="ledger-tab-btn" id="btn-ledger-settle" onclick="switchLedgerSubtab('settle')" style="border:none; background:none; font-weight:700; cursor:pointer; color:var(--text-muted); padding-bottom:0.5rem; font-size:0.95rem; font-family:var(--font-heading);">🤝 Balances & Settle Up</button>
+                    <button class="ledger-tab-btn" id="btn-ledger-analytics" onclick="switchLedgerSubtab('analytics')" style="border:none; background:none; font-weight:700; cursor:pointer; color:var(--text-muted); padding-bottom:0.5rem; font-size:0.95rem; font-family:var(--font-heading);">📊 Analytics & Charts</button>
+                </div>
+
                 <div class="page-layout-sidebar-main" style="align-items:flex-start;">
-                    <!-- Left column: Add expense and history list -->
-                    <div style="flex:1.6; min-width:0; display:flex; flex-direction:column; gap:1.5rem;">
-                        <!-- Add Expense Form Card -->
-                        <div class="budget-planner-card" style="background:#FFFFFF;">
-                            <h3>➕ Add New Expense</h3>
-                            <form id="ledger-expense-form" onsubmit="handleLogExpenseSubmit(event)" style="display:flex; flex-direction:column; gap:1rem; margin-top:1rem;">
-                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
-                                    <div>
-                                        <label style="font-size:0.75rem; font-weight:700;">Expense Description</label>
-                                        <input type="text" id="exp-desc" required placeholder="e.g. Dinner at LMB" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
+                    <!-- Main Left Panel for active tab content -->
+                    <div style="flex:1.6; min-width:0;">
+                        
+                        <!-- TAB 1: EXPENSES & LOG -->
+                        <div id="pane-ledger-expenses" class="ledger-pane" style="display:flex; flex-direction:column; gap:1.5rem;">
+                            <!-- Add Expense Form Card -->
+                            <div class="budget-planner-card" style="background:#FFFFFF;">
+                                <h3>➕ Add New Expense</h3>
+                                <form id="ledger-expense-form" onsubmit="handleLogExpenseSubmit(event)" style="display:flex; flex-direction:column; gap:1.25rem; margin-top:1rem;">
+                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                                        <div>
+                                            <label style="font-size:0.75rem; font-weight:700;">Expense Description</label>
+                                            <input type="text" id="exp-desc" required placeholder="e.g. Dinner at LMB" style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size:0.75rem; font-weight:700;">Amount (₹ INR)</label>
+                                            <input type="number" id="exp-amount" required min="1" placeholder="₹ Amount" style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label style="font-size:0.75rem; font-weight:700;">Amount (₹ INR)</label>
-                                        <input type="number" id="exp-amount" required min="1" placeholder="₹ Amount" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
+                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                                        <div>
+                                            <label style="font-size:0.75rem; font-weight:700;">Paid By</label>
+                                            <select id="exp-paid-by" style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem; outline:none; background:#fff;"></select>
+                                        </div>
+                                        <div>
+                                            <label style="font-size:0.75rem; font-weight:700;">Category</label>
+                                            <select id="exp-category" style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem; outline:none; background:#fff;">
+                                                <option value="Stay">Stay & Hotels 🏨</option>
+                                                <option value="Food">Food & Dining 🍴</option>
+                                                <option value="Travel">Intercity Travel ✈️</option>
+                                                <option value="Sights">Sights & Tickets 🏛️</option>
+                                                <option value="Drinks">Drinks & Parties 🍻</option>
+                                                <option value="Misc" selected>Miscellaneous 📦</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                                        <label style="font-size:0.75rem; font-weight:700;">Split Type</label>
+                                        <select id="exp-split-type" onchange="handleSplitTypeChange(this.value)" style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem; outline:none; background:#fff;">
+                                            <option value="equal" selected>Split Equally Among All</option>
+                                            <option value="selective">Selective Split (Include specific members)</option>
+                                            <option value="custom">Custom Split (Enter exact amount per person)</option>
+                                            <option value="ratio">Ratio Split (Enter weight weights, e.g. 2x, 1x)</option>
+                                            <option value="self">Paid for Self (Only paid-by person owes)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Dynamic Split Inputs Panel -->
+                                    <div id="dynamic-split-panel" style="border:1px solid var(--border); padding:1rem; border-radius:8px; background:#FAF9F6; display:none; flex-direction:column; gap:0.75rem;">
+                                        <h5 id="dynamic-split-title" style="margin:0; font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-weight:800;">Split Parameters</h5>
+                                        <div id="dynamic-split-fields" style="display:flex; flex-direction:column; gap:0.6rem;"></div>
+                                    </div>
+                                    
+                                    <button type="submit" class="btn-primary" style="margin-top:0.5rem; padding:0.75rem;">Log Shared Expense</button>
+                                </form>
+                            </div>
+
+                            <!-- Expense History List Card -->
+                            <div class="budget-planner-card" style="background:#FFFFFF;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1.5px solid var(--border); padding-bottom:0.5rem; flex-wrap:wrap; gap:0.75rem;">
+                                    <h3>📜 Shared Bills History</h3>
+                                    <div style="display:flex; gap:0.5rem;">
+                                        <button class="btn-secondary" onclick="exportLedgerCSV()" style="font-size:0.7rem; padding:0.35rem 0.65rem;">Export CSV</button>
+                                        <button class="btn-secondary" onclick="exportLedgerPDF()" style="font-size:0.7rem; padding:0.35rem 0.65rem;">Export PDF</button>
+                                        <button class="clear-filters-link" onclick="handleClearLedger()" style="font-size:0.75rem;">Clear All</button>
                                     </div>
                                 </div>
-                                <div style="display:grid; grid-template-columns:1fr 1.5fr; gap:0.75rem;">
-                                    <div>
-                                        <label style="font-size:0.75rem; font-weight:700;">Paid By</label>
-                                        <select id="exp-paid-by" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem; outline:none; background:#fff;"></select>
+                                <ul id="ledger-history-list" style="list-style:none; padding:0; display:flex; flex-direction:column; gap:0.75rem;">
+                                    <!-- History entries logged -->
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- TAB 2: SETTLE UP BALANCES -->
+                        <div id="pane-ledger-settle" class="ledger-pane" style="display:none; flex-direction:column; gap:1.5rem;">
+                            <!-- Settle Up Matrix Card -->
+                            <div class="budget-planner-card" style="background:#FFFFFF;">
+                                <h3>📊 Balance Sheet Matrix</h3>
+                                <p style="color:var(--text-muted); font-size:0.8rem; margin-top:0.25rem;">Positive balance means you get back money; negative balance means you owe money.</p>
+                                <div style="margin-top:1.25rem;">
+                                    <ul id="ledger-balances-list-tab" style="list-style:none; padding:0; display:flex; flex-direction:column; gap:0.6rem; font-size:0.9rem; border-bottom:1px solid var(--border); padding-bottom:1.25rem;">
+                                        <!-- Person balances -->
+                                    </ul>
+                                </div>
+                                <div style="margin-top:1.25rem;">
+                                    <h4 style="margin:0; font-size:0.95rem; display:flex; align-items:center; gap:0.35rem;">⚡ Debt Minimization Path</h4>
+                                    <p style="color:var(--text-muted); font-size:0.78rem; margin-top:0.25rem;">Optimized route calculated via simplified transaction logic to resolve all net debts in minimal payments.</p>
+                                    <ul id="ledger-resolutions-list-tab" style="list-style:none; padding:0; display:flex; flex-direction:column; gap:0.75rem; font-size:0.92rem; margin-top:1rem;">
+                                        <!-- Resolutions transactions -->
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <!-- Mark Settlement Card -->
+                            <div class="budget-planner-card" id="settlement-form-card" style="background:#FFFFFF; display:none;">
+                                <h3>🤝 Record Debt Settlement</h3>
+                                <form id="settlement-form" onsubmit="handleSettlementSubmit(event)" style="display:flex; flex-direction:column; gap:1rem; margin-top:1rem;">
+                                    <input type="hidden" id="settle-from-hidden">
+                                    <input type="hidden" id="settle-to-hidden">
+                                    <input type="hidden" id="settle-amount-hidden">
+                                    
+                                    <div style="font-size:0.9rem; color:var(--text-primary); background:#FAF9F6; border:1px solid var(--border); padding:1rem; border-radius:8px;" id="settlement-text-desc">
+                                        Amit pays Priya ₹500
                                     </div>
-                                    <div>
-                                        <label style="font-size:0.75rem; font-weight:700; display:block; margin-bottom:0.25rem;">Split Between</label>
-                                        <div id="exp-split-checkboxes" style="display:flex; flex-wrap:wrap; gap:0.5rem; border:1px solid var(--border); padding:0.5rem; border-radius:6px; min-height:36px; background:#fff;">
-                                            <!-- Dynamically generated checkboxes -->
+                                    <div style="display:grid; grid-template-columns:1fr; gap:0.75rem;">
+                                        <div>
+                                            <label style="font-size:0.75rem; font-weight:700;">Payment Method</label>
+                                            <select id="settle-method" style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem; outline:none; background:#fff;">
+                                                <option value="UPI" selected>UPI (GPay / PhonePe / Paytm) 📱</option>
+                                                <option value="Cash">Cash 💵</option>
+                                                <option value="Bank Transfer">Bank Transfer 🏦</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn-primary" style="padding:0.6rem; margin-top:0.5rem;">Mark as Settled & Paid</button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- TAB 3: ANALYTICS & CHARTS -->
+                        <div id="pane-ledger-analytics" class="ledger-pane" style="display:none; flex-direction:column; gap:1.5rem;">
+                            <!-- Analytics Charts Grid -->
+                            <div class="budget-planner-card" style="background:#FFFFFF;">
+                                <h3>📈 Expense Analytics</h3>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:2rem; margin-top:1.5rem; min-height:350px;" id="charts-grid-container">
+                                    <div style="display:flex; flex-direction:column; align-items:center;">
+                                        <h5 style="margin-bottom:1rem; text-align:center;">Spend by Category</h5>
+                                        <div style="width:100%; max-width:260px; height:260px; position:relative;">
+                                            <canvas id="expense-pie-chart"></canvas>
+                                        </div>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column; align-items:center;">
+                                        <h5 style="margin-bottom:1rem; text-align:center;">Share of Spend by Member</h5>
+                                        <div style="width:100%; max-width:280px; height:260px; position:relative;">
+                                            <canvas id="member-bar-chart"></canvas>
                                         </div>
                                     </div>
                                 </div>
-                                <button type="submit" class="btn-primary" style="margin-top:0.5rem;">Log Shared Expense</button>
-                            </form>
+                            </div>
                         </div>
 
-                        <!-- Expense History List Card -->
-                        <div class="budget-planner-card" style="background:#FFFFFF;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1.5px solid var(--border); padding-bottom:0.5rem;">
-                                <h3>📜 Shared Bills History</h3>
-                                <button class="clear-filters-link" onclick="handleClearLedger()">Clear All Expenses</button>
-                            </div>
-                            <ul id="ledger-history-list" style="list-style:none; padding:0; display:flex; flex-direction:column; gap:0.75rem;">
-                                <!-- History entries logged -->
-                            </ul>
-                        </div>
                     </div>
 
-                    <!-- Right column: Group members & Settle balances -->
+                    <!-- Right column: Group members & Settle balances sidebar -->
                     <aside style="width:320px; flex:0 0 auto; display:flex; flex-direction:column; gap:1.5rem;">
                         <!-- Group Members Card -->
                         <div class="booking-widget-sticky-box" style="background:#FFFFFF;">
                             <h3>👥 Group Members</h3>
                             <div style="margin-top:1rem; display:flex; flex-direction:column; gap:0.5rem;">
                                 <label style="font-size:0.72rem; font-weight:700; color:var(--text-muted);">Manage Members (comma separated)</label>
-                                <input type="text" id="group-members-input" value="Somya, Amit, Priya, Rohan" onchange="handleGroupMembersChange(this.value)" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
+                                <input type="text" id="group-members-input" value="Somya, Amit, Priya, Rohan" onchange="handleGroupMembersChange(this.value)" style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
                             </div>
                         </div>
 
-                        <!-- Settle balances card -->
-                        <div class="booking-widget-sticky-box" style="background:#FFFFFF;">
-                            <h3>📊 Settle-Up Ledger</h3>
-                            <div style="margin-top:1rem;">
-                                <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-bottom:0.5rem;">Net Balances:</div>
-                                <ul id="ledger-balances-list" style="list-style:none; padding:0; display:flex; flex-direction:column; gap:0.4rem; font-size:0.82rem; margin-bottom:1.25rem;">
-                                    <!-- Person balances -->
-                                </ul>
-
-                                <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-bottom:0.5rem; border-top:1px solid var(--border); padding-top:0.75rem;">Minimum Clearing Transactions:</div>
-                                <ul id="ledger-resolutions-list" style="list-style:none; padding:0; display:flex; flex-direction:column; gap:0.4rem; font-size:0.85rem; font-weight:700; color:var(--accent);">
-                                    <!-- Resolutions transactions -->
-                                </ul>
+                        <!-- Sidebar Summary Widget -->
+                        <div class="booking-widget-sticky-box" style="background:#FFFFFF; border-left:4px solid var(--accent);">
+                            <h3>💸 Trip Ledger Summary</h3>
+                            <div style="margin-top:1rem; display:flex; flex-direction:column; gap:0.75rem; font-size:0.85rem;">
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span style="color:var(--text-secondary);">Total Group Spend:</span>
+                                    <strong id="ledger-summary-total">₹0</strong>
+                                </div>
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span style="color:var(--text-secondary);">Total Bills Logged:</span>
+                                    <strong id="ledger-summary-count">0 bills</strong>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; border-top:1px dashed var(--border); padding-top:0.75rem;">
+                                    <span style="color:var(--text-secondary);">Settlement Status:</span>
+                                    <strong id="ledger-summary-status" style="color:var(--success);">Fully Settled</strong>
+                                </div>
                             </div>
                         </div>
                     </aside>
@@ -1166,7 +1326,7 @@
         <div class="footer-content">
             <div class="footer-brand">
                 <h2>tripsplit</h2>
-                <p>Cloned for education & assignments. Browse optimal routes, dynamic hotels, local dining spots, and historic attractions.</p>
+                <p>Browse optimal routes, dynamic hotels, local dining spots, and historic attractions.</p>
             </div>
             <div class="footer-column">
                 <h3>Explore</h3>
@@ -1177,13 +1337,9 @@
                     <li><a href="#" onclick="navigateToView('forums'); return false;">Community Forums</a></li>
                 </ul>
             </div>
-            <div class="footer-column">
-                <h3>About Cloners</h3>
-                <p style="color: #94A3B8; font-size: 0.8rem; line-height: 1.6;">Built with Nominatim geocoding services, Overpass API local candidates extraction, and Leaflet map markers overlays.</p>
-            </div>
         </div>
         <div class="footer-bottom">
-            <div>&copy; 2026 TripSplit assignment clone. All rights reserved.</div>
+            <div>&copy; 2026 TripSplit. All rights reserved.</div>
             <div>Built for Travelers & Students</div>
         </div>
     </footer>
@@ -1481,9 +1637,22 @@
         </div>
     </div>
 
+    <!-- Beautiful City Prompt Modal -->
+    <div id="city-prompt-modal" class="modal hidden" style="z-index: 10000; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center;">
+        <div class="modal-content" style="max-width: 400px; width:90%; padding: 2rem; border-radius: 16px; text-align: center; background:#FFF; box-shadow:0 10px 30px rgba(0,0,0,0.15);">
+            <h3 style="margin-bottom: 0.5rem; font-size: 1.35rem; font-family:var(--font-heading);">Where are you going?</h3>
+            <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.5rem;">Enter your destination to explore stays, restaurants, and attractions.</p>
+            <input type="text" id="city-prompt-input" placeholder="e.g. Goa, Mumbai, Manali" style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1.5rem; outline: none; font-size: 1rem; font-family:var(--font-body);">
+            <div style="display: flex; gap: 0.75rem; justify-content: center;">
+                <button id="city-prompt-cancel-btn" class="btn-secondary" style="padding: 0.6rem 1.25rem; font-size: 0.9rem; border-radius: 8px; cursor:pointer; font-weight:600; font-family:var(--font-body); border:1px solid var(--border); background:#FFF;">Cancel</button>
+                <button id="city-prompt-submit-btn" class="btn-primary" style="padding: 0.6rem 1.25rem; font-size: 0.9rem; border-radius: 8px; cursor:pointer; font-weight: 700; font-family:var(--font-body); background: var(--accent); color: white; border: none;">Explore</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Leaflet Map JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <!-- Custom JS -->
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=3.0"></script>
 </body>
 </html>

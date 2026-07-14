@@ -513,6 +513,13 @@ button {
     gap: 1.25rem;
     list-style: none;
     padding-bottom: 0.5rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.horizontal-card-deck::-webkit-scrollbar {
+    display: none;
 }
 
 .scroll-smooth {
@@ -1007,6 +1014,7 @@ button {
     border-radius: var(--border-radius);
     overflow: hidden;
     display: flex;
+    min-height: 180px;
     transition: var(--transition);
     cursor: pointer;
     position: relative;
@@ -1018,11 +1026,11 @@ button {
 }
 
 .row-card-img {
-    width: 250px;
-    height: 100%;
-    min-height: 190px;
+    width: 220px;
+    height: 180px;
     flex: 0 0 auto;
     background: #E2E8F0;
+    position: relative;
 }
 
 .row-card-img img {
@@ -1817,4 +1825,111 @@ button {
 .chat-input-row button:hover {
     background: var(--accent-hover);
 }
+
+/* =======================================================
+   TripAdvisor Row Layout Splits for Itinerary Planner
+   ======================================================= */
+.stop-horizontal-row-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    width: 100%;
+}
+
+.stop-row {
+    background: #FFFFFF !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 16px !important;
+    padding: 1.5rem !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03) !important;
+}
+
+.row-header {
+    border-bottom: 1.5px solid var(--border) !important;
+    padding-bottom: 0.75rem !important;
+    margin-bottom: 1.25rem !important;
+}
+
+.row-header h4 {
+    font-family: var(--font-heading) !important;
+    font-size: 1.1rem !important;
+    font-weight: 800 !important;
+    color: var(--text-primary) !important;
+    margin: 0 !important;
+}
+
+.row-content-split {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.recommended-column {
+    flex: 0 0 310px !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.candidates-column {
+    flex: 1 !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.section-tag-label {
+    font-size: 0.72rem !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    color: var(--text-secondary) !important;
+    margin-bottom: 0.4rem !important;
+}
+
+.recommended-border {
+    border: 2px solid var(--accent) !important;
+    background: #FAF5FF !important;
+    position: relative !important;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.08) !important;
+}
+
+.recommended-badge {
+    position: absolute;
+    top: -10px;
+    left: 10px;
+    background: var(--accent);
+    color: #FFFFFF;
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 0.15rem 0.55rem;
+    border-radius: 20px;
+    z-index: 10;
+    box-shadow: 0 2px 6px rgba(124, 58, 237, 0.3);
+}
+
+.carbon-badge {
+    background: #E0F2FE;
+    color: #0369A1;
+    font-weight: 700;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 100px;
+}
+
+.plan-status-badge.backup {
+    background: #FEF3C7;
+    color: #D97706;
+}
+
+@media (max-width: 992px) {
+    .row-content-split {
+        flex-direction: column;
+    }
+    .recommended-column {
+        flex: 1 !important;
+    }
+}
+
 

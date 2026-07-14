@@ -22,39 +22,54 @@ def fetch_venues(
     if cached:
         return cached
 
+    is_large_region = False
+    if bbox:
+        # bbox layout: (min_lat, max_lat, min_lon, max_lon)
+        lat_diff = abs(bbox[1] - bbox[0])
+        lon_diff = abs(bbox[3] - bbox[2])
+        if lat_diff > 0.15 or lon_diff > 0.15:
+            is_large_region = True
+
+    # If it is a known state/region, or geocoding suggests a large bounding box
+    region_names = ["goa", "kerala", "himachal pradesh", "shimla", "manali", "uttarakhand", "rajasthan"]
+    if city_name.lower().strip() in region_names:
+        is_large_region = True
+
+    radius = 0.25 if is_large_region else 0.07
+
     if lat is not None and lon is not None:
-        # Center around the actual geocoded city point (approx 15km x 15km area)
-        min_lat = lat - 0.07
-        max_lat = lat + 0.07
-        min_lon = lon - 0.07
-        max_lon = lon + 0.07
+        # Center around the actual geocoded city point
+        min_lat = lat - radius
+        max_lat = lat + radius
+        min_lon = lon - radius
+        max_lon = lon + radius
     else:
         # Fallback to bounding box center
         min_lat, max_lat, min_lon, max_lon = bbox
         lat_center = (min_lat + max_lat) / 2
         lon_center = (min_lon + max_lon) / 2
         
-        if (max_lat - min_lat) > 0.08:
-            min_lat = lat_center - 0.04
-            max_lat = lat_center + 0.04
-        if (max_lon - min_lon) > 0.08:
-            min_lon = lon_center - 0.04
-            max_lon = lon_center + 0.04
+        radius_fallback = 0.20 if is_large_region else 0.04
+        min_lat = lat_center - radius_fallback
+        max_lat = lat_center + radius_fallback
+        min_lon = lon_center - radius_fallback
+        max_lon = lon_center + radius_fallback
 
     # Define a wider bounding box for beaches to ensure they are captured along coastlines (Goa/Mumbai)
+    w_radius = 0.35 if is_large_region else 0.25
     if lat is not None and lon is not None:
-        w_min_lat = lat - 0.25
-        w_max_lat = lat + 0.25
-        w_min_lon = lon - 0.25
-        w_max_lon = lon + 0.25
+        w_min_lat = lat - w_radius
+        w_max_lat = lat + w_radius
+        w_min_lon = lon - w_radius
+        w_max_lon = lon + w_radius
     else:
         min_lat, max_lat, min_lon, max_lon = bbox
         lat_center = (min_lat + max_lat) / 2
         lon_center = (min_lon + max_lon) / 2
-        w_min_lat = lat_center - 0.20
-        w_max_lat = lat_center + 0.20
-        w_min_lon = lon_center - 0.20
-        w_max_lon = lon_center + 0.20
+        w_min_lat = lat_center - w_radius
+        w_max_lat = lat_center + w_radius
+        w_min_lon = lon_center - w_radius
+        w_max_lon = lon_center + w_radius
 
     query = f"""
     [out:json][timeout:30];
@@ -83,8 +98,8 @@ def fetch_venues(
       way["historic"~"monument|castle|fort|palace|city_gate|ruins"]({w_min_lat},{w_min_lon},{w_max_lat},{w_max_lon});
       node["leisure"~"park|garden"]({min_lat},{min_lon},{max_lat},{max_lon});
       way["leisure"~"park|garden"]({min_lat},{min_lon},{max_lat},{max_lon});
-      node["amenity"~"bar|pub|nightclub"]({min_lat},{min_lon},{max_lat},{max_lon});
-      way["amenity"~"bar|pub|nightclub"]({min_lat},{min_lon},{max_lat},{max_lon});
+      node["amenity"~"bar|pub|nightclub"]({w_min_lat},{w_min_lon},{w_max_lat},{w_max_lon});
+      way["amenity"~"bar|pub|nightclub"]({w_min_lat},{w_min_lon},{w_max_lat},{w_max_lon});
     );
     out center;
     """

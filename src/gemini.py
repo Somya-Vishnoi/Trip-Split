@@ -243,3 +243,94 @@ def query_gemini_assistant(query: str, favorites: List[Dict[str, Any]]) -> str:
             response_text = "🤖 **TripSplit Offline Travel Guide:** That sounds like a wonderful travel query! To make the most of your trip, I highly recommend scheduling sightseeing stops during early mornings to avoid peak crowds, and booking travel tickets in advance. \n\n*(Note: Gemini API is currently rate-limited; displaying local offline guidelines)*"
             
         return response_text
+
+
+def generate_venues_via_gemini(city_name: str) -> Optional[Dict[str, List[Dict[str, Any]]]]:
+    """
+    Uses Gemini to generate a highly realistic catalog of 15 hotels, 15 restaurants, and 15 attractions
+    for any destination in the world when Overpass returns insufficient data.
+    Uses database caching to avoid duplicate API calls.
+    """
+    if not GEMINI_API_KEY:
+        print("[Gemini Warning] No API key found for venue generation.")
+        return None
+
+    cache_key = f"gemini_venues_{city_name.lower().strip().replace(' ', '_')}"
+    cached = get_cached_response(cache_key)
+    if cached:
+        return cached
+
+    prompt = f"""You are a world-class travel expert. Generate a detailed, highly accurate, and popular travel catalog of real places for: '{city_name}'.
+Return exactly 15 famous and real hotels/stays, exactly 15 famous and real restaurants/cafes, and exactly 15 famous and real attractions/beaches/bars.
+
+Requirements:
+1. All venues must be REAL, famous, and located in or near '{city_name}'.
+2. Estimate coordinates (lat, lon) accurately for the destination.
+3. For hotels: stars should be 1-5, cost is average nightly rate in INR (₹).
+4. For restaurants: price_level should be 1-3, cost is average meal cost for a group in INR (₹).
+5. For attractions: cost is average group entry fee (0 for free viewpoints/beaches/parks, etc.). Include at least 3 bars/nightclubs and 2 beaches (if coastal, otherwise scenic parks/viewpoints).
+6. Return a JSON object with this exact schema:
+{{
+  "hotels": [
+    {{
+      "id": "gemini_h1",
+      "name": "Hotel Name",
+      "lat": float,
+      "lon": float,
+      "sub_type": "hotel" | "hostel" | "resort" | "apartment",
+      "stars": float,
+      "cost": float,
+      "tags": {{"name": "Hotel Name", "tourism": "hotel"}}
+    }}
+  ],
+  "restaurants": [
+    {{
+      "id": "gemini_r1",
+      "name": "Restaurant Name",
+      "lat": float,
+      "lon": float,
+      "sub_type": "restaurant" | "cafe" | "fast_food",
+      "stars": float,
+      "cost": float,
+      "tags": {{"name": "Restaurant Name", "amenity": "restaurant"}}
+    }}
+  ],
+  "attractions": [
+    {{
+      "id": "gemini_e1",
+      "name": "Attraction Name",
+      "lat": float,
+      "lon": float,
+      "sub_type": "museum" | "viewpoint" | "park" | "bar" | "beach" | "historic",
+      "stars": float,
+      "cost": float,
+      "tags": {{"name": "Attraction Name", "tourism": "attraction"}}
+    }}
+  ]
+}}
+Do not return any markdown codeblocks or text outside the JSON. Return only the raw JSON.
+"""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "responseMimeType": "application/json"
+        }
+    }
+
+    try:
+        res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=25)
+        res.raise_for_status()
+        res_json = res.json()
+        text = res_json["candidates"][0]["content"]["parts"][0]["text"]
+        parsed = json.loads(text)
+        
+        # Validate structure
+        if "hotels" in parsed and "restaurants" in parsed and "attractions" in parsed:
+            set_cached_response(cache_key, parsed)
+            return parsed
+    except Exception as e:
+        print(f"[Gemini Error] Venue generation failed: {e}")
+        
+    return None
+
