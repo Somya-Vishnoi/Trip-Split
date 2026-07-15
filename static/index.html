@@ -35,14 +35,6 @@
                 <a href="#" class="nav-tab-link" data-view-target="experience-results" onclick="navigateToCategoryResults('attractions'); return false;">Things to Do</a>
                 <a href="#" class="nav-tab-link" data-view-target="ledger" onclick="navigateToView('ledger'); return false;">Expense Splitter</a>
                 <a href="#" class="nav-tab-link" data-view-target="forums" onclick="navigateToView('forums'); return false;">Travel Forums</a>
-                <div class="nav-dropdown-trigger">
-                    <span class="dropdown-label">More ▼</span>
-                    <div class="nav-dropdown-menu">
-                        <a href="#" onclick="navigateToCategoryResults('flights'); return false;">Flights</a>
-                        <a href="#" onclick="navigateToCategoryResults('cruises'); return false;">Cruises</a>
-                        <a href="#" onclick="navigateToCategoryResults('cars'); return false;">Rental Cars</a>
-                    </div>
-                </div>
             </nav>
 
             <!-- Right: Currency/Language, Sign In, Profile -->
@@ -83,9 +75,6 @@
                 <a href="#" onclick="navigateToCategoryResults('restaurants'); toggleMobileDrawer(); return false;">🍔 Restaurants</a>
                 <a href="#" onclick="navigateToCategoryResults('attractions'); toggleMobileDrawer(); return false;">🏛️ Things to Do</a>
                 <a href="#" onclick="navigateToView('forums'); toggleMobileDrawer(); return false;">💬 Travel Forums</a>
-                <a href="#" onclick="navigateToCategoryResults('flights'); toggleMobileDrawer(); return false;">✈️ Flights</a>
-                <a href="#" onclick="navigateToCategoryResults('cruises'); toggleMobileDrawer(); return false;">🛳️ Cruises</a>
-                <a href="#" onclick="navigateToCategoryResults('cars'); toggleMobileDrawer(); return false;">🚗 Rental Cars</a>
                 <hr>
                 <button id="drawer-signin-btn" class="btn-primary" style="width: 100%;" onclick="openSigninModal(); toggleMobileDrawer();">Sign In</button>
                 <div id="drawer-user-info" class="hidden">
@@ -121,33 +110,112 @@
             </section>
 
             <!-- Core Budget Optimizer USP Widget -->
-            <section class="core-optimizer-section" style="max-width:850px; margin:-45px auto 2.5rem auto; position:relative; z-index:10; padding:0 1.25rem;">
+            <section class="core-optimizer-section" style="max-width:900px; margin:-45px auto 2.5rem auto; position:relative; z-index:10; padding:0 1.25rem;">
                 <div class="budget-planner-card" style="background:#FFFFFF; box-shadow:0 12px 35px rgba(0,0,0,0.08); border:1px solid var(--border); border-radius:16px; padding:2rem;">
-                    <h3 style="font-size:1.3rem; font-weight:800; text-align:center; color:var(--text-primary); margin-bottom:0.25rem;">⚡ Group Budget Planner & Split Optimizer</h3>
-                    <p style="font-size:0.85rem; color:var(--text-muted); text-align:center; margin-bottom:1.5rem;">Input destination, travelers count, and joint budget limit to optimize hotel, dining, and sightseeing splits.</p>
+                    <h3 style="font-size:1.3rem; font-weight:800; text-align:center; color:var(--text-primary); margin-bottom:0.25rem;">⚡ Trip Split: Group Budget Planner & Route Optimizer</h3>
+                    <p style="font-size:0.85rem; color:var(--text-muted); text-align:center; margin-bottom:1.5rem;">Input starting location, destination, and budget constraints to calculate and compare realistic trip style options.</p>
                     
                     <form id="home-optimizer-form" onsubmit="handleHomeOptimizerSubmit(event)" style="display:flex; flex-direction:column; gap:1.25rem;">
-                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
                             <div style="position:relative;">
-                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">📍 Where to?</label>
-                                <input type="text" id="opt-home-destination" placeholder="e.g. Jaipur, Goa, Delhi, Mumbai" required style="width:100%; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; outline:none; background:#fff;" onfocus="showHomeOptAutocomplete()" oninput="handleHomeOptInput(this.value)" autocomplete="off">
+                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">📍 Origin City</label>
+                                <input type="text" id="opt-home-origin" placeholder="e.g. Jalandhar, Delhi, Mumbai" required style="width:100%; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; outline:none; background:#fff;">
+                            </div>
+                            <div style="position:relative;">
+                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">📍 Destination / Region</label>
+                                <input type="text" id="opt-home-destination" placeholder="e.g. Dharamshala, Goa, Himachal" required style="width:100%; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; outline:none; background:#fff;" onfocus="showHomeOptAutocomplete()" oninput="handleHomeOptInput(this.value)" autocomplete="off">
                                 <div id="opt-home-autocomplete" class="autocomplete-dropdown hidden" style="position:absolute; top:100%; left:0; right:0; z-index:99; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.08); max-height:220px; overflow-y:auto;"></div>
                             </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:1rem;">
                             <div>
-                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">💰 Total Group Budget (₹ INR)</label>
+                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">💰 Budget Amount (₹)</label>
                                 <input type="number" id="opt-home-budget" value="30000" min="1000" required style="width:100%; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; outline:none;">
                             </div>
                             <div>
-                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">📅 Days</label>
-                                <input type="number" id="opt-home-days" value="3" min="1" max="15" required style="width:100%; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; outline:none;">
+                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">💸 Budget Type</label>
+                                <select id="opt-home-budget-type" style="width:100%; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; outline:none; background:#fff; height:38px;">
+                                    <option value="total">Total Group Budget</option>
+                                    <option value="per_person">Budget Per Person</option>
+                                </select>
                             </div>
                             <div>
-                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">👥 Group Size (People)</label>
-                                <input type="number" id="opt-home-people" value="3" min="1" max="20" required style="width:100%; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; outline:none;">
+                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">📅 Days</label>
+                                <input type="number" id="opt-home-days" value="5" min="1" max="15" required style="width:100%; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; outline:none;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.35rem;">👥 Travellers</label>
+                                <input type="number" id="opt-home-people" value="5" min="1" max="20" required style="width:100%; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:8px; font-size:0.88rem; outline:none;">
                             </div>
                         </div>
+
+                        <!-- Expandable Preference Controls -->
+                        <details style="width:100%; cursor:pointer;">
+                            <summary style="font-size:0.85rem; font-weight:700; color:var(--accent); margin-bottom:0.5rem; outline:none; user-select:none;">⚙️ Optional Preferences & Interests</summary>
+                            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; padding-top:0.75rem; cursor:default;" onclick="event.stopPropagation()">
+                                <div>
+                                    <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.25rem;">🍂 Travel Month</label>
+                                    <select id="opt-home-month" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.82rem; background:#fff;">
+                                        <option value="January">January</option>
+                                        <option value="February">February</option>
+                                        <option value="March">March</option>
+                                        <option value="April">April</option>
+                                        <option value="May">May</option>
+                                        <option value="June">June</option>
+                                        <option value="July">July</option>
+                                        <option value="August" selected>August (Monsoon)</option>
+                                        <option value="September">September</option>
+                                        <option value="October">October</option>
+                                        <option value="November">November</option>
+                                        <option value="December">December</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.25rem;">🏃‍♂️ Trip Pace</label>
+                                    <select id="opt-home-pace" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.82rem; background:#fff;">
+                                        <option value="relaxed">Relaxed (1-2 stays base)</option>
+                                        <option value="balanced" selected>Balanced (Standard)</option>
+                                        <option value="packed">Packed (More exploration)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.25rem;">🚂 Transport</label>
+                                    <select id="opt-home-transport" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.82rem; background:#fff;">
+                                        <option value="flexible" selected>Flexible (Optimal)</option>
+                                        <option value="cheapest">Cheapest Available</option>
+                                        <option value="bus">State Bus</option>
+                                        <option value="train">Train</option>
+                                        <option value="self_drive">Self-drive / Bike</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.25rem;">🏠 Stays Preference</label>
+                                    <select id="opt-home-stay" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.82rem; background:#fff;">
+                                        <option value="flexible" selected>Flexible (Optimal)</option>
+                                        <option value="hostel">Hostels / Dorms</option>
+                                        <option value="budget_hotel">Budget Hotel</option>
+                                        <option value="homestay">Homestays</option>
+                                    </select>
+                                </div>
+                                <div style="grid-column: 1 / -1;">
+                                    <label style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:0.25rem;">🎨 Interests & Activities</label>
+                                    <select id="opt-home-interests" style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.82rem; background:#fff;">
+                                        <option value="no preference" selected>No Preference (All categories)</option>
+                                        <option value="mountains">Mountains & Trekking</option>
+                                        <option value="cafes">Cafes & Bakeries</option>
+                                        <option value="nightlife">Bars & Nightlife</option>
+                                        <option value="nature">Nature & Sightseeing</option>
+                                        <option value="culture">Temples & Culture</option>
+                                        <option value="beaches">Beaches & Water Sports</option>
+                                        <option value="food">Local Food Trail</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </details>
+
                         <button type="submit" class="btn-primary" style="width:100%; padding:0.85rem; font-size:0.95rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:0.5rem; border-radius:8px;">
-                            🚀 Run Optimization & Split Budget
+                            🚀 Calculate Trip Splits & Compare Options
                         </button>
                     </form>
                 </div>
@@ -159,8 +227,6 @@
                     <button class="pill-tag active" onclick="navigateToCategoryResults('hotels')">🏨 Hotels</button>
                     <button class="pill-tag" onclick="navigateToCategoryResults('restaurants')">🍴 Restaurants</button>
                     <button class="pill-tag" onclick="navigateToCategoryResults('attractions')">🏛️ Things to Do</button>
-                    <button class="pill-tag" onclick="navigateToCategoryResults('flights')">✈️ Flights</button>
-                    <button class="pill-tag" onclick="navigateToCategoryResults('cars')">🚗 Rental Cars</button>
                 </div>
             </section>
 
@@ -367,48 +433,129 @@
                 <!-- Destination Forums & Guide Tab Removed -->
 
                 <!-- Destination Split Itinerary Plan Tab -->
+                <!-- Destination Split Itinerary Plan Tab -->
                 <div id="dest-plan-tab" class="dest-subtab-pane hidden" style="margin-bottom: 4rem;">
                     <div id="plan-placeholder" class="plan-placeholder" style="padding: 3rem; text-align: center; color: var(--text-muted); background: #FAF9F6; border: 1px solid var(--border); border-radius: 12px; margin-top: 1rem;">
-                        <p style="font-size: 1.05rem; font-weight: 600; color: var(--text-primary);">No Optimal Plan Generated Yet</p>
-                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.35rem; max-width: 480px; margin-left: auto; margin-right: auto; line-height: 1.5;">Fill out the TripSplit Optimizer Widget on the Overview tab or homepage and click "Optimize Custom Trip" to calculate your budget-split plan!</p>
+                        <p style="font-size: 1.05rem; font-weight: 600; color: var(--text-primary);">No Trip Split Styles Generated Yet</p>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.35rem; max-width: 480px; margin-left: auto; margin-right: auto; line-height: 1.5;">Fill out the TripSplit Optimizer widget or the homepage planner and calculate to build your options!</p>
                     </div>
+                    
                     <div id="plan-data" class="hidden" style="margin-top: 1rem;">
-                        <!-- Plan Summary Card -->
-                        <div class="plan-summary-card" style="background:#FFFFFF; border:1px solid var(--border); border-radius:16px; padding:1.5rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1.5rem; margin-bottom:1.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.03);">
-                            <div class="summary-meta">
-                                <h3 style="display:flex; align-items:center; gap:0.5rem; margin:0; font-family:var(--font-heading); font-weight:800; font-size:1.3rem;">💰 Optimal Budget Allocation</h3>
-                                <span id="plan-status" class="plan-status-badge" style="background:var(--success-light); color:var(--success); padding:0.25rem 0.75rem; border-radius:100px; font-size:0.75rem; font-weight:700; display:inline-block; margin-top:0.5rem;">Optimal Plan (Within Budget)</span>
-                                <div id="travel-breakdown-container" class="hidden" style="margin-top:0.75rem; font-size:0.82rem; color:var(--text-secondary); border-top:1px solid var(--border); padding-top:0.5rem;">
-                                    <div id="travel-breakdown-details"></div>
+                        <!-- TOP ACTION ROW: Option Pills, Adjust Budget Slider, Split It, Compare -->
+                        <div class="tripsplit-actions-bar" style="background:#FFFFFF; border:1px solid var(--border); border-radius:12px; padding:1.25rem; margin-bottom:1.5rem; display:flex; flex-direction:column; gap:1.25rem; box-shadow:0 4px 15px rgba(0,0,0,0.02);">
+                            
+                            <!-- Tab Switcher for different Trip Options -->
+                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+                                <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                                    <span style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Compare Trip Styles</span>
+                                    <div id="tripsplit-option-pills" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                                        <!-- Will be dynamically populated with buttons: e.g., Best Overall, Cheapest Trip, Slow & Relaxed, etc. -->
+                                    </div>
+                                </div>
+                                <div style="display:flex; gap:0.75rem; align-items:center;">
+                                    <button class="btn-primary" onclick="showPerPersonSplitCard()" style="font-size:0.85rem; padding:0.6rem 1.25rem; border-radius:8px; display:flex; align-items:center; gap:0.4rem; font-weight:700;">
+                                        💸 Split It
+                                    </button>
+                                    <button class="btn-secondary" onclick="toggleComparisonMode()" style="font-size:0.85rem; padding:0.6rem 1.25rem; border-radius:8px; font-weight:600;">
+                                        📊 Compare Styles
+                                    </button>
+                                    <button class="btn-secondary" onclick="exportItineraryCSV()" style="font-size:0.85rem; padding:0.6rem 1.25rem; border-radius:8px; font-weight:600;">
+                                        📄 Export CSV
+                                    </button>
                                 </div>
                             </div>
-                            <div class="price-summary" style="display:flex; gap:2rem;">
-                                <div class="price-item" style="display:flex; flex-direction:column;">
-                                    <span class="price-lbl" style="font-size:0.7rem; color:var(--text-muted); font-weight:800; text-transform:uppercase; letter-spacing:0.5px;">TOTAL COST</span>
-                                    <span class="price-val" id="plan-total-cost" style="font-size:1.75rem; font-weight:800; color:var(--accent);">₹0</span>
+                            
+                            <!-- Slider and Realtime Adjust Panel -->
+                            <div style="border-top:1px solid var(--border); padding-top:1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1.5rem;">
+                                <div style="display:flex; align-items:center; gap:1rem; flex-grow:1; max-width:500px;">
+                                    <div style="display:flex; flex-direction:column; gap:0.25rem; width:100%;">
+                                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; font-weight:700; color:var(--text-secondary);">
+                                            <span>🎛️ Adjust Total Group Budget</span>
+                                            <span id="slider-budget-label" style="color:var(--accent);">₹30,000</span>
+                                        </div>
+                                        <input type="range" id="tripsplit-budget-slider" min="10000" max="200000" step="5000" value="30000" oninput="handleBudgetSliderInput(this.value)" onchange="handleBudgetSliderChange(this.value)" style="width:100%; margin-top:0.35rem; accent-color:var(--accent); cursor:pointer;">
+                                    </div>
                                 </div>
-                                <div class="price-item" style="display:flex; flex-direction:column;">
-                                    <span class="price-lbl" style="font-size:0.7rem; color:var(--text-muted); font-weight:800; text-transform:uppercase; letter-spacing:0.5px;">PER PERSON</span>
-                                    <span class="price-val" id="plan-person-cost" style="font-size:1.75rem; font-weight:800; color:var(--text-primary);">₹0</span>
+                                <div id="tripsplit-confidence-container" style="display:flex; align-items:center; gap:0.5rem;">
+                                    <!-- Will contain confidence badge: High, Moderate, Tight -->
                                 </div>
                             </div>
+
+                            <!-- Manual Adjustment Deficit Warning Banner -->
+                            <div id="tripsplit-deficit-banner" class="hidden" style="background:#FEF2F2; border:1px solid #FCA5A5; border-radius:8px; padding:0.75rem 1rem; display:flex; align-items:center; gap:0.5rem; color:#B91C1C; font-size:0.85rem; font-weight:700;">
+                                ⚠️ <span id="deficit-banner-text">This version exceeds your budget by ₹2,400.</span>
+                            </div>
                         </div>
-                        
-                        <div class="plan-actions-row" style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem; justify-content: flex-end;">
-                            <button id="toggle-backup-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; font-weight: 600;" onclick="toggleOptimalPlanType()">Switch to Economy Option</button>
-                            <button id="export-pdf-btn" class="btn-secondary" style="font-size: 0.82rem; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; font-weight: 600;" onclick="exportPlanToPDF()">Export to PDF</button>
+
+                        <!-- MAIN THREE-COLUMN RESULTS CONTAINER -->
+                        <div class="tripsplit-columns-container" style="display:grid; grid-template-columns: 280px 1fr 340px; gap:1.5rem; align-items:start;">
+                            
+                            <!-- COLUMN 1: Visual Budget Split Bar & Breakdown -->
+                            <aside class="tripsplit-left-col" style="background:#FFFFFF; border:1px solid var(--border); border-radius:16px; padding:1.25rem; display:flex; flex-direction:column; gap:1.25rem; box-shadow:0 4px 15px rgba(0,0,0,0.02); position:sticky; top:80px; max-height:calc(100vh - 120px); overflow-y:auto;">
+                                <h4 style="margin:0; font-size:0.95rem; font-weight:800; color:var(--text-primary);">💰 Budget Allocation</h4>
+                                
+                                <!-- Vertical Budget Strip Bar -->
+                                <div class="vertical-budget-strip-container" style="position:relative; width:100%; height:320px; background:#F3F4F6; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:inset 0 2px 4px rgba(0,0,0,0.05);">
+                                    <div id="budget-strip-transport" class="budget-strip-segment" style="background:#3B82F6; width:100%; transition:height 0.3s;" title="Transportation"></div>
+                                    <div id="budget-strip-stay" class="budget-strip-segment" style="background:#10B981; width:100%; transition:height 0.3s;" title="Accommodation"></div>
+                                    <div id="budget-strip-food" class="budget-strip-segment" style="background:#F59E0B; width:100%; transition:height 0.3s;" title="Food"></div>
+                                    <div id="budget-strip-local" class="budget-strip-segment" style="background:#8B5CF6; width:100%; transition:height 0.3s;" title="Local Travel"></div>
+                                    <div id="budget-strip-activities" class="budget-strip-segment" style="background:#EC4899; width:100%; transition:height 0.3s;" title="Activities"></div>
+                                    <div id="budget-strip-buffer" class="budget-strip-segment" style="background:#6B7280; width:100%; transition:height 0.3s;" title="Emergency Buffer"></div>
+                                </div>
+                                
+                                <!-- Category Labels & Breakdown -->
+                                <div style="display:flex; flex-direction:column; gap:0.65rem; font-size:0.85rem;" id="budget-labels-breakdown">
+                                    <!-- Populated dynamically with color-coded categories, percentages, and rupee spends -->
+                                </div>
+                            </aside>
+                            
+                            <!-- COLUMN 2: Day-by-Day Itinerary & Tradeoffs -->
+                            <main class="tripsplit-center-col" style="display:flex; flex-direction:column; gap:1.25rem;">
+                                <!-- Why this fits card -->
+                                <div id="tripsplit-why-fits-card" style="background:#EFF6FF; border:1px solid #BFDBFE; border-radius:12px; padding:1rem; font-size:0.85rem; color:#1E40AF; line-height:1.5;">
+                                    <strong>Why this fits your budget:</strong> <span id="why-fits-text">Loading explanation...</span>
+                                </div>
+
+                                <!-- Checklist / Filters -->
+                                <div class="itinerary-toggles-row" style="background:#FAF9F6; border:1px solid var(--border); border-radius:12px; padding:0.75rem 1.25rem; display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap; font-size:0.82rem;">
+                                    <strong style="color:var(--text-secondary); font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px;">Show:</strong>
+                                    <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; font-weight:700;"><input type="checkbox" id="toggle-itin-stays" checked onchange="handleItineraryToggleChange()"> 🏨 Stays</label>
+                                    <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; font-weight:700;"><input type="checkbox" id="toggle-itin-dining" checked onchange="handleItineraryToggleChange()"> 🍽️ Dining</label>
+                                    <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; font-weight:700;"><input type="checkbox" id="toggle-itin-bars" checked onchange="handleItineraryToggleChange()"> 🍹 Nightspots</label>
+                                    <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; font-weight:700;"><input type="checkbox" id="toggle-itin-sights" checked onchange="handleItineraryToggleChange()"> 🏛️ Sights</label>
+                                </div>
+                                
+                                <!-- Itinerary Cards Wrapper -->
+                                <div id="plan-details-wrapper" style="display:flex; flex-direction:column; gap:1rem;">
+                                    <!-- Day cards populated dynamically -->
+                                </div>
+                                
+                                <!-- What Could Go Wrong Amber Card -->
+                                <div id="tripsplit-wrong-card" style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:12px; padding:1.25rem; display:flex; flex-direction:column; gap:0.75rem; box-shadow:0 4px 15px rgba(0,0,0,0.02); margin-top:1rem;">
+                                    <h4 style="margin:0; font-size:0.92rem; font-weight:800; color:#92400E; display:flex; align-items:center; gap:0.4rem;">⚠️ What Could Go Wrong</h4>
+                                    <div id="wrong-flags-list" style="display:flex; flex-direction:column; gap:0.5rem; font-size:0.82rem; color:#B45309; line-height:1.5;">
+                                        <!-- Dynamically generated honest warning flags -->
+                                    </div>
+                                </div>
+
+                                <!-- Tradeoffs Card -->
+                                <div id="tripsplit-tradeoffs-card" style="background:#FAF9F6; border:1px solid var(--border); border-radius:12px; padding:1.25rem; display:flex; flex-direction:column; gap:0.75rem; box-shadow:0 4px 15px rgba(0,0,0,0.02);">
+                                    <h4 style="margin:0; font-size:0.92rem; font-weight:800; color:var(--text-secondary); display:flex; align-items:center; gap:0.4rem;">⚖️ Trade-offs & Compromises</h4>
+                                    <ul id="tradeoffs-list" style="margin:0; padding-left:1.2rem; font-size:0.82rem; color:var(--text-secondary); line-height:1.5;">
+                                        <!-- Dynamically generated tradeoffs -->
+                                    </ul>
+                                </div>
+                            </main>
+                            
+                            <!-- COLUMN 3: Live Sticky Map Panel -->
+                            <aside class="tripsplit-right-col" style="background:#FFFFFF; border:1px solid var(--border); border-radius:16px; padding:1rem; box-shadow:0 4px 15px rgba(0,0,0,0.02); position:sticky; top:80px; height:calc(100vh - 120px); display:flex; flex-direction:column; gap:0.75rem;">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <h4 style="margin:0; font-size:0.9rem; font-weight:800; color:var(--text-primary);">🗺️ Live Interactive Route Map</h4>
+                                </div>
+                                <div id="itinerary-leaflet-map" style="width:100%; height:100%; min-height:350px; border-radius:12px; border:1px solid var(--border); overflow:hidden; position:relative; z-index:5;"></div>
+                            </aside>
                         </div>
-                        
-                        <!-- Toggle Controls for Itinerary Items -->
-                        <div class="itinerary-toggles-row" style="background:#FAF9F6; border:1px solid var(--border); border-radius:12px; padding:0.75rem 1.25rem; display:flex; align-items:center; gap:1.5rem; margin-bottom:1.5rem; flex-wrap:wrap; font-size:0.88rem;">
-                            <strong style="color:var(--text-secondary);">Show in Itinerary:</strong>
-                            <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; font-weight:600;"><input type="checkbox" id="toggle-itin-stays" checked onchange="handleItineraryToggleChange()"> 🏨 Stays</label>
-                            <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; font-weight:600;"><input type="checkbox" id="toggle-itin-dining" checked onchange="handleItineraryToggleChange()"> 🍽️ Dining</label>
-                            <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; font-weight:600;"><input type="checkbox" id="toggle-itin-bars" checked onchange="handleItineraryToggleChange()"> 🍹 Nightspots</label>
-                            <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; font-weight:600;"><input type="checkbox" id="toggle-itin-sights" checked onchange="handleItineraryToggleChange()"> 🏛️ Sights</label>
-                        </div>
-                        
-                        <div id="plan-details-wrapper"></div>
                     </div>
                 </div>
 
@@ -1646,6 +1793,57 @@
             <div style="display: flex; gap: 0.75rem; justify-content: center;">
                 <button id="city-prompt-cancel-btn" class="btn-secondary" style="padding: 0.6rem 1.25rem; font-size: 0.9rem; border-radius: 8px; cursor:pointer; font-weight:600; font-family:var(--font-body); border:1px solid var(--border); background:#FFF;">Cancel</button>
                 <button id="city-prompt-submit-btn" class="btn-primary" style="padding: 0.6rem 1.25rem; font-size: 0.9rem; border-radius: 8px; cursor:pointer; font-weight: 700; font-family:var(--font-body); background: var(--accent); color: white; border: none;">Explore</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- COMPARISON MODAL -->
+    <div id="comparison-modal" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 2rem;">
+        <div class="modal-container" style="background: #FFFFFF; border-radius: 16px; width: 100%; max-width: 950px; max-height: calc(100vh - 4rem); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.15); margin: auto;">
+            <div class="modal-header" style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; font-family: var(--font-heading);">📊 Side-by-Side Trip Style Comparison</h3>
+                <button onclick="closeComparisonModal()" style="border: none; background: transparent; font-size: 1.25rem; font-weight: bold; cursor: pointer; color: var(--text-muted);">✕</button>
+            </div>
+            <div id="comparison-modal-body" style="padding: 1.5rem; overflow-y: auto; flex-grow: 1;">
+                <!-- Comparative table populated dynamically -->
+            </div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--border); text-align: right; background: #FAF9F6;">
+                <button class="btn-primary" onclick="closeComparisonModal()" style="padding: 0.5rem 1.5rem; border-radius: 8px;">Close Comparison</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SPLIT IT PER-PERSON BREAKDOWN MODAL -->
+    <div id="split-it-modal" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 2rem;">
+        <div class="modal-container" style="background: #FFFFFF; border-radius: 16px; width: 100%; max-width: 460px; max-height: calc(100vh - 4rem); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.15); margin: auto;">
+            <div class="modal-header" style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; font-family: var(--font-heading);">💸 Per-Person Cost Breakdown</h3>
+                <button onclick="closeSplitItModal()" style="border: none; background: transparent; font-size: 1.25rem; font-weight: bold; cursor: pointer; color: var(--text-muted);">✕</button>
+            </div>
+            <div id="split-it-modal-body" style="padding: 1.5rem 2rem; overflow-y: auto; flex-grow: 1; text-align: center;">
+                <!-- Sharing card -->
+            </div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: #FAF9F6;">
+                <button class="btn-secondary" onclick="shareItineraryWhatsApp()" style="padding: 0.5rem 1rem; border-radius: 8px; font-weight:600; display:flex; align-items:center; gap:0.35rem; color:#25D366; border-color:#25D366; background:#FFF; border:1px solid #25D366;">
+                    💬 WhatsApp Share
+                </button>
+                <button class="btn-primary" onclick="closeSplitItModal()" style="padding: 0.5rem 1.5rem; border-radius: 8px;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SWAP STAY ALTERNATIVES MODAL -->
+    <div id="swap-stay-modal" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 2rem;">
+        <div class="modal-container" style="background: #FFFFFF; border-radius: 16px; width: 100%; max-width: 580px; max-height: calc(100vh - 4rem); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.15); margin: auto;">
+            <div class="modal-header" style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; font-family: var(--font-heading);">🏨 Swap Stays & Accommodations</h3>
+                <button onclick="closeSwapStayModal()" style="border: none; background: transparent; font-size: 1.25rem; font-weight: bold; cursor: pointer; color: var(--text-muted);">✕</button>
+            </div>
+            <div id="swap-stay-modal-body" style="padding: 1.5rem; overflow-y: auto; flex-grow: 1; display:flex; flex-direction:column; gap:1rem;">
+                <!-- Stays list -->
+            </div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--border); text-align: right; background: #FAF9F6;">
+                <button class="btn-secondary" onclick="closeSwapStayModal()" style="padding: 0.5rem 1.5rem; border-radius: 8px; background:#FFF; border:1px solid var(--border);">Cancel</button>
             </div>
         </div>
     </div>

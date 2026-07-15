@@ -42,6 +42,12 @@ class PlanRequest(BaseModel):
     add_travel: bool = False
     origin_city: Optional[str] = None
     travel_mode: Optional[str] = "flight"
+    budget_type: Optional[str] = "total"
+    travel_month: Optional[str] = "August"
+    pace: Optional[str] = "balanced"
+    transport_pref: Optional[str] = "flexible"
+    accommodation_pref: Optional[str] = "flexible"
+    interests: Optional[str] = "no preference"
 
 @app.get("/")
 def read_root():
@@ -132,21 +138,299 @@ def search_city(req: SearchRequest):
         }
     }
 
+def calculate_budget_split_option(
+    style_name: str,
+    venues: dict,
+    req: PlanRequest,
+    total_budget: float,
+    dest_lat: float,
+    dest_lon: float,
+    origin_geo: Optional[dict]
+) -> dict:
+    import math
+    from src.optimizer import assign_heuristics
+    
+    people = req.people
+    days = req.days
+    nights = max(1, days - 1)
+    
+    # 1. Transportation cost calculation (round-trip for all people)
+    dist = 0.0
+    if origin_geo:
+        from src.router import haversine_distance
+        dist = haversine_distance(origin_geo["lat"], origin_geo["lon"], dest_lat, dest_lon)
+    
+    # Select mode of transportation based on style & preferences
+    mode = "bus"
+    if style_name == "Cheapest Trip":
+        mode = "train_sleeper" if dist > 200 else "bus"
+    elif style_name == "Slow and Relaxed":
+        mode = "flight" if dist > 500 else ("train_3ac" if dist > 200 else "bus")
+    elif style_name == "Better Stay":
+        mode = "train_sleeper" if dist > 200 else "bus" # Cheaper mode to save budget for stay
+    else: # Best Overall, More Places
+        # Default or flexible
+        mode = req.travel_mode or "train_3ac"
+        if mode == "flight" and dist < 300:
+            mode = "train_3ac"
+            
+    # Calculate round-trip cost per person
+    def get_leg_cost(d, m):
+        if m == "flight":
+            if d < 250: return 150.0 + 1.2 * d
+            return 1500.0 + 3.0 * d
+        elif m == "train_3ac":
+            return 200.0 + 1.0 * d
+        elif m == "train_sleeper":
+            return 80.0 + 0.45 * d
+        else: # bus
+            return 60.0 + 1.3 * d
+
+    rt_transport_cost_pp = get_leg_cost(dist, mode) * 2.0 if dist > 0 else 0.0
+    total_transport_cost = rt_transport_cost_pp * people
+    
+    # Local travel cost per person per day
+    if style_name == "Cheapest Trip":
+        local_travel_pp_pd = 100.0 # public transport / shared auto
+    elif style_name == "More Places":
+        local_travel_pp_pd = 300.0 # private taxi sharing / active routing
+    else:
+        local_travel_pp_pd = 200.0 # standard
+    total_local_travel = local_travel_pp_pd * days * people
+
+    # 2. Food allocation
+    if style_name == "Cheapest Trip":
+        food_pp_pd = 250.0 # local dhabas / street food
+    elif style_name == "Slow and Relaxed":
+        food_pp_pd = 600.0 # nice cafes / restaurants
+    else:
+        food_pp_pd = 400.0 # standard
+    total_food_cost = food_pp_pd * days * people
+
+    # 3. Accommodation cost (nights = days - 1, room based)
+    rooms_needed = math.ceil(people / 2.0)
+    
+    # Filter hotels
+    hotels = list(venues.get("hotels", []))
+    hotel_sel = None
+    if hotels:
+        if style_name == "Cheapest Trip":
+            hotels_sorted = sorted(hotels, key=lambda x: assign_heuristics(x, "hotels", people)[0])
+            hotel_sel = hotels_sorted[0]
+        elif style_name == "Better Stay":
+            avail = total_budget - total_transport_cost - total_food_cost - total_local_travel
+            max_hotel_total = max(2000.0, avail * 0.7)
+            max_nightly = max_hotel_total / nights
+            
+            fitting = [h for h in hotels if assign_heuristics(h, "hotels", people)[0] <= max_nightly]
+            if fitting:
+                hotel_sel = sorted(fitting, key=lambda x: x.get("stars", 0) or assign_heuristics(x, "hotels", people)[1], reverse=True)[0]
+            else:
+                hotel_sel = sorted(hotels, key=lambda x: assign_heuristics(x, "hotels", people)[0])[0]
+        else: # Best Overall, Slow and Relaxed, More Places
+            avail = total_budget - total_transport_cost - total_food_cost - total_local_travel
+            max_hotel_total = max(2000.0, avail * 0.45)
+            max_nightly = max_hotel_total / nights
+            
+            fitting = [h for h in hotels if assign_heuristics(h, "hotels", people)[0] <= max_nightly]
+            if fitting:
+                hotel_sel = sorted(fitting, key=lambda x: assign_heuristics(x, "hotels", people)[1], reverse=True)[0]
+            else:
+                hotel_sel = sorted(hotels, key=lambda x: assign_heuristics(x, "hotels", people)[0])[0]
+
+    h_cost_per_night = assign_heuristics(hotel_sel, "hotels", people)[0] if hotel_sel else 1200.0 * rooms_needed
+    total_stay_cost = h_cost_per_night * nights
+
+    # 4. Emergency Buffer
+    if style_name == "Cheapest Trip":
+        buffer_pct = 0.05
+    elif style_name == "Slow and Relaxed":
+        buffer_pct = 0.10
+    else:
+        buffer_pct = 0.07
+    
+    # Calculate available activity budget
+    flexible_budget = total_budget - total_transport_cost - total_stay_cost - total_food_cost - total_local_travel
+    
+    if flexible_budget < 0:
+        flexible_budget = 0.0
+        
+    total_buffer = total_budget * buffer_pct
+    available_activities_budget = max(0.0, flexible_budget - total_buffer)
+    
+    # Select activities
+    attractions = list(venues.get("attractions", []))
+    selected_attrs = []
+    activities_spend = 0.0
+    
+    if style_name == "Cheapest Trip":
+        free_attrs = [a for a in attractions if assign_heuristics(a, "attractions", people)[0] == 0]
+        selected_attrs = free_attrs[:4]
+    else:
+        sorted_attrs = sorted(attractions, key=lambda x: assign_heuristics(x, "attractions", people)[1], reverse=True)
+        for a in sorted_attrs:
+            cost_a = assign_heuristics(a, "attractions", people)[0]
+            if activities_spend + cost_a <= available_activities_budget:
+                selected_attrs.append(a)
+                activities_spend += cost_a
+                if len(selected_attrs) >= 4:
+                    break
+        if not selected_attrs:
+            free_attrs = [a for a in attractions if assign_heuristics(a, "attractions", people)[0] == 0]
+            selected_attrs = free_attrs[:3]
+
+    estimated_total = total_transport_cost + total_stay_cost + total_food_cost + total_local_travel + activities_spend
+    actual_buffer = max(0.0, total_budget - estimated_total)
+    if actual_buffer > total_buffer * 1.5:
+        actual_buffer = total_buffer
+    
+    estimated_total += actual_buffer
+    remaining_balance = max(0.0, total_budget - estimated_total)
+
+    ratio_used = estimated_total / total_budget
+    if ratio_used > 0.98:
+        confidence = "Tight Budget"
+    elif ratio_used > 0.85:
+        confidence = "Moderate Confidence"
+    else:
+        confidence = "High Confidence"
+
+    # Trade-offs and why fits based on choices
+    why_fits = ""
+    tradeoffs = []
+    
+    if style_name == "Cheapest Trip":
+        why_fits = f"This route utilizes shared public transport (like {mode.replace('_',' ')}) and budget accommodations to minimize costs. This leaves a safe cash buffer for group emergencies."
+        tradeoffs = ["Assumes budget stays/hostels", "No private cab/taxi included", "Limited dining at high-end restaurants"]
+    elif style_name == "Better Stay":
+        why_fits = f"By choosing affordable train transport and dining at budget-friendly spots, this split redirects the maximum amount of money (₹{total_stay_cost:,.0f}) to stay in a premium hotel."
+        tradeoffs = ["Reduced budget for paid excursions", "Longer travel time via sleeper transport", "Standard meals instead of fine dining"]
+    elif style_name == "Slow and Relaxed":
+        why_fits = "Focuses on a single overnight base to eliminate mid-trip hotel change costs, allocating a higher daily food allowance and a larger 10% emergency buffer."
+        tradeoffs = ["Fewer places visited", "Higher stay cost per night", "Fewer fast-paced paid activities"]
+    elif style_name == "More Places":
+        why_fits = "Includes multiple sightseeing stops and active travel movement. It saves budget by using hostel dorms and eating at local street stalls."
+        tradeoffs = ["Significant travel time between stops", "Shared dorm rooms/backpack hostels", "Zero luxury hotel amenities"]
+    else: # Best Overall
+        why_fits = "Balances comfortable mid-range hotels, local private transport, and high-quality meals. It provides the optimal value for your money."
+        tradeoffs = ["No luxury resort stays included", "Some walking required for local sightseeing", "Moderate pace with scheduled stops"]
+
+    # Day-by-day itinerary generation
+    itinerary = []
+    
+    attrs_per_day = math.ceil(len(selected_attrs) / days) if selected_attrs else 1
+    for day in range(1, days + 1):
+        day_attrs = selected_attrs[(day-1)*attrs_per_day : day*attrs_per_day] if selected_attrs else []
+        attr_names = [a["name"] for a in day_attrs]
+        
+        if day == 1:
+            summary = f"Arrival in {req.city}, check-in at hotel, and local orientation."
+            details = f"Check in to your hotel: {hotel_sel['name'] if hotel_sel else 'Local Lodging'}. Afternoon spent wandering near the hotel and dining locally."
+        elif day == days:
+            summary = f"Last-minute souvenir shopping and departure."
+            details = "Enjoy a relaxed breakfast, pack up, and head to the transport station for the return journey."
+        else:
+            if attr_names:
+                summary = f"Explore {attr_names[0]} and surrounding sights."
+                details = f"Visit {', '.join(attr_names)}. Lunch at a popular local eatery, followed by an evening stroll."
+            else:
+                summary = "Leisurely sightseeing and local food trail."
+                details = "Wander through local markets, sample authentic street foods, and interact with residents."
+                
+        itinerary.append({
+            "day": day,
+            "summary": summary,
+            "details": details,
+            "stay_name": hotel_sel["name"] if hotel_sel else "Local Stay",
+            "stay_rating": hotel_sel.get("stars", 4.0) if hotel_sel else 4.0,
+            "transport_mode": mode.replace("_", " ").title(),
+            "transport_cost": rt_transport_cost_pp / 2.0 if day in [1, days] else local_travel_pp_pd
+        })
+
+    # Prepare candidates for swapping
+    all_hotels = []
+    for h in venues.get("hotels", []):
+        cost_val, util_val = assign_heuristics(h, "hotels", people)
+        h_copy = dict(h)
+        h_copy["cost"] = cost_val * nights
+        h_copy["utility"] = util_val
+        h_copy["optimized"] = (hotel_sel is not None and h["name"] == hotel_sel.get("name"))
+        all_hotels.append(h_copy)
+    all_hotels.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
+
+    all_restaurants = []
+    for r in venues.get("restaurants", []):
+        cost_val, util_val = assign_heuristics(r, "restaurants", people)
+        r_copy = dict(r)
+        r_copy["cost"] = cost_val
+        r_copy["utility"] = util_val
+        r_copy["optimized"] = False
+        all_restaurants.append(r_copy)
+    all_restaurants.sort(key=lambda x: x.get("utility", 0.0), reverse=True)
+
+    all_attractions = []
+    for a in venues.get("attractions", []):
+        cost_val, util_val = assign_heuristics(a, "attractions", people)
+        a_copy = dict(a)
+        a_copy["cost"] = 0.0
+        a_copy["original_cost"] = cost_val
+        a_copy["utility"] = util_val
+        a_copy["optimized"] = a["name"] in [x["name"] for x in selected_attrs]
+        all_attractions.append(a_copy)
+    all_attractions.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
+
+    stop_plan = {
+        "city": req.city,
+        "days": days,
+        "hotel": hotel_sel,
+        "restaurants": [],
+        "bars": [],
+        "zones": [],
+        "all_hotels": all_hotels,
+        "all_restaurants": all_restaurants,
+        "all_bars": [a for a in all_attractions if a.get("sub_type") == "bar"],
+        "all_sightseeing": [a for a in all_attractions if a.get("sub_type") != "bar"],
+        "budget_exceeded": ratio_used > 1.0,
+        "local_cost": total_stay_cost + total_food_cost + total_local_travel + activities_spend + actual_buffer
+    }
+
+    return {
+        "style_name": style_name,
+        "route_label": f"{req.origin_city or 'Origin'} ➔ {req.city} ➔ {req.origin_city or 'Origin'}",
+        "total_cost": estimated_total,
+        "cost_per_person": estimated_total / people,
+        "remaining_budget": remaining_balance,
+        "confidence": confidence,
+        "why_fits": why_fits,
+        "tradeoffs": tradeoffs,
+        "budget_split": {
+            "Transportation": total_transport_cost,
+            "Stay": total_stay_cost,
+            "Food": total_food_cost,
+            "Local Travel": total_local_travel,
+            "Activities": activities_spend,
+            "Buffer": actual_buffer
+        },
+        "itinerary": itinerary,
+        "travel_cost": total_transport_cost,
+        "travel_mode": mode,
+        "distance_km": dist,
+        "stops": [stop_plan]
+    }
+
 @app.post("/api/plan")
 def plan_trip(req: PlanRequest):
     if not req.city.strip():
         raise HTTPException(status_code=400, detail="City name cannot be empty")
         
     cities = [c.strip() for c in req.city.split(",") if c.strip()]
-    N = len(cities)
+    primary_city = cities[0]
     
-    # 1. Geocode all destinations
-    cities_geo = []
-    for c in cities:
-        geo = geocode_city(c)
-        if not geo:
-            raise HTTPException(status_code=404, detail=f"Could not geocode city '{c}'")
-        cities_geo.append((c, geo["lat"], geo["lon"], geo["bbox"]))
+    # 1. Geocode primary destination
+    geo = geocode_city(primary_city)
+    if not geo:
+        raise HTTPException(status_code=404, detail=f"Could not geocode city '{primary_city}'")
+    lat, lon, bbox = geo["lat"], geo["lon"], geo["bbox"]
         
     # 2. Geocode origin if travel is included
     origin_geo = None
@@ -155,339 +439,58 @@ def plan_trip(req: PlanRequest):
         if not origin_geo:
             raise HTTPException(status_code=400, detail=f"Could not geocode origin city '{req.origin_city}'")
 
-    # 3. Sort route using Greedy TSP to minimize travel distance
-    from src.router import haversine_distance
-    sorted_cities = []
-    
-    if origin_geo:
-        current_lat, current_lon = origin_geo["lat"], origin_geo["lon"]
-        unvisited = list(cities_geo)
-        while unvisited:
-            nearest_idx = 0
-            nearest_dist = float('inf')
-            for idx, (_, lat, lon, _) in enumerate(unvisited):
-                d = haversine_distance(current_lat, current_lon, lat, lon)
-                if d < nearest_dist:
-                    nearest_dist = d
-                    nearest_idx = idx
-            visited = unvisited.pop(nearest_idx)
-            sorted_cities.append(visited)
-            current_lat, current_lon = visited[1], visited[2]
-    else:
-        start_city = cities_geo[0]
-        sorted_cities = [start_city]
-        current_lat, current_lon = start_city[1], start_city[2]
-        unvisited = cities_geo[1:]
-        while unvisited:
-            nearest_idx = 0
-            nearest_dist = float('inf')
-            for idx, (_, lat, lon, _) in enumerate(unvisited):
-                d = haversine_distance(current_lat, current_lon, lat, lon)
-                if d < nearest_dist:
-                    nearest_dist = d
-                    nearest_idx = idx
-            visited = unvisited.pop(nearest_idx)
-            sorted_cities.append(visited)
-            current_lat, current_lon = visited[1], visited[2]
-
-    # 4. Compute Intercity legs and travel costs
-    legs = []
-    total_travel_cost = 0.0
-    total_distance_km = 0.0
-    
-    mode = req.travel_mode or "flight"
-    
-    def get_leg_cost(dist, mode):
-        if mode == "flight":
-            if dist < 250:
-                return 150.0 + 1.2 * dist
-            return 1500.0 + 3.0 * dist
-        elif mode == "train_3ac":
-            return 200.0 + 1.0 * dist
-        elif mode == "train_sleeper":
-            return 80.0 + 0.45 * dist
-        else: # bus
-            return 60.0 + 1.3 * dist
-
-    if origin_geo:
-        # Leg 1: Origin -> Stop 1
-        d1 = haversine_distance(origin_geo["lat"], origin_geo["lon"], sorted_cities[0][1], sorted_cities[0][2])
-        c1 = get_leg_cost(d1, mode) * req.people
-        legs.append({"from": req.origin_city, "to": sorted_cities[0][0], "distance": d1, "cost": c1})
-        total_travel_cost += c1
-        total_distance_km += d1
+    # 3. Fetch venues for primary destination
+    cache_key = f"overpass_{primary_city.lower().strip().replace(' ', '_')}"
+    venues = get_cached_response(cache_key)
+    if not venues:
+        venues = fetch_venues(primary_city, bbox, lat=lat, lon=lon)
         
-        # Intermediate Legs: Stop i -> Stop i+1
-        for i in range(len(sorted_cities) - 1):
-            d = haversine_distance(sorted_cities[i][1], sorted_cities[i][2], sorted_cities[i+1][1], sorted_cities[i+1][2])
-            c = get_leg_cost(d, mode) * req.people
-            legs.append({"from": sorted_cities[i][0], "to": sorted_cities[i+1][0], "distance": d, "cost": c})
-            total_travel_cost += c
-            total_distance_km += d
-            
-        # Last Leg: Stop N -> Origin
-        dn = haversine_distance(sorted_cities[-1][1], sorted_cities[-1][2], origin_geo["lat"], origin_geo["lon"])
-        cn = get_leg_cost(dn, mode) * req.people
-        legs.append({"from": sorted_cities[-1][0], "to": req.origin_city, "distance": dn, "cost": cn})
-        total_travel_cost += cn
-        total_distance_km += dn
-    else:
-        for i in range(len(sorted_cities) - 1):
-            d = haversine_distance(sorted_cities[i][1], sorted_cities[i][2], sorted_cities[i+1][1], sorted_cities[i+1][2])
-            legs.append({"from": sorted_cities[i][0], "to": sorted_cities[i+1][0], "distance": d, "cost": 0.0})
-            total_distance_km += d
-
-    # 5. Deduct travel cost and check budget viability
-    remaining_budget = req.budget - total_travel_cost
-    if remaining_budget < 0:
-        return {
-            "success": False,
-            "message": f"Roundtrip travel cost (₹{total_travel_cost:,.2f}) exceeds your total budget of ₹{req.budget:,.2f}. Try switching transport mode or increasing budget!"
-        }
-
-    # 6. Allocate days and budget per city stop
-    days_per_city = req.days // N
-    days_alloc = [days_per_city + (1 if i < (req.days % N) else 0) for i in range(N)]
-    budget_per_city = remaining_budget / N
-
-    # 7. Optimize each city stop
-    stops_plans = []
-    stops_backup_plans = []
-    total_local_cost = 0.0
-    total_local_backup_cost = 0.0
-    total_utility = 0.0
-    total_backup_utility = 0.0
-    
-    for i, (city_name, lat, lon, bbox) in enumerate(sorted_cities):
-        cache_key = f"overpass_{city_name.lower().strip().replace(' ', '_')}"
-        venues = get_cached_response(cache_key)
-        if not venues:
-            venues = fetch_venues(city_name, bbox, lat=lat, lon=lon)
-            
-        # Supplement with Gemini venues if Overpass results are scarce
-        if venues and (len(venues.get("hotels", [])) < 10 or len(venues.get("restaurants", [])) < 10 or len(venues.get("attractions", [])) < 12):
-            from src.gemini import generate_venues_via_gemini
-            gv_catalog = generate_venues_via_gemini(city_name)
-            if gv_catalog:
-                # Copy lists to avoid mutating shared cache refs directly
-                venues = {
-                    "hotels": list(venues.get("hotels", [])),
-                    "restaurants": list(venues.get("restaurants", [])),
-                    "attractions": list(venues.get("attractions", []))
-                }
-                for cat in ["hotels", "restaurants", "attractions"]:
-                    existing_names = {v.get("name", "").lower().strip() for v in venues[cat] if v.get("name")}
-                    for gv in gv_catalog.get(cat, []):
-                        if gv.get("name") and gv["name"].lower().strip() not in existing_names:
-                            venues[cat].append(gv)
-            
-        if not venues or (not venues["hotels"] and not venues["restaurants"]):
-             return {
-                 "success": False,
-                 "message": f"No venues found in candidate search for '{city_name}'."
-             }
-             
-        res = optimize_trip_budget(
-            venues, days_alloc[i], req.people, budget_per_city,
-            include_stay=req.include_stay,
-            include_transport=req.include_transport,
-            include_attractions=req.include_attractions,
-            lat=lat, lon=lon
-        )
-        
-        if res["status"] == "exceeded" or res["status"] == "failed":
-            error_detail = res.get("message", "Insufficient budget.")
-            return {
-                "success": False,
-                "message": f"Optimization failed for stop '{city_name}': {error_detail} (Try increasing your budget or reducing duration/stops!)"
+    # Supplement with Gemini venues if Overpass results are scarce
+    if venues and (len(venues.get("hotels", [])) < 10 or len(venues.get("restaurants", [])) < 10 or len(venues.get("attractions", [])) < 12):
+        from src.gemini import generate_venues_via_gemini
+        gv_catalog = generate_venues_via_gemini(primary_city)
+        if gv_catalog:
+            venues = {
+                "hotels": list(venues.get("hotels", [])),
+                "restaurants": list(venues.get("restaurants", [])),
+                "attractions": list(venues.get("attractions", []))
             }
-            
-        s_attractions = res.get("attractions", [])
-        s_bars = [a for a in s_attractions if a.get("sub_type") == "bar"]
-        s_sightseeing = [a for a in s_attractions if a.get("sub_type") != "bar"]
-        s_zones = cluster_attractions_by_location(s_sightseeing, k=days_alloc[i])
-
-        # Extract all venues with cost/utility assigned
-        from src.optimizer import assign_heuristics
+            for cat in ["hotels", "restaurants", "attractions"]:
+                existing_names = {v.get("name", "").lower().strip() for v in venues[cat] if v.get("name")}
+                for gv in gv_catalog.get(cat, []):
+                    if gv.get("name") and gv["name"].lower().strip() not in existing_names:
+                        venues[cat].append(gv)
         
-        # 1. Hotels
-        all_hotels = []
-        for h in venues.get("hotels", []):
-            cost_val, util_val = assign_heuristics(h, "hotels", req.people)
-            h_copy = dict(h)
-            h_copy["cost"] = cost_val * days_alloc[i] if req.include_stay else 0.0
-            h_copy["utility"] = util_val if req.include_stay else 0.0
-            h_copy["optimized"] = (res.get("hotel") is not None and h["name"] == res["hotel"].get("name"))
-            all_hotels.append(h_copy)
-        all_hotels.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
-            
-        # 2. Restaurants
-        all_restaurants = []
-        opt_rest_names = [x["name"] for x in res.get("restaurants", [])]
-        for r in venues.get("restaurants", []):
-            cost_val, util_val = assign_heuristics(r, "restaurants", req.people)
-            r_copy = dict(r)
-            r_copy["cost"] = cost_val
-            r_copy["utility"] = util_val
-            r_copy["optimized"] = r["name"] in opt_rest_names
-            all_restaurants.append(r_copy)
-        all_restaurants.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
-            
-        # 3. Bars
-        all_bars = []
-        opt_bar_names = [x["name"] for x in s_bars]
-        for b in [a for a in venues.get("attractions", []) if a.get("sub_type") == "bar"]:
-            cost_val, util_val = assign_heuristics(b, "attractions", req.people)
-            b_copy = dict(b)
-            b_copy["cost"] = cost_val
-            b_copy["utility"] = util_val
-            b_copy["optimized"] = b["name"] in opt_bar_names
-            all_bars.append(b_copy)
-        all_bars.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
-            
-        # 4. Attractions / Sightseeing
-        all_sightseeing = []
-        opt_sight_names = [x["name"] for x in s_sightseeing]
-        for a in [a for a in venues.get("attractions", []) if a.get("sub_type") != "bar"]:
-            cost_val, util_val = assign_heuristics(a, "attractions", req.people)
-            a_copy = dict(a)
-            a_copy["cost"] = 0.0
-            a_copy["original_cost"] = cost_val
-            a_copy["utility"] = util_val
-            a_copy["optimized"] = a["name"] in opt_sight_names
-            all_sightseeing.append(a_copy)
-        all_sightseeing.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
-        
-        stop_plan = {
-            "city": city_name,
-            "days": days_alloc[i],
-            "hotel": res["hotel"],
-            "restaurants": res.get("restaurants", []),
-            "bars": s_bars,
-            "zones": s_zones,
-            "all_hotels": all_hotels,
-            "all_restaurants": all_restaurants,
-            "all_bars": all_bars,
-            "all_sightseeing": all_sightseeing,
-            "budget_exceeded": res.get("budget_exceeded", False),
-            "local_cost": res["total_cost"]
-        }
-        stops_plans.append(stop_plan)
-        total_local_cost += res["total_cost"]
-        total_utility += res["utility"]
+    if not venues or (not venues.get("hotels") and not venues.get("restaurants")):
+         raise HTTPException(status_code=404, detail=f"No venues found in candidate search for '{primary_city}'.")
 
-        if res.get("backup"):
-            b_res = res["backup"]
-            b_attractions = b_res.get("attractions", [])
-            b_bars = [a for a in b_attractions if a.get("sub_type") == "bar"]
-            b_sightseeing = [a for a in b_attractions if a.get("sub_type") != "bar"]
-            b_zones = cluster_attractions_by_location(b_sightseeing, k=days_alloc[i])
-            
-            # Map backups
-            b_opt_rest_names = [x["name"] for x in b_res.get("restaurants", [])]
-            b_opt_bar_names = [x["name"] for x in b_bars]
-            b_opt_sight_names = [x["name"] for x in b_sightseeing]
-            
-            b_all_hotels = []
-            for h in all_hotels:
-                h_c = dict(h)
-                h_c["optimized"] = (b_res.get("hotel") is not None and h["name"] == b_res["hotel"].get("name"))
-                b_all_hotels.append(h_c)
-            b_all_hotels.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
-                
-            b_all_restaurants = []
-            for r in all_restaurants:
-                r_c = dict(r)
-                r_c["optimized"] = r["name"] in b_opt_rest_names
-                b_all_restaurants.append(r_c)
-            b_all_restaurants.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
-                
-            b_all_bars = []
-            for b in all_bars:
-                b_c = dict(b)
-                b_c["optimized"] = b["name"] in b_opt_bar_names
-                b_all_bars.append(b_c)
-            b_all_bars.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
-                
-            b_all_sightseeing = []
-            for a in all_sightseeing:
-                a_c = dict(a)
-                a_c["optimized"] = a["name"] in b_opt_sight_names
-                b_all_sightseeing.append(a_c)
-            b_all_sightseeing.sort(key=lambda x: (x.get("optimized", False), x.get("utility", 0.0)), reverse=True)
-            
-            b_stop_plan = {
-                "city": city_name,
-                "days": days_alloc[i],
-                "hotel": b_res["hotel"],
-                "restaurants": b_res.get("restaurants", []),
-                "bars": b_bars,
-                "zones": b_zones,
-                "all_hotels": b_all_hotels,
-                "all_restaurants": b_all_restaurants,
-                "all_bars": b_all_bars,
-                "all_sightseeing": b_all_sightseeing,
-                "local_cost": b_res["total_cost"]
-            }
-            stops_backup_plans.append(b_stop_plan)
-            total_local_backup_cost += b_res["total_cost"]
-            total_backup_utility += b_res.get("utility", 0.0)
+    # 4. Resolve budget input (total group budget)
+    total_budget = req.budget
+    if req.budget_type == "per_person":
+        total_budget = req.budget * req.people
 
-    # 8. Build full multi-city trip plan
-    full_plan = {
-        "multi_city": True,
-        "stops": stops_plans,
-        "legs": legs,
-        "total_cost": total_local_cost + total_travel_cost,
-        "local_trip_cost": total_local_cost,
-        "travel_cost": total_travel_cost,
-        "travel_mode": req.travel_mode if total_travel_cost > 0 else None,
-        "origin_city": req.origin_city if total_travel_cost > 0 else None,
-        "distance_km": total_distance_km,
-        "utility": total_utility,
-        "cost_per_person": (total_local_cost + total_travel_cost) / req.people,
-        "backup": None
-    }
+    # 5. Build multiple split options
+    options = []
+    styles = ["Best Overall", "Cheapest Trip", "Slow and Relaxed", "More Places", "Better Stay"]
+    for s in styles:
+        opt = calculate_budget_split_option(s, venues, req, total_budget, lat, lon, origin_geo)
+        options.append(opt)
 
-    if len(stops_backup_plans) == N:
-        full_plan["backup"] = {
-            "multi_city": True,
-            "stops": stops_backup_plans,
-            "legs": legs,
-            "total_cost": total_local_backup_cost + total_travel_cost,
-            "local_trip_cost": total_local_backup_cost,
-            "travel_cost": total_travel_cost,
-            "travel_mode": req.travel_mode if total_travel_cost > 0 else None,
-            "origin_city": req.origin_city if total_travel_cost > 0 else None,
-            "distance_km": total_distance_km,
-            "utility": total_backup_utility,
-            "cost_per_person": (total_local_backup_cost + total_travel_cost) / req.people,
-            "backup": None
-        }
-
-    # 9. Run Gemini enrichment on all stops sequentially (prevent concurrency-based 429 rate limits!)
+    # 6. Run Gemini enrichment on recommended hotels/activities to get nice descriptions
     import time
     try:
-        for stop in full_plan["stops"]:
-            try:
-                enrich_trip_plan(stop, stop["city"])
-                time.sleep(0.5)  # Safe small delay between sequential stops
-            except Exception as ex:
-                print(f"[Gemini Enrichment Stop Error]: {ex}")
-
-        if full_plan["backup"]:
-            for stop in full_plan["backup"]["stops"]:
-                try:
-                    enrich_trip_plan(stop, stop["city"])
-                    time.sleep(0.5)
-                except Exception:
-                    pass
+        from src.gemini import enrich_trip_plan
+        for opt in options:
+            for stop in opt["stops"]:
+                enrich_trip_plan(stop, primary_city)
+                time.sleep(0.1)
     except Exception as e:
-        print(f"[Enrichment Warning] Failed to run Gemini enrichment: {e}")
+        print(f"[Enrichment Warning] Failed to run option enrichment: {e}")
 
     return {
         "success": True,
-        "plan": full_plan
+        "options": options,
+        "city": primary_city
     }
 
 class AssistantRequest(BaseModel):

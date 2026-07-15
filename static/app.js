@@ -870,7 +870,7 @@ async function navigateToDestinationOverview(city, country = "India", skipPushSt
             document.getElementById('dest-budget-input').value = pending.budget;
             document.getElementById('dest-days-input').value = pending.days;
             document.getElementById('dest-people-input').value = pending.people;
-            triggerDestTripOptimizer();
+            runTripPlannerOptimization(pending);
         }
         return;
     }
@@ -929,13 +929,11 @@ async function navigateToDestinationOverview(city, country = "India", skipPushSt
             const pending = state.homeOptPending;
             state.homeOptPending = null;
             
-            // Update inputs on the destination page
             document.getElementById('dest-budget-input').value = pending.budget;
             document.getElementById('dest-days-input').value = pending.days;
             document.getElementById('dest-people-input').value = pending.people;
             
-            // Run optimization
-            triggerDestTripOptimizer();
+            runTripPlannerOptimization(pending);
         }
     } catch (err) {
         populateFallbackVenues(city);
@@ -947,7 +945,7 @@ async function navigateToDestinationOverview(city, country = "India", skipPushSt
             document.getElementById('dest-budget-input').value = pending.budget;
             document.getElementById('dest-days-input').value = pending.days;
             document.getElementById('dest-people-input').value = pending.people;
-            triggerDestTripOptimizer();
+            runTripPlannerOptimization(pending);
         }
     } finally {
         hidePageLoader();
@@ -2375,7 +2373,6 @@ function switchProfileSubtab(tabName) {
 function toggleEditProfileForm() {
     document.getElementById('profile-edit-inline-box').classList.toggle('hidden');
 }
-
 function handleSaveProfileUpdate() {
     const newName = document.getElementById('edit-profile-username').value.trim();
     const newLoc = document.getElementById('edit-profile-location').value.trim();
@@ -2391,66 +2388,64 @@ function handleSaveProfileUpdate() {
 }
 
 // --- TRIP PLANS & TRIP SPLIT BUDGET OPTIMIZER WIDGETS ---
-async function triggerDestTripOptimizer() {
-    const budget = parseFloat(document.getElementById('dest-budget-input').value) || 30000;
-    const days = parseInt(document.getElementById('dest-days-input').value) || 3;
-    const people = parseInt(document.getElementById('dest-people-input').value) || 2;
-    
+async function runTripPlannerOptimization(params) {
     showPageLoader();
     try {
         const res = await fetch(`/api/plan`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                city: state.currentCity,
-                budget: budget,
-                days: days,
-                people: people,
-                include_stay: true,
-                include_transport: true,
-                include_attractions: true,
-                add_travel: false
+                city: params.destination,
+                budget: params.budget,
+                days: params.days,
+                people: params.people,
+                origin_city: params.origin || "Delhi",
+                add_travel: true,
+                travel_mode: params.transport === "flexible" ? "train_3ac" : (params.transport || "train_3ac"),
+                budget_type: params.budgetType || "total",
+                travel_month: params.month || "August",
+                pace: params.pace || "balanced",
+                transport_pref: params.transport || "flexible",
+                accommodation_pref: params.stayType || "flexible",
+                interests: params.interests || "no preference"
             })
         });
+        
         if (res.ok) {
             const data = await res.json();
-            
-            // Check if stop exists
-            const plan = data.plan;
-            if (plan && plan.stops && plan.stops.length > 0) {
-                const stop = plan.stops[0];
+            if (data.success && data.options && data.options.length > 0) {
+                // Store options
+                state.tripOptions = data.options;
+                state.selectedOptionIndex = 0; // Default to Best Overall
+                state.originalBudgetLimit = params.budget;
+                state.originalBudgetType = params.budgetType || "total";
+                state.originalPeopleCount = params.people;
+                state.originalDaysCount = params.days;
+                state.currentCity = data.city;
                 
-                // Save plan results
-                state.lastPlanResult = plan;
-                state.activePlanType = "primary";
+                // Show plan tab & data
+                const placeholder = document.getElementById("plan-placeholder");
+                const dataDiv = document.getElementById("plan-data");
+                if (placeholder) placeholder.classList.add("hidden");
+                if (dataDiv) dataDiv.classList.remove("hidden");
                 
-                // Render Plan
-                renderPlanItinerary(plan);
-                
-                // Switch to plan subtab
-                switchDestSubtab('dest-plan');
-                
-                // Save optimized trip
-                const optimizedHotel = stop.hotel ? stop.hotel.name : "None recommended";
-                const totalCost = formatCost(data.total_cost || budget);
-                const splitCost = formatCost(data.cost_per_person || (budget/people));
-                
-                if (state.user) {
-                    state.user.savedTrips = state.user.savedTrips || [];
-                    const refNum = `TA-OPT-${Math.floor(1000 + Math.random() * 9000)}`;
-                    state.user.savedTrips.push({
-                        id: refNum,
-                        title: `${state.currentCity} Optimized Split Itinerary`,
-                        ref: refNum,
-                        hotelName: optimizedHotel,
-                        cost: splitCost + " / person",
-                        date: new Date().toLocaleDateString()
-                    });
-                    localStorage.setItem('ta_user', JSON.stringify(state.user));
-                    updateNavForUser();
+                // Set slider value
+                const slider = document.getElementById("tripsplit-budget-slider");
+                if (slider) {
+                    slider.value = params.budget;
+                    document.getElementById("slider-budget-label").textContent = `₹${params.budget.toLocaleString('en-IN')}`;
                 }
+                
+                // Initialize map
+                initializeItineraryMap();
+                
+                // Render chosen option
+                renderSelectedTripOption();
+                
+                // Switch to plan tab
+                switchDestSubtab('dest-plan');
             } else {
-                alert(`⚠️ Optimization Error: ${data.message || "Failed to generate optimized itinerary. Try increasing budget."}`);
+                alert(`⚠️ Optimization Error: ${data.message || "Failed to generate optimized options. Try increasing budget."}`);
             }
         } else {
             const errText = await res.text();
@@ -2502,145 +2497,185 @@ function renderVenueCardHtml(v, category, isRecommended = false) {
     `;
 }
 
-function renderPlanItinerary(plan) {
-    if (!plan) return;
+function renderSelectedTripOption() {
+    if (!state.tripOptions || state.tripOptions.length === 0) return;
+    const opt = state.tripOptions[state.selectedOptionIndex];
     
-    // Hide placeholder, show plan data
-    const placeholder = document.getElementById("plan-placeholder");
-    const dataDiv = document.getElementById("plan-data");
-    if (placeholder) placeholder.classList.add("hidden");
-    if (dataDiv) dataDiv.classList.remove("hidden");
-    
-    // Populate summary metrics
-    const totalCostEl = document.getElementById("plan-total-cost");
-    if (totalCostEl) totalCostEl.textContent = `₹${Math.round(plan.total_cost).toLocaleString('en-IN')}`;
-    const personCostEl = document.getElementById("plan-person-cost");
-    if (personCostEl) personCostEl.textContent = `₹${Math.round(plan.cost_per_person).toLocaleString('en-IN')}`;
-    
-    const statusBadge = document.getElementById("plan-status");
-    if (statusBadge) {
-        const isExceeded = plan.stops.some(s => s.budget_exceeded);
-        if (isExceeded) {
-            statusBadge.textContent = "Recommendation (Exceeds Target Budget)";
-            statusBadge.className = "plan-status-badge backup";
-            statusBadge.style.background = "#FEE2E2";
-            statusBadge.style.color = "#DC2626";
-        } else {
-            statusBadge.textContent = state.activePlanType === "backup" ? "Economy Backup Plan" : "Optimal Plan (Within Budget)";
-            statusBadge.className = state.activePlanType === "backup" ? "plan-status-badge backup" : "plan-status-badge";
-            if (state.activePlanType === "backup") {
-                statusBadge.style.background = "#FEF3C7";
-                statusBadge.style.color = "#D97706";
-            } else {
-                statusBadge.style.background = "var(--success-light)";
-                statusBadge.style.color = "var(--success)";
-            }
-        }
+    // Render Pills
+    const pillsContainer = document.getElementById("tripsplit-option-pills");
+    if (pillsContainer) {
+        pillsContainer.innerHTML = state.tripOptions.map((o, idx) => `
+            <button class="pill-tag ${idx === state.selectedOptionIndex ? 'active' : ''}" onclick="selectTripOptionStyle(${idx})" style="padding:0.4rem 0.85rem; font-size:0.8rem; font-weight:700; border-radius:20px; cursor:pointer; outline:none; border:1px solid var(--border); background:#FFF;">
+                ${o.style_name}
+            </button>
+        `).join("");
     }
     
-    // Render travel breakdown
-    const travelContainer = document.getElementById("travel-breakdown-container");
-    const travelDetails = document.getElementById("travel-breakdown-details");
-    if (plan.travel_cost && plan.travel_cost > 0) {
-        if (travelContainer) travelContainer.classList.remove("hidden");
-        if (travelDetails) {
-            const modeName = plan.travel_mode === "flight" ? "Flight" : 
-                             plan.travel_mode === "train_3ac" ? "Train (3AC)" : 
-                             plan.travel_mode === "train_sleeper" ? "Train (Sleeper)" : "Bus";
-            const routeLabels = plan.legs ? plan.legs.map(l => l.from).join(" ➔ ") + " ➔ " + plan.legs[plan.legs.length - 1].to : "";
-            const carbonFactor = plan.travel_mode === "flight" ? 0.15 : 
-                                 plan.travel_mode === "bus" ? 0.05 : 0.025;
-            const carbonValue = (plan.distance_km || 0) * plan.people * carbonFactor;
-            
-            travelDetails.innerHTML = `
-                <div style="margin-bottom:0.25rem;"><strong>Roundtrip Route:</strong> ${routeLabels}</div>
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div>Distance: ${(plan.distance_km || 0).toFixed(1)} km | Mode: ${modeName}</div>
-                    <span class="carbon-badge">🌱 Carbon: ${carbonValue.toFixed(1)} kg CO₂</span>
-                </div>
-                <div style="margin-top:0.35rem; font-size:0.82rem; border-top:1.5px dashed var(--border); padding-top:0.35rem;">
-                    Travel Cost: <strong>₹${Math.round(plan.travel_cost).toLocaleString('en-IN')}</strong> | 
-                    Local Stops Budget: <strong>₹${Math.round(plan.local_trip_cost || (plan.total_cost - plan.travel_cost)).toLocaleString('en-IN')}</strong>
+    // Confidence badge
+    const confContainer = document.getElementById("tripsplit-confidence-container");
+    if (confContainer) {
+        let confColor = "#10B981"; // Green
+        if (opt.confidence === "Tight Budget") confColor = "#EF4444"; // Red
+        else if (opt.confidence === "Moderate Confidence") confColor = "#F59E0B"; // Amber
+        
+        confContainer.innerHTML = `
+            <span style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase;">Confidence:</span>
+            <span style="background:${confColor}; color:#FFFFFF; padding:0.25rem 0.65rem; border-radius:100px; font-size:0.75rem; font-weight:800;">${opt.confidence}</span>
+        `;
+    }
+    
+    // Why fits card
+    const whyFitsEl = document.getElementById("why-fits-text");
+    if (whyFitsEl) whyFitsEl.textContent = opt.why_fits;
+    
+    // Trade-offs
+    const tradeoffsEl = document.getElementById("tradeoffs-list");
+    if (tradeoffsEl) {
+        tradeoffsEl.innerHTML = opt.tradeoffs.map(t => `
+            <li style="margin-bottom:0.35rem;">${t}</li>
+        `).join("");
+    }
+    
+    // What Could Go Wrong Amber Card
+    const wrongListEl = document.getElementById("wrong-flags-list");
+    if (wrongListEl) {
+        const warnings = [];
+        const month = document.getElementById("opt-home-month")?.value || "August";
+        if (month === "July" || month === "August") {
+            warnings.push("🌧️ <strong>Monsoon Warning:</strong> High risk of landslides/road closures on travel routes. paragliding is likely suspended.");
+        } else if (month === "December" || month === "January") {
+            warnings.push("❄️ <strong>Winter Freeze:</strong> Rohtang Pass is closed. Stays require heavy heating; budget rooms may lack insulation.");
+        }
+        warnings.push(`💸 <strong>Strict Budget constraint:</strong> Transport accounts for ${Math.round((opt.budget_split.Transportation / opt.total_cost) * 100)}% of total cost. Local backup options are mandatory.`);
+        warnings.push("📅 <strong>Stay booking window:</strong> Room rates increase rapidly close to weekend dates. Advance booking is highly recommended.");
+        
+        wrongListEl.innerHTML = warnings.map(w => `<div style="display:flex; gap:0.4rem; align-items:start;"><span>•</span><div>${w}</div></div>`).join("");
+    }
+    
+    // Render Budget Strip (Left Column)
+    const totalCost = opt.total_cost;
+    const split = opt.budget_split;
+    const categories = Object.keys(split);
+    
+    const colors = {
+        "Transportation": "#3B82F6",
+        "Stay": "#10B981",
+        "Food": "#F59E0B",
+        "Local Travel": "#8B5CF6",
+        "Activities": "#EC4899",
+        "Buffer": "#6B7280"
+    };
+    
+    categories.forEach(cat => {
+        const amt = split[cat];
+        const pct = totalCost > 0 ? (amt / totalCost) * 100 : 0;
+        const segment = document.getElementById(`budget-strip-${cat.toLowerCase().replace(' ', '')}`);
+        if (segment) {
+            segment.style.height = `${pct}%`;
+            segment.title = `${cat}: ₹${Math.round(amt).toLocaleString('en-IN')} (${Math.round(pct)}%)`;
+        }
+    });
+    
+    // Budget breakdown list below the strip
+    const breakdownEl = document.getElementById("budget-labels-breakdown");
+    if (breakdownEl) {
+        breakdownEl.innerHTML = categories.map(cat => {
+            const amt = split[cat];
+            const pct = totalCost > 0 ? (amt / totalCost) * 100 : 0;
+            return `
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed var(--border); padding-bottom:0.4rem; margin-bottom:0.25rem;">
+                    <div style="display:flex; align-items:center; gap:0.4rem;">
+                        <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${colors[cat]};"></span>
+                        <strong style="color:var(--text-secondary); font-size:0.8rem;">${cat}</strong>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-weight:700; color:var(--text-primary);">₹${Math.round(amt).toLocaleString('en-IN')}</div>
+                        <div style="font-size:0.7rem; color:var(--text-muted); font-weight:600;">${Math.round(pct)}%</div>
+                    </div>
                 </div>
             `;
-        }
-    } else {
-        if (travelContainer) travelContainer.classList.add("hidden");
+        }).join("") + `
+            <div style="margin-top:1rem; padding-top:0.75rem; border-top:1.5px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                <strong style="font-size:0.85rem; color:var(--text-primary);">Total Cost:</strong>
+                <strong style="font-size:1.15rem; color:var(--accent);">₹${Math.round(totalCost).toLocaleString('en-IN')}</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem;">
+                <span style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">Per Traveler share:</span>
+                <span style="font-size:0.85rem; color:var(--text-primary); font-weight:700;">₹${Math.round(opt.cost_per_person).toLocaleString('en-IN')}</span>
+            </div>
+        `;
     }
     
-    // Read checkbox toggle states (default to true if elements don't exist yet)
+    // Check constraints warning banner
+    const banner = document.getElementById("tripsplit-deficit-banner");
+    const diff = opt.total_cost - state.originalBudgetLimit;
+    if (diff > 100) {
+        if (banner) {
+            banner.classList.remove("hidden");
+            document.getElementById("deficit-banner-text").textContent = `This version exceeds your budget by ₹${Math.round(diff).toLocaleString('en-IN')}`;
+        }
+    } else {
+        if (banner) banner.classList.add("hidden");
+    }
+    
+    // Read checkbox toggle states
     const showStays = document.getElementById("toggle-itin-stays") ? document.getElementById("toggle-itin-stays").checked : true;
     const showDining = document.getElementById("toggle-itin-dining") ? document.getElementById("toggle-itin-dining").checked : true;
     const showBars = document.getElementById("toggle-itin-bars") ? document.getElementById("toggle-itin-bars").checked : true;
     const showSights = document.getElementById("toggle-itin-sights") ? document.getElementById("toggle-itin-sights").checked : true;
 
-    // Render stops
+    // Render Itinerary daycards (Center Column)
     const wrapper = document.getElementById("plan-details-wrapper");
     if (wrapper) {
-        wrapper.innerHTML = "";
-        
-        plan.stops.forEach((stop, sIdx) => {
-            const stopSection = document.createElement("div");
-            stopSection.className = "multi-stop-section";
-            stopSection.style.marginTop = sIdx > 0 ? "3rem" : "1rem";
+        wrapper.innerHTML = opt.itinerary.map((day, idx) => {
+            const hasStay = day.stay_name && day.stay_name !== "None";
+            const stop = opt.stops[0];
             
-            let stopHeaderHtml = `
-                <div style="background:var(--accent); color:#FFF; padding:1rem; border-radius:12px; margin-bottom:1.5rem; display:flex; justify-content:space-between; align-items:center;">
-                    <h3 style="margin:0; font-family:var(--font-heading); font-weight:800; font-size:1.25rem;">Stop ${sIdx + 1}: ${capitalizeFirstLetter(stop.city)} (${stop.days} Days)</h3>
-                    <span style="font-weight:700; font-size:0.9rem; background:rgba(255,255,255,0.2); padding:0.25rem 0.75rem; border-radius:6px;">Local Allocation: ₹${Math.round(stop.local_cost).toLocaleString('en-IN')}</span>
-                </div>
-            `;
+            // Build hotel ratings circles
+            const ratingStars = getBubbleRatingHtml(day.stay_rating || 4);
             
-            // 🏨 Accommodations row
-            let hotelsHtml = "";
-            if (showStays && stop.all_hotels && stop.all_hotels.length > 0) {
-                const recommendedHotel = stop.all_hotels.find(h => h.optimized) || stop.all_hotels[0];
-                const otherHotels = stop.all_hotels.filter(h => h.name !== recommendedHotel.name);
-                
-                hotelsHtml = `
-                    <div class="stop-row stays-row" style="margin-bottom:1.5rem;">
-                        <div class="row-header">
-                            <h4>🏨 Stays & Accommodations in ${capitalizeFirstLetter(stop.city)}</h4>
-                        </div>
-                        <div class="row-content-split">
-                            <div class="recommended-column">
-                                <div class="section-tag-label">Recommended Choice</div>
-                                ${renderVenueCardHtml(recommendedHotel, 'hotel', true)}
-                            </div>
-                            <div class="candidates-column">
-                                <div class="section-tag-label">All Stays & Lodgings</div>
-                                <div class="horizontal-card-deck" style="display:flex; gap:1rem; overflow-x:auto; padding-bottom:0.5rem; flex-wrap:nowrap; max-width:100%;">
-                                    ${otherHotels.map(h => renderVenueCardHtml(h, 'hotel', false)).join("")}
+            let stayHtml = "";
+            if (showStays && hasStay) {
+                stayHtml = `
+                    <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+                        <h6 style="margin: 0 0 0.5rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🏨 Stay & Accommodation</h6>
+                        <div style="background:#FFFFFF; border:1px solid var(--border); border-radius:10px; padding:0.85rem; display:flex; gap:0.75rem; align-items:center; position:relative;">
+                            <div style="font-size:1.5rem;">🏨</div>
+                            <div style="flex-grow:1; min-width:0;">
+                                <div style="font-weight:700; font-size:0.85rem; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${day.stay_name}</div>
+                                <div style="display:flex; align-items:center; gap:0.35rem; margin-top:0.15rem;">
+                                    ${ratingStars}
                                 </div>
                             </div>
+                            <button class="btn-secondary" onclick="openSwapStayModal(${idx})" style="padding:0.35rem 0.75rem; font-size:0.75rem; font-weight:700; border-radius:6px; border:1px solid var(--border); background:#FFF;">
+                                🔄 Swap Stay
+                            </button>
                         </div>
                     </div>
                 `;
             }
             
-            // 🍽️ Dining row
+            // Dining (wrapping grid: recommended 1, all others 3 per row)
             let diningHtml = "";
             if (showDining && stop.all_restaurants && stop.all_restaurants.length > 0) {
-                const recommendedRests = stop.all_restaurants.filter(r => r.optimized);
-                const otherRests = stop.all_restaurants.filter(r => !r.optimized);
+                const recRest = stop.all_restaurants[idx % stop.all_restaurants.length];
+                const candRests = stop.all_restaurants.filter(r => r.name !== recRest.name).slice(0, 3);
+                
+                const recCard = renderMiniVenueCard(recRest, "restaurant", true);
+                const candCards = candRests.map(r => renderMiniVenueCard(r, "restaurant", false)).join("");
                 
                 diningHtml = `
-                    <div class="stop-row dining-row" style="margin-bottom:1.5rem;">
-                        <div class="row-header">
-                            <h4>🍽️ Dining & Places to Eat in ${capitalizeFirstLetter(stop.city)}</h4>
-                        </div>
-                        <div class="row-content-split">
-                            <div class="recommended-column">
-                                <div class="section-tag-label">Recommended Meals</div>
-                                <div style="display:flex; flex-direction:column; gap:0.75rem;">
-                                    ${recommendedRests.map(r => renderVenueCardHtml(r, 'restaurant', true)).join("")}
-                                    ${recommendedRests.length === 0 ? '<div style="font-style:italic; font-size:0.8rem; color:var(--text-muted); padding:1rem; text-align:center; background:#f9f9f9; border-radius:8px;">None selected</div>' : ''}
-                                </div>
+                    <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+                        <h6 style="margin: 0 0 0.75rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🍽️ Restaurants & Dining</h6>
+                        <div style="display:flex; gap:1.25rem; flex-wrap:wrap;">
+                            <div style="width:280px; flex:0 0 auto;">
+                                <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); margin-bottom:0.25rem; text-transform:uppercase;">Recommended Choice</div>
+                                ${recCard}
                             </div>
-                            <div class="candidates-column">
-                                <div class="section-tag-label">All Dining Options</div>
-                                <div class="horizontal-card-deck" style="display:flex; gap:1rem; overflow-x:auto; padding-bottom:0.5rem; flex-wrap:nowrap; max-width:100%;">
-                                    ${otherRests.map(r => renderVenueCardHtml(r, 'restaurant', false)).join("")}
+                            <div style="flex-grow:1; min-width:0;">
+                                <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); margin-bottom:0.25rem; text-transform:uppercase;">All Options (Grid View)</div>
+                                <div style="display:flex; flex-wrap:wrap; gap:0.75rem;">
+                                    ${candCards || '<div style="font-size:0.8rem; color:var(--text-muted); padding:1rem;">No other dining options nearby.</div>'}
                                 </div>
                             </div>
                         </div>
@@ -2648,29 +2683,27 @@ function renderPlanItinerary(plan) {
                 `;
             }
             
-            // 🍻 Bars row
+            // Nightlife (similar wrapping grid)
             let barsHtml = "";
             if (showBars && stop.all_bars && stop.all_bars.length > 0) {
-                const recommendedBars = stop.all_bars.filter(b => b.optimized);
-                const otherBars = stop.all_bars.filter(b => !b.optimized);
+                const recBar = stop.all_bars[idx % stop.all_bars.length];
+                const candBars = stop.all_bars.filter(b => b.name !== recBar.name).slice(0, 3);
+                
+                const recCard = renderMiniVenueCard(recBar, "bar", true);
+                const candCards = candBars.map(b => renderMiniVenueCard(b, "bar", false)).join("");
                 
                 barsHtml = `
-                    <div class="stop-row nightlife-row" style="margin-bottom:1.5rem;">
-                        <div class="row-header">
-                            <h4>🍻 Bars & Nightlife in ${capitalizeFirstLetter(stop.city)}</h4>
-                        </div>
-                        <div class="row-content-split">
-                            <div class="recommended-column">
-                                <div class="section-tag-label">Recommended Drinks</div>
-                                <div style="display:flex; flex-direction:column; gap:0.75rem;">
-                                    ${recommendedBars.map(b => renderVenueCardHtml(b, 'bar', true)).join("")}
-                                    ${recommendedBars.length === 0 ? '<div style="font-style:italic; font-size:0.8rem; color:var(--text-muted); padding:1rem; text-align:center; background:#f9f9f9; border-radius:8px;">None selected</div>' : ''}
-                                </div>
+                    <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+                        <h6 style="margin: 0 0 0.75rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🍹 Bars & Nightlife</h6>
+                        <div style="display:flex; gap:1.25rem; flex-wrap:wrap;">
+                            <div style="width:280px; flex:0 0 auto;">
+                                <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); margin-bottom:0.25rem; text-transform:uppercase;">Recommended Choice</div>
+                                ${recCard}
                             </div>
-                            <div class="candidates-column">
-                                <div class="section-tag-label">All Nightspots & Pubs</div>
-                                <div class="horizontal-card-deck" style="display:flex; gap:1rem; overflow-x:auto; padding-bottom:0.5rem; flex-wrap:nowrap; max-width:100%;">
-                                    ${otherBars.map(b => renderVenueCardHtml(b, 'bar', false)).join("")}
+                            <div style="flex-grow:1; min-width:0;">
+                                <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); margin-bottom:0.25rem; text-transform:uppercase;">All Nightspots & Pubs</div>
+                                <div style="display:flex; flex-wrap:wrap; gap:0.75rem;">
+                                    ${candCards || '<div style="font-size:0.8rem; color:var(--text-muted); padding:1rem;">No other pubs nearby.</div>'}
                                 </div>
                             </div>
                         </div>
@@ -2678,43 +2711,36 @@ function renderPlanItinerary(plan) {
                 `;
             }
             
-            // 🏛️ Sightseeing timeline row
-            let sightseeingHtml = "";
+            // Sights (Timeline layout)
+            let sightsHtml = "";
             if (showSights && stop.all_sightseeing && stop.all_sightseeing.length > 0) {
-                const otherSights = stop.all_sightseeing.filter(a => !a.optimized);
+                const sightsForDay = stop.all_sightseeing.filter(a => a.optimized).slice(idx*2, (idx+1)*2);
+                const otherSights = stop.all_sightseeing.filter(a => !a.optimized).slice(idx*2, (idx+1)*2);
                 
-                let zonesTimelineHtml = "";
-                if (stop.zones && stop.zones.length > 0) {
-                    zonesTimelineHtml = stop.zones.map((zone, zIdx) => `
-                        <div class="zone-timeline-step" style="border-left: 2px solid var(--accent); padding-left: 1rem; margin-bottom: 1.25rem; position: relative;">
-                            <div class="dot" style="position: absolute; left: -5px; top: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);"></div>
-                            <h5 style="margin: 0; font-size: 0.88rem; font-weight: 700; color: var(--accent);">${zone.name}</h5>
-                            <ul style="margin: 0.25rem 0 0 0; padding-left: 1rem; font-size: 0.8rem; color: var(--text-primary); line-height: 1.5;">
-                                ${zone.popular_places.map(p => `<li><strong>${p.name}</strong></li>`).join("")}
-                                ${zone.underrated_gems.map(u => `<li><strong>${u.name}</strong> (Gem 💎)</li>`).join("")}
-                            </ul>
-                        </div>
-                    `).join("");
-                } else {
-                    zonesTimelineHtml = '<div style="font-style:italic; font-size:0.8rem; color:var(--text-muted); padding:1rem; text-align:center;">No timeline zones generated</div>';
-                }
+                const timelineItems = sightsForDay.map((s, sIdx) => `
+                    <div style="position:relative; padding-left:1.5rem; margin-bottom:0.75rem;">
+                        <span style="position:absolute; left:0; top:4px; width:8px; height:8px; border-radius:50%; background:var(--accent); border:2px solid #FFF; outline:1px solid var(--accent);"></span>
+                        <strong style="font-size:0.82rem; color:var(--text-primary); display:block;">${s.name}</strong>
+                        <span style="font-size:0.72rem; color:var(--text-muted); display:block;">Vibe: ${s.vibe || 'Scenic'} | ${s.description || 'Popular sightseeing spot.'}</span>
+                    </div>
+                `).join("");
                 
-                sightseeingHtml = `
-                    <div class="stop-row sightseeing-row" style="margin-bottom:1.5rem;">
-                        <div class="row-header">
-                            <h4>🏛️ Sightseeing & Top Things to Do in ${capitalizeFirstLetter(stop.city)}</h4>
-                        </div>
-                        <div class="row-content-split">
-                            <div class="recommended-column">
-                                <div class="section-tag-label">Exploration Plan</div>
-                                <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 1rem;">
-                                    ${zonesTimelineHtml}
+                const otherCards = otherSights.map(s => renderMiniVenueCard(s, "sightseeing", false)).join("");
+                
+                sightsHtml = `
+                    <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+                        <h6 style="margin: 0 0 0.75rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🏛️ Exploration & Sights</h6>
+                        <div style="display:grid; grid-template-columns: 280px 1fr; gap:1.25rem;">
+                            <div>
+                                <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); margin-bottom:0.5rem; text-transform:uppercase;">Daily Sightseeing Timeline</div>
+                                <div style="position:relative; border-left:1px dashed var(--accent); margin-left:4px; padding-bottom:0.25rem;">
+                                    ${timelineItems || '<div style="font-size:0.78rem; color:var(--text-muted); padding-left:1rem;">Leisure time / local markets stroll.</div>'}
                                 </div>
                             </div>
-                            <div class="candidates-column">
-                                <div class="section-tag-label">All Sights & Attractions</div>
-                                <div class="horizontal-card-deck" style="display:flex; gap:1rem; overflow-x:auto; padding-bottom:0.5rem; flex-wrap:nowrap; max-width:100%;">
-                                    ${otherSights.map(a => renderVenueCardHtml(a, 'experience', false)).join("")}
+                            <div>
+                                <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); margin-bottom:0.5rem; text-transform:uppercase;">All Sights & Attractions</div>
+                                <div style="display:flex; flex-wrap:wrap; gap:0.75rem;">
+                                    ${otherCards || '<div style="font-size:0.8rem; color:var(--text-muted); padding:1rem;">No other attractions nearby.</div>'}
                                 </div>
                             </div>
                         </div>
@@ -2722,26 +2748,82 @@ function renderPlanItinerary(plan) {
                 `;
             }
             
-            stopSection.innerHTML = `
-                ${stopHeaderHtml}
-                <div class="stop-horizontal-row-container">
-                    ${hotelsHtml}
-                    ${diningHtml}
-                    ${barsHtml}
-                    ${sightseeingHtml}
+            // Transport switch panel
+            const transportIcon = day.transport_mode.toLowerCase().includes("flight") ? "✈️" : (day.transport_mode.toLowerCase().includes("train") ? "🚂" : "🚌");
+            const isPrivateCabEnabled = opt.travel_mode === "private_cab";
+            const isFirstOrLast = (day.day === 1 || day.day === opt.itinerary.length);
+            const transportToggleHtml = isFirstOrLast ? `
+                <div style="background:#EFF6FF; border:1px solid #BFDBFE; border-radius:10px; padding:0.85rem; display:flex; justify-content:space-between; align-items:center; margin-top:0.5rem; font-size:0.8rem; color:#1E40AF;">
+                    <div style="display:flex; align-items:center; gap:0.4rem;">
+                        <span>${transportIcon}</span>
+                        <span>Mode: <strong>${day.transport_mode}</strong> (₹${Math.round(day.transport_cost).toLocaleString('en-IN')})</span>
+                    </div>
+                    <label style="display:flex; align-items:center; gap:0.25rem; font-weight:700; cursor:pointer;">
+                        <input type="checkbox" ${isPrivateCabEnabled ? 'checked' : ''} onchange="togglePrivateCabTransport(this.checked)">
+                        🚗 Upgrade to Cab (+₹6,000)
+                    </label>
+                </div>
+            ` : '';
+            
+            return `
+                <div class="day-collapsible-card" style="background:#FFFFFF; border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.01);">
+                    <div class="day-card-header" onclick="toggleDayDetailsPane(this)" style="padding:1rem; display:flex; justify-content:space-between; align-items:center; cursor:pointer; background:#FFF; border-bottom:1px solid var(--border); user-select:none;">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <span style="background:var(--accent); color:#FFF; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.85rem;">${day.day}</span>
+                            <div style="min-width:0;">
+                                <h5 style="margin:0; font-size:0.92rem; font-weight:800; color:var(--text-primary);">${day.summary}</h5>
+                            </div>
+                        </div>
+                        <span class="day-collapse-arrow" style="font-size:0.75rem; color:var(--text-muted); font-weight:bold; transition:transform 0.2s;">▼</span>
+                    </div>
+                    <div class="day-card-body hidden" style="padding:1.15rem; background:#FAF9F6; overflow:hidden;">
+                        <p style="margin:0; font-size:0.85rem; color:var(--text-secondary); line-height:1.5;">${day.details}</p>
+                        ${stayHtml}
+                        ${diningHtml}
+                        ${barsHtml}
+                        ${sightsHtml}
+                        ${transportToggleHtml}
+                    </div>
                 </div>
             `;
-            
-            wrapper.appendChild(stopSection);
-        });
+        }).join("");
     }
+    
+    // Plot route line on map (Right Column)
+    plotPinsOnItineraryMap(opt);
+}
+
+function renderMiniVenueCard(v, category, isRecommended = false) {
+    const starsHtml = getBubbleRatingHtml(v.stars || v.utility / 30 || 4.2);
+    const escName = v.name.replace(/'/g, "\\'");
+    
+    let costText = "";
+    if (category === "hotel") {
+        costText = `Est: ₹${(v.cost).toLocaleString('en-IN')}`;
+    } else if (category === "restaurant" || category === "bar") {
+        costText = `Est: ₹${(v.cost || 1200).toLocaleString('en-IN')}`;
+    } else {
+        costText = v.original_cost === 0 ? "Free" : `Fee: ₹${(v.original_cost || 500).toLocaleString('en-IN')}`;
+    }
+    
+    return `
+        <div class="card-item-el" onclick="navigateToDetail('${escName}', '${category === 'bar' ? 'experience' : (category === 'sightseeing' ? 'experience' : category)}')" style="width:calc(33.33% - 0.5rem); min-width:140px; flex-grow:1; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #FFF; transition: transform 0.2s; cursor:pointer; font-size:0.78rem; display:flex; flex-direction:column; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
+            <div style="height: 80px; position: relative; background: #E5E7EB;">
+                <img src="${getVenuePhoto(v.name, category === 'sightseeing' ? 'attractions' : category, state.currentCity)}" alt="${v.name}" style="width:100%; height:100%; object-fit:cover;">
+            </div>
+            <div style="padding: 0.5rem; display:flex; flex-direction:column; gap:0.15rem; flex-grow:1;">
+                <strong style="display: block; font-size: 0.8rem; margin: 0; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; color:var(--text-primary);">${v.name}</strong>
+                <div style="display: flex; align-items:center; gap:0.25rem;">
+                    ${starsHtml}
+                </div>
+                <div style="font-weight: 700; color: var(--accent); margin-top: auto;">${costText}</div>
+            </div>
+        </div>
+    `;
 }
 
 function handleItineraryToggleChange() {
-    if (state.lastPlanResult) {
-        const plan = state.activePlanType === "backup" ? state.lastPlanResult.backup : state.lastPlanResult;
-        renderPlanItinerary(plan);
-    }
+    renderSelectedTripOption();
 }
 
 function toggleOptimalPlanType() {
@@ -3869,18 +3951,36 @@ function selectHomeOptAutocomplete(label) {
 function handleHomeOptimizerSubmit(event) {
     event.preventDefault();
     const city = document.getElementById('opt-home-destination').value.trim();
+    const origin = document.getElementById('opt-home-origin').value.trim() || "Delhi";
     const budget = parseFloat(document.getElementById('opt-home-budget').value) || 30000;
-    const days = parseInt(document.getElementById('opt-home-days').value) || 3;
-    const people = parseInt(document.getElementById('opt-home-people').value) || 3;
+    const budgetType = document.getElementById('opt-home-budget-type').value;
+    const days = parseInt(document.getElementById('opt-home-days').value) || 5;
+    const people = parseInt(document.getElementById('opt-home-people').value) || 5;
+    
+    const month = document.getElementById('opt-home-month').value;
+    const pace = document.getElementById('opt-home-pace').value;
+    const transport = document.getElementById('opt-home-transport').value;
+    const stayType = document.getElementById('opt-home-stay').value;
+    const interests = document.getElementById('opt-home-interests').value;
     
     if (!city) return;
     
     // Store optimization state variables
     state.homeOptPending = {
+        destination: city,
+        origin: origin,
         budget: budget,
+        budgetType: budgetType,
         days: days,
-        people: people
+        people: people,
+        month: month,
+        pace: pace,
+        transport: transport,
+        stayType: stayType,
+        interests: interests
     };
+    
+    state.lastHomePreferences = state.homeOptPending;
     
     // Route to destination page and load
     navigateToDestinationOverview(city, "India");
