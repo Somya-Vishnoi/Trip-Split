@@ -141,7 +141,23 @@ Do not return any markdown codeblocks or text outside the JSON. Return only the 
                 enriched_data[name] = item
                 
         except Exception as e:
-            print(f"[Gemini Error] Batch enrichment failed: {e}")
+            print(f"[Gemini Error] Batch enrichment failed: {e}. Falling back to default enrichments.")
+            for cat, name in missing_venues:
+                mock_item = {
+                    "name": name,
+                    "category": cat,
+                    "description": f"A highly-rated local {cat} option popular for its ambiance and quality.",
+                    "vibe": "scenic" if cat == "attraction" else ("cozy" if cat == "hotel" else "lively"),
+                    "cost_info": "Price varies" if cat == "hotel" else ("₹450/person" if cat == "restaurant" else "Free Entry"),
+                    "extra_tips": "Recommended by local travel guides.",
+                    "is_gem": False
+                }
+                cache_key = get_venue_cache_key(name, city)
+                try:
+                    set_cached_response(cache_key, mock_item)
+                except Exception as cache_err:
+                    print(f"[Cache Error] Failed to write mock item to cache: {cache_err}")
+                enriched_data[name] = mock_item
 
     # 4. Apply enrichments back to the plan
     # A. Hotel

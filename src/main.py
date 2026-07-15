@@ -9,7 +9,13 @@ from src.overpass import fetch_venues
 from src.optimizer import optimize_trip_budget
 from src.cache import get_cached_response
 from src.router import cluster_attractions_by_location
-from src.gemini import enrich_trip_plan
+def safe_float(val, default=0.0):
+    try:
+        if val is None:
+            return default
+        return float(val)
+    except (ValueError, TypeError):
+        return default
 
 app = FastAPI(title="TripSplit - Group Trip Budget Optimizer")
 
@@ -224,7 +230,7 @@ def calculate_budget_split_option(
             
             fitting = [h for h in hotels if assign_heuristics(h, "hotels", people)[0] <= max_nightly]
             if fitting:
-                hotel_sel = sorted(fitting, key=lambda x: x.get("stars", 0) or assign_heuristics(x, "hotels", people)[1], reverse=True)[0]
+                hotel_sel = sorted(fitting, key=lambda x: safe_float(x.get("stars", 0)) or safe_float(assign_heuristics(x, "hotels", people)[1]), reverse=True)[0]
             else:
                 hotel_sel = sorted(hotels, key=lambda x: assign_heuristics(x, "hotels", people)[0])[0]
         else: # Best Overall, Slow and Relaxed, More Places
@@ -234,7 +240,7 @@ def calculate_budget_split_option(
             
             fitting = [h for h in hotels if assign_heuristics(h, "hotels", people)[0] <= max_nightly]
             if fitting:
-                hotel_sel = sorted(fitting, key=lambda x: assign_heuristics(x, "hotels", people)[1], reverse=True)[0]
+                hotel_sel = sorted(fitting, key=lambda x: safe_float(assign_heuristics(x, "hotels", people)[1]), reverse=True)[0]
             else:
                 hotel_sel = sorted(hotels, key=lambda x: assign_heuristics(x, "hotels", people)[0])[0]
 
