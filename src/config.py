@@ -6,7 +6,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
-DB_PATH = DATA_DIR / "tripsplit_cache.db"
+if os.getenv("VERCEL"):
+    DB_PATH = Path("/tmp/tripsplit_cache.db")
+else:
+    DB_PATH = DATA_DIR / "tripsplit_cache.db"
 
 # API Settings
 NOMINATIM_USER_AGENT = "TripSplit-Budget-Optimizer/1.0"
