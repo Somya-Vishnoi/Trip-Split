@@ -71,26 +71,33 @@ def assign_heuristics(venue: Dict[str, Any], category: str, people: int) -> Tupl
         tags = venue.get("tags", {})
         has_web_presence = "wikipedia" in tags or "wikidata" in tags or "website" in tags or "contact:website" in tags
         
+        # Check sub-types and properties to assign budget/student friendly cost
+        religion = tags.get("amenity") == "place_of_worship" or "religion" in tags
+        historic_ruin = tags.get("historic") in ["ruins", "monument", "tomb", "city_gate", "arch", "memorial"]
+        
         if sub_type == "museum":
-            cost_per_visit = DEFAULT_COSTS["attraction_museum"] * people
+            # Student-friendly museum entry pricing
+            cost_per_visit = 50.0 * people
             utility = DEFAULT_UTILITY["attraction_museum"]
         elif sub_type == "beach":
-            # Beaches are high utility and completely free!
             cost_per_visit = 0.0
             utility = 85.0
         elif sub_type == "viewpoint":
-            # Scenic viewpoints are free and high value!
             cost_per_visit = 0.0
-            utility = 75.0
+            utility = 80.0
         elif sub_type == "park":
-            cost_per_visit = DEFAULT_COSTS["attraction_park"] * people
-            # Lower utility for generic neighborhood parks
-            utility = DEFAULT_UTILITY["attraction_park"] if has_web_presence else 15.0
+            cost_per_visit = 0.0 # Public parks/gardens are generally free in India
+            utility = DEFAULT_UTILITY["attraction_park"] if has_web_presence else 20.0
         elif sub_type == "bar":
             cost_per_visit = DEFAULT_COSTS["attraction_bar"] * people
             utility = DEFAULT_UTILITY["attraction_bar"]
+        elif religion or historic_ruin:
+            # Temples, churches, ruins are free & high utility
+            cost_per_visit = 0.0
+            utility = 75.0
         else:
-            cost_per_visit = DEFAULT_COSTS["attraction_other"] * people
+            # Budget friendly default attraction fee (₹100 instead of ₹200)
+            cost_per_visit = 100.0 * people
             utility = DEFAULT_UTILITY["attraction_other"]
 
         # Boost major landmarks globally (wikipedia/website presence or explicitly tagged historic/attraction landmarks)

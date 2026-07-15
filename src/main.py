@@ -269,9 +269,10 @@ def calculate_budget_split_option(
     selected_attrs = []
     activities_spend = 0.0
     
+    limit = max(4, days * 2)
     if style_name == "Cheapest Trip":
         free_attrs = [a for a in attractions if assign_heuristics(a, "attractions", people)[0] == 0]
-        selected_attrs = free_attrs[:4]
+        selected_attrs = free_attrs[:limit]
     else:
         sorted_attrs = sorted(attractions, key=lambda x: assign_heuristics(x, "attractions", people)[1], reverse=True)
         for a in sorted_attrs:
@@ -279,11 +280,11 @@ def calculate_budget_split_option(
             if activities_spend + cost_a <= available_activities_budget:
                 selected_attrs.append(a)
                 activities_spend += cost_a
-                if len(selected_attrs) >= 4:
+                if len(selected_attrs) >= limit:
                     break
         if not selected_attrs:
             free_attrs = [a for a in attractions if assign_heuristics(a, "attractions", people)[0] == 0]
-            selected_attrs = free_attrs[:3]
+            selected_attrs = free_attrs[:limit]
 
     estimated_total = total_transport_cost + total_stay_cost + total_food_cost + total_local_travel + activities_spend
     actual_buffer = max(0.0, total_budget - estimated_total)
@@ -299,24 +300,24 @@ def calculate_budget_split_option(
     elif ratio_used > 0.85:
         confidence = "Moderate Confidence"
     else:
-        confidence = "High Confidence"
+        confidence = "Comfortable Budget"
 
     # Trade-offs and why fits based on choices
     why_fits = ""
     tradeoffs = []
     
     if style_name == "Cheapest Trip":
-        why_fits = f"This route utilizes shared public transport (like {mode.replace('_',' ')}) and budget accommodations to minimize costs. This leaves a safe cash buffer for group emergencies."
-        tradeoffs = ["Assumes budget stays/hostels", "No private cab/taxi included", "Limited dining at high-end restaurants"]
-    elif style_name == "Better Stay":
-        why_fits = f"By choosing affordable train transport and dining at budget-friendly spots, this split redirects the maximum amount of money (₹{total_stay_cost:,.0f}) to stay in a premium hotel."
-        tradeoffs = ["Reduced budget for paid excursions", "Longer travel time via sleeper transport", "Standard meals instead of fine dining"]
-    elif style_name == "Slow and Relaxed":
-        why_fits = "Focuses on a single overnight base to eliminate mid-trip hotel change costs, allocating a higher daily food allowance and a larger 10% emergency buffer."
-        tradeoffs = ["Fewer places visited", "Higher stay cost per night", "Fewer fast-paced paid activities"]
-    elif style_name == "More Places":
-        why_fits = "Includes multiple sightseeing stops and active travel movement. It saves budget by using hostel dorms and eating at local street stalls."
-        tradeoffs = ["Significant travel time between stops", "Shared dorm rooms/backpack hostels", "Zero luxury hotel amenities"]
+        why_fits = "Prioritizes minimal costs. We chose hostels/dorms, public transit or walking, and budget street-food stalls to make it as cheap as possible."
+        tradeoffs = ["Shared bathroom facilities", "Slower public transit times", "Less luxury, more walking", "Highly active days"]
+    elif style_name == "Cheapest with Sights":
+        why_fits = "Ensures you see the best landmarks while keeping your lodging and food costs at rock-bottom levels."
+        tradeoffs = ["No luxury hotels", "Public transit or walking between sights", "Active schedule, long days"]
+    elif style_name == "Cheapest with Better Stay":
+        why_fits = "Allows a comfortable private room/homestay while cutting transport and food costs to stay inside your budget."
+        tradeoffs = ["Street food and local stalls", "Public transit instead of private cab", "Less shopping/activities budget"]
+    elif style_name == "Cheapest with Private Cab":
+        why_fits = "Upgrades your intercity and daily local transport to private cabs to make commuting seamless and fast."
+        tradeoffs = ["Budget hotel stay", "Street food and cheap local meals", "Limited sightseeing tickets"]
     else: # Best Overall
         why_fits = "Balances comfortable mid-range hotels, local private transport, and high-quality meals. It provides the optimal value for your money."
         tradeoffs = ["No luxury resort stays included", "Some walking required for local sightseeing", "Moderate pace with scheduled stops"]
@@ -350,7 +351,8 @@ def calculate_budget_split_option(
             "stay_name": hotel_sel["name"] if hotel_sel else "Local Stay",
             "stay_rating": hotel_sel.get("stars", 4.0) if hotel_sel else 4.0,
             "transport_mode": mode.replace("_", " ").title(),
-            "transport_cost": rt_transport_cost_pp / 2.0 if day in [1, days] else local_travel_pp_pd
+            "transport_cost": rt_transport_cost_pp / 2.0 if day in [1, days] else local_travel_pp_pd,
+            "sights": day_attrs
         })
 
     # Prepare candidates for swapping

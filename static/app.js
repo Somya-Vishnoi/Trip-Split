@@ -2987,12 +2987,10 @@ function renderSelectedTripOption() {
                 `;
             }
             
-            // Sights (Timeline layout, remove other sights grid)
+            // Sights (Timeline layout, read directly from day.sights list returned by backend solver)
             let sightsHtml = "";
-            if (showSights && stop.all_sightseeing && stop.all_sightseeing.length > 0) {
-                const sightsForDay = stop.all_sightseeing.filter(a => a.optimized).slice(idx*2, (idx+1)*2);
-                
-                const timelineItems = sightsForDay.map((s, sIdx) => `
+            if (showSights && day.sights && day.sights.length > 0) {
+                const timelineItems = day.sights.map((s, sIdx) => `
                     <div style="position:relative; padding-left:1.5rem; margin-bottom:0.75rem;">
                         <span style="position:absolute; left:0; top:4px; width:8px; height:8px; border-radius:50%; background:var(--accent); border:2px solid #FFF; outline:1px solid var(--accent);"></span>
                         <strong style="font-size:0.82rem; color:var(--text-primary); display:block;">${s.name}</strong>
@@ -3004,7 +3002,7 @@ function renderSelectedTripOption() {
                     <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
                         <h6 style="margin: 0 0 0.5rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🏛️ Exploration & Sights</h6>
                         <div style="position:relative; border-left:1px dashed var(--accent); margin-left:4px; padding-bottom:0.25rem; margin-top:0.5rem;">
-                            ${timelineItems || '<div style="font-size:0.78rem; color:var(--text-muted); padding-left:1rem;">Leisure time / local markets stroll.</div>'}
+                            ${timelineItems}
                         </div>
                     </div>
                 `;
@@ -4380,10 +4378,17 @@ const CITY_FALLBACK_DB = {
             { id:'e1', name:'Basilica of Bom Jesus, Old Goa', original_cost:0, stars:4.8, sub_type:'museum', lat:15.5009, lon:73.9116 },
             { id:'e2', name:'Fort Aguada & Lighthouse', original_cost:0, stars:4.6, sub_type:'viewpoint', lat:15.4922, lon:73.7735 },
             { id:'e3', name:'Dudhsagar Waterfall Trek', original_cost:400, stars:4.9, sub_type:'park', lat:15.3144, lon:74.3143 },
-            { id:'e4', name:'Anjuna Flea Market', original_cost:0, stars:4.3, sub_type:'viewpoint', lat:15.5835, lon:73.7418 },
-            { id:'e5', name:'Calangute Beach Water Sports', original_cost:1500, stars:4.4, sub_type:'beach', lat:15.5437, lon:73.7554 },
+            { id:'e4', name:'Anjuna Flea Market & Beach', original_cost:0, stars:4.3, sub_type:'beach', lat:15.5835, lon:73.7418 },
+            { id:'e5', name:'Calangute Beach & Shacks', original_cost:0, stars:4.4, sub_type:'beach', lat:15.5437, lon:73.7554 },
             { id:'e6', name:'Fontainhas Latin Quarter Walk', original_cost:0, stars:4.5, sub_type:'viewpoint', lat:15.5010, lon:73.8280 },
-            { id:'e7', name:'Palolem Beach Kayaking', original_cost:800, stars:4.7, sub_type:'beach', lat:15.0100, lon:74.0230 }
+            { id:'e7', name:'Palolem Beach Sunset Point', original_cost:0, stars:4.7, sub_type:'beach', lat:15.0100, lon:74.0230 },
+            { id:'e8', name:'Miramar Beach, Panaji', original_cost:0, stars:4.2, sub_type:'beach', lat:15.4850, lon:73.8050 },
+            { id:'e9', name:'Baga Beach, North Goa', original_cost:0, stars:4.4, sub_type:'beach', lat:15.5560, lon:73.7517 },
+            { id:'e10', name:'Vagator Beach & Chapora Fort', original_cost:0, stars:4.6, sub_type:'viewpoint', lat:15.6030, lon:73.7335 },
+            { id:'e11', name:'Dona Paula Viewpoint', original_cost:0, stars:4.1, sub_type:'viewpoint', lat:15.4600, lon:73.8020 },
+            { id:'e12', name:'Arambol Beach Sweet Lake', original_cost:0, stars:4.6, sub_type:'beach', lat:15.6880, lon:73.7020 },
+            { id:'e13', name:'Colva Beach, South Goa', original_cost:0, stars:4.3, sub_type:'beach', lat:15.2780, lon:73.9210 },
+            { id:'e14', name:'Reis Magos Fort', original_cost:50, stars:4.4, sub_type:'museum', lat:15.4980, lon:73.8080 }
         ]
     },
     'delhi': {
@@ -4575,6 +4580,8 @@ const CITY_FALLBACK_DB = {
 // Alias common city name variants
 CITY_FALLBACK_DB['bengaluru'] = CITY_FALLBACK_DB['bangalore'];
 CITY_FALLBACK_DB['new delhi'] = CITY_FALLBACK_DB['delhi'];
+CITY_FALLBACK_DB['panaji'] = CITY_FALLBACK_DB['goa'];
+CITY_FALLBACK_DB['panjim'] = CITY_FALLBACK_DB['goa'];
 CITY_FALLBACK_DB['kochi'] = {
     hotels: [
         { id:'h1', name:'Taj Malabar Resort & Spa, Cochin', cost:14000, stars:5, sub_type:'Resort', lat:9.9657, lon:76.2385, wifi:true, pool:true, parking:true, bar:true },
