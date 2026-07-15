@@ -2603,7 +2603,7 @@ function renderSelectedTripOption() {
     const pillsContainer = document.getElementById("tripsplit-option-pills");
     if (pillsContainer) {
         pillsContainer.innerHTML = state.tripOptions.map((o, idx) => `
-            <button class="pill-tag ${idx === state.selectedOptionIndex ? 'active' : ''}" onclick="selectTripOptionStyle(${idx})" style="padding:0.4rem 0.85rem; font-size:0.8rem; font-weight:700; border-radius:20px; cursor:pointer; outline:none; border:1px solid var(--border); background:#FFF;">
+            <button class="pill-tag ${idx === state.selectedOptionIndex ? 'active' : ''}" onclick="selectTripOptionStyle(${idx})" style="padding:0.4rem 0.85rem; font-size:0.8rem; font-weight:700; border-radius:20px; cursor:pointer; outline:none;">
                 ${o.style_name}
             </button>
         `).join("");
