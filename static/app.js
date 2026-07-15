@@ -2557,6 +2557,208 @@ function plotPinsOnItineraryMap(opt) {
     }
 }
 
+function selectTripOptionStyle(idx) {
+    state.selectedOptionIndex = idx;
+    renderSelectedTripOption();
+}
+
+function handleBudgetSliderInput(val) {
+    const label = document.getElementById("slider-budget-label");
+    if (label) {
+        label.textContent = `₹${parseFloat(val).toLocaleString('en-IN')}`;
+    }
+}
+
+function handleBudgetSliderChange(val) {
+    const budget = parseFloat(val);
+    if (isNaN(budget)) return;
+    
+    runTripPlannerOptimization({
+        destination: state.currentCity,
+        budget: budget,
+        days: state.originalDaysCount || 3,
+        people: state.originalPeopleCount || 2,
+        origin: document.getElementById("opt-home-origin")?.value || "Delhi"
+    });
+}
+
+function showPerPersonSplitCard() {
+    if (!state.tripOptions || state.tripOptions.length === 0) return;
+    const opt = state.tripOptions[state.selectedOptionIndex];
+    const people = state.originalPeopleCount || 1;
+    
+    const modal = document.getElementById("split-it-modal");
+    const body = document.getElementById("split-it-modal-body");
+    
+    if (modal && body) {
+        body.innerHTML = `
+            <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">💸</div>
+            <h3 style="font-size:1.25rem; font-weight:800; color:var(--text-primary); margin-bottom:1rem;">Per-Person Cost Split</h3>
+            
+            <div style="background:#FAF9F6; border:1px solid var(--border); border-radius:12px; padding:1.25rem; margin-bottom:1.25rem; text-align:left;">
+                <div style="display:flex; justify-content:space-between; font-size:0.88rem; color:var(--text-secondary); margin-bottom:0.5rem;">
+                    <span>Total Group Cost:</span>
+                    <strong style="color:var(--text-primary);">₹${Math.round(opt.total_cost).toLocaleString('en-IN')}</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:0.88rem; color:var(--text-secondary); margin-bottom:0.5rem;">
+                    <span>Total Travelers:</span>
+                    <strong style="color:var(--text-primary);">${people}</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:1rem; border-top:1px dashed var(--border); padding-top:0.75rem; font-weight:800; color:var(--accent);">
+                    <span>Individual Share:</span>
+                    <span>₹${Math.round(opt.cost_per_person).toLocaleString('en-IN')}</span>
+                </div>
+            </div>
+            
+            <h4 style="font-size:0.78rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; text-align:left; margin-bottom:0.6rem; letter-spacing:0.5px;">Itemized Cost Breakdown (Per Person)</h4>
+            <div style="display:flex; flex-direction:column; gap:0.6rem; text-align:left; margin-bottom:1.5rem;">
+                ${Object.entries(opt.budget_split).map(([category, cost]) => `
+                    <div style="display:flex; justify-content:space-between; font-size:0.82rem; color:var(--text-secondary);">
+                        <span>${category}:</span>
+                        <span>₹${Math.round(cost / people).toLocaleString('en-IN')}</span>
+                    </div>
+                `).join("")}
+            </div>
+        `;
+        modal.classList.remove("hidden");
+    }
+}
+
+function closeSplitItModal() {
+    const modal = document.getElementById("split-it-modal");
+    if (modal) modal.classList.add("hidden");
+}
+
+function toggleComparisonMode() {
+    if (!state.tripOptions || state.tripOptions.length === 0) return;
+    
+    const modal = document.getElementById("comparison-modal");
+    const body = document.getElementById("comparison-modal-body");
+    
+    if (modal && body) {
+        let tableRows = state.tripOptions.map((o, idx) => {
+            const stop = o.stops[0];
+            const hotelName = stop && stop.hotel ? stop.hotel.name : "N/A";
+            const stars = stop && stop.hotel && stop.hotel.stars ? `⭐ ${stop.hotel.stars}` : "N/A";
+            
+            return `
+                <tr style="border-bottom: 1px solid var(--border); transition: background 0.2s;">
+                    <td style="padding: 1rem; font-weight:800; color: ${idx === state.selectedOptionIndex ? 'var(--accent)' : 'var(--text-primary)'};">
+                        ${o.style_name} ${idx === state.selectedOptionIndex ? '⚡' : ''}
+                    </td>
+                    <td style="padding: 1rem; color: var(--accent); font-weight:700;">
+                        ₹${Math.round(o.total_cost).toLocaleString('en-IN')}
+                    </td>
+                    <td style="padding: 1rem; color: var(--text-secondary);">
+                        ₹${Math.round(o.cost_per_person).toLocaleString('en-IN')}
+                    </td>
+                    <td style="padding: 1rem; color: var(--text-secondary); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${hotelName}">
+                        ${hotelName} <span style="font-size: 0.75rem; color: var(--text-muted);">${stars}</span>
+                    </td>
+                    <td style="padding: 1rem; color: var(--text-secondary); text-transform: capitalize;">
+                        ${(o.travel_mode || 'flexible').replace('_', ' ')}
+                    </td>
+                    <td style="padding: 1rem; font-size: 0.78rem; color: var(--text-muted); max-width: 240px; line-height: 1.4;">
+                        ${o.why_fits}
+                    </td>
+                    <td style="padding: 1rem; text-align: center;">
+                        <button class="btn-primary" style="font-size:0.75rem; padding:0.4rem 0.8rem; border-radius:6px;" onclick="selectTripOptionStyle(${idx}); closeComparisonModal();">
+                            Select
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join("");
+        
+        body.innerHTML = `
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.82rem;">
+                <thead>
+                    <tr style="background: #FAF9F6; border-bottom: 2px solid var(--border);">
+                        <th style="padding: 1rem; font-weight: 800; color: var(--text-primary);">Style Option</th>
+                        <th style="padding: 1rem; font-weight: 800; color: var(--text-primary);">Group Price</th>
+                        <th style="padding: 1rem; font-weight: 800; color: var(--text-primary);">Per Person</th>
+                        <th style="padding: 1rem; font-weight: 800; color: var(--text-primary);">Hotel Stay</th>
+                        <th style="padding: 1rem; font-weight: 800; color: var(--text-primary);">Transit</th>
+                        <th style="padding: 1rem; font-weight: 800; color: var(--text-primary);">Strategy</th>
+                        <th style="padding: 1rem; font-weight: 800; color: var(--text-primary); text-align: center;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tableRows}
+                </tbody>
+            </table>
+        `;
+        modal.classList.remove("hidden");
+    }
+}
+
+function closeComparisonModal() {
+    const modal = document.getElementById("comparison-modal");
+    if (modal) modal.classList.add("hidden");
+}
+
+function exportItineraryCSV() {
+    if (!state.tripOptions || state.tripOptions.length === 0) return;
+    const opt = state.tripOptions[state.selectedOptionIndex];
+    const people = state.originalPeopleCount || 1;
+    
+    let csvRows = [];
+    csvRows.push([
+        "Day", 
+        "Destination", 
+        "Recommended Stay", 
+        "Stay Maps Link", 
+        "Transit Mode", 
+        "Est. Cost Per Person (INR)", 
+        "Day Summary", 
+        "Details"
+    ].map(c => `"${c.replace(/"/g, '""')}"`).join(","));
+    
+    opt.itinerary.forEach(day => {
+        const stayName = day.stay_name || "Local Stay";
+        const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stayName + " " + state.currentCity)}`;
+        const transitMode = day.transport_mode || "Flexible";
+        const cost = day.transport_cost || 0;
+        
+        csvRows.push([
+            day.day,
+            state.currentCity.toUpperCase(),
+            stayName,
+            mapsLink,
+            transitMode,
+            Math.round(cost),
+            day.summary,
+            day.details
+        ].map(c => `"${String(c).replace(/"/g, '""')}"`).join(","));
+    });
+    
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `TripSplit_${state.currentCity.replace(/\s+/g, '_')}_Itinerary.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function toggleDayDetailsPane(header) {
+    const card = header.closest('.day-collapsible-card');
+    if (!card) return;
+    const body = card.querySelector('.day-card-body');
+    const arrow = header.querySelector('.day-collapse-arrow');
+    if (body) {
+        const isHidden = body.classList.contains('hidden');
+        if (isHidden) {
+            body.classList.remove('hidden');
+            if (arrow) arrow.style.transform = 'rotate(180deg)';
+        } else {
+            body.classList.add('hidden');
+            if (arrow) arrow.style.transform = 'rotate(0deg)';
+        }
+    }
+}
+
 function renderVenueCardHtml(v, category, isRecommended = false) {
     const isHearted = isVenueFavorite(v.name);
     const heartIcon = isHearted ? "❤️" : "🤍";
