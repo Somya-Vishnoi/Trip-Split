@@ -14,6 +14,9 @@
     <link rel="stylesheet" href="/static/style.css?v=3.0">
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+
+    </script>
 </head>
 <body>
 
@@ -35,10 +38,12 @@
                 <a href="#" class="nav-tab-link" data-view-target="experience-results" onclick="navigateToCategoryResults('attractions'); return false;">Things to Do</a>
                 <a href="#" class="nav-tab-link" data-view-target="ledger" onclick="navigateToView('ledger'); return false;">Expense Splitter</a>
                 <a href="#" class="nav-tab-link" data-view-target="forums" onclick="navigateToView('forums'); return false;">Travel Forums</a>
+                <a href="#" class="nav-tab-link" data-view-target="profile" onclick="navigateToView('profile','trips'); return false;">My Trips</a>
             </nav>
 
             <!-- Right: Currency/Language, Sign In, Profile -->
             <div class="nav-actions">
+                <button class="nav-btn-icon" onclick="toggleDarkMode()" title="Toggle Dark Mode">🌙</button>
                 <button class="nav-btn-icon" onclick="openLanguageModal()" title="Select Language/Currency" style="font-weight: 700;">💱 INR</button>
                 
                 <!-- Non-logged in state -->
@@ -51,7 +56,7 @@
                     <div class="user-dropdown-menu">
                         <a href="#" onclick="navigateToView('profile'); return false;">My Profile</a>
                         <a href="#" onclick="navigateToView('profile', 'reviews'); return false;">My Reviews</a>
-                        <a href="#" onclick="navigateToView('profile', 'trips'); return false;">My Trips</a>
+
                         <hr>
                         <a href="#" onclick="handleSignOut(); return false;">Sign Out</a>
                     </div>
@@ -96,7 +101,7 @@
             <!-- Hero Search Banner -->
             <section class="hero-search-section">
                 <div class="hero-content">
-                    <h1>Where to?</h1>
+                    <h1 class="hero-tagline">Explore, Plan, and Split Your Trip</h1>
                     <div class="search-bar-wrapper">
                         <div class="search-input-container">
                             <span class="search-icon">🔍</span>
@@ -252,8 +257,6 @@
                 </div>
             </section>
 
-            <!-- Editorial Choice Strip Removed -->
-
             <!-- Grid Content Rows -->
             <section class="editorial-rows-section">
                 <!-- Hotels You May Like -->
@@ -304,8 +307,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Travel Articles Removed -->
             </section>
         </div>
 
@@ -430,9 +431,6 @@
                     <div id="dest-attractions-page-container"></div>
                 </div>
 
-                <!-- Destination Forums & Guide Tab Removed -->
-
-                <!-- Destination Split Itinerary Plan Tab -->
                 <!-- Destination Split Itinerary Plan Tab -->
                 <div id="dest-plan-tab" class="dest-subtab-pane hidden" style="margin-bottom: 4rem;">
                     <div id="plan-placeholder" class="plan-placeholder" style="padding: 3rem; text-align: center; color: var(--text-muted); background: #FAF9F6; border: 1px solid var(--border); border-radius: 12px; margin-top: 1rem;">
@@ -527,7 +525,7 @@
                                 </div>
                                 
                                 <!-- Itinerary Cards Wrapper -->
-                                <div id="plan-details-wrapper" style="display:flex; flex-direction:column; gap:1rem;">
+                                <div id="plan-details-wrapper" style="display:flex; flex-direction:column; gap:1.25rem;">
                                     <!-- Day cards populated dynamically -->
                                 </div>
                                 

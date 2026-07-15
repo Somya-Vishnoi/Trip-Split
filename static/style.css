@@ -17,6 +17,27 @@
     --border-radius-sm: 8px;
     --transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    /* Dark mode overrides */
+    --dark-bg-primary: #1E1E1E;
+    --dark-bg-secondary: #2A2A2A;
+    --dark-text-primary: #FFFFFF;
+    --dark-text-secondary: #CCCCCC;
+    --dark-text-muted: #AAAAAA;
+    --dark-border: #444444;
+    --dark-accent: #00AA6C;
+    --dark-accent-hover: #008753;
+}
+
+/* Apply dark mode when .dark-mode class is on body */
+body.dark-mode {
+    --bg-primary: var(--dark-bg-primary);
+    --bg-secondary: var(--dark-bg-secondary);
+    --text-primary: var(--dark-text-primary);
+    --text-secondary: var(--dark-text-secondary);
+    --text-muted: var(--dark-text-muted);
+    --border: var(--dark-border);
+    --accent: var(--dark-accent);
+    --accent-hover: var(--dark-accent-hover);
 }
 
 /* Reset and Global Styles */
@@ -324,13 +345,21 @@ button {
     padding: 0 1.5rem;
 }
 
-.hero-content h1 {
+.hero-tagline {
     font-size: 3.5rem;
     font-weight: 800;
     color: #FFFFFF;
     margin-bottom: 1.5rem;
     letter-spacing: -1px;
+    animation: fadeIn 1.5s ease-out;
 }
+
+/* Fade-in animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 
 .search-bar-wrapper {
     position: relative;
@@ -1930,6 +1959,330 @@ button {
     .recommended-column {
         flex: 1 !important;
     }
+}
+
+/* ==========================================================================
+   ITINERARY TIMELINE – Premium Clean Design
+   ========================================================================== */
+
+/* Outer card */
+.itin-day-card {
+    background: #fff;
+    border: 1px solid #E8E8E8;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    position: relative;
+}
+.itin-day-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 8px 28px rgba(0,0,0,0.07);
+    transform: translateY(-1px);
+}
+
+/* Left accent stripe — one accent color, brand green only */
+.itin-day-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--accent);
+    border-radius: 14px 0 0 14px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.itin-day-card.open::before { opacity: 1; }
+
+/* Header row */
+.itin-day-header {
+    padding: 1rem 1.25rem 1rem 1.4rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    cursor: pointer;
+    user-select: none;
+    background: #fff;
+    position: relative;
+}
+.itin-day-header:hover { background: #FAFAFA; }
+
+/* Large muted day number — watermark style */
+.itin-day-num {
+    font-family: var(--font-heading);
+    font-size: 2rem;
+    font-weight: 900;
+    color: #E8E8E8;
+    line-height: 1;
+    min-width: 2.2rem;
+    text-align: center;
+    flex-shrink: 0;
+    transition: color 0.2s;
+    letter-spacing: -1px;
+}
+.itin-day-card.open .itin-day-num { color: var(--accent); }
+
+/* Thin separator between num and text */
+.itin-day-sep {
+    width: 1px;
+    height: 32px;
+    background: #EBEBEB;
+    flex-shrink: 0;
+}
+
+.itin-day-meta { flex: 1; min-width: 0; }
+.itin-day-meta h5 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #111;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+}
+.itin-day-meta-sub {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+    flex-wrap: wrap;
+}
+.itin-day-stat {
+    font-size: 0.7rem;
+    color: #888;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+.itin-day-stat + .itin-day-stat::before {
+    content: '·';
+    color: #CCC;
+    font-size: 0.9rem;
+}
+
+/* Chevron */
+.itin-day-chevron {
+    width: 24px; height: 24px;
+    border: 1px solid #E4E4E4;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.6rem;
+    color: #AAA;
+    transition: transform 0.3s cubic-bezier(0.16,1,0.3,1), border-color 0.2s, color 0.2s;
+    flex-shrink: 0;
+}
+.itin-day-card.open .itin-day-chevron {
+    transform: rotate(180deg);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Body */
+.itin-day-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.42s cubic-bezier(0.16,1,0.3,1);
+    background: #fff;
+}
+.itin-day-card.open .itin-day-body { max-height: 3000px; }
+
+.itin-body-inner {
+    padding: 0 1.4rem 1.4rem;
+    border-top: 1px solid #F0F0F0;
+    padding-top: 1rem;
+}
+
+/* Brief summary text */
+.itin-day-desc {
+    font-size: 0.8rem;
+    color: #777;
+    line-height: 1.6;
+    margin: 0 0 1.1rem;
+}
+
+/* Transport pill — neutral, not rainbow */
+.itin-transport-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.25rem 0.7rem;
+    border-radius: 100px;
+    margin-bottom: 1.1rem;
+    width: fit-content;
+    background: #F5F5F5;
+    color: #555;
+    border: 1px solid #E4E4E4;
+    letter-spacing: 0.2px;
+}
+
+/* Timeline track */
+.itin-timeline {
+    position: relative;
+    padding-left: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.itin-timeline::before {
+    content: '';
+    position: absolute;
+    left: 6px; top: 8px; bottom: 8px;
+    width: 1px;
+    background: #EBEBEB;
+}
+
+/* Single timeline row */
+.itin-row {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    padding-bottom: 1.1rem;
+}
+.itin-row:last-child { padding-bottom: 0; }
+
+/* Time-of-day dot — colour codes time only, nothing else */
+.itin-row-dot {
+    position: absolute;
+    left: -2rem;
+    top: 5px;
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1.5px solid #D0D0D0;
+    flex-shrink: 0;
+}
+.itin-row.morning   .itin-row-dot { border-color: #F59E0B; background: #FFFBEB; }
+.itin-row.afternoon .itin-row-dot { border-color: #3B82F6; background: #EFF6FF; }
+.itin-row.evening   .itin-row-dot { border-color: #8B5CF6; background: #F5F3FF; }
+.itin-row.night     .itin-row-dot { border-color: #374151; background: #F9FAFB; }
+
+/* Time label */
+.itin-row-time {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #BBB;
+    margin-bottom: 0.3rem;
+    line-height: 1;
+}
+.itin-row.morning   .itin-row-time { color: #D97706; }
+.itin-row.afternoon .itin-row-time { color: #2563EB; }
+.itin-row.evening   .itin-row-time { color: #7C3AED; }
+.itin-row.night     .itin-row-time { color: #374151; }
+
+/* Activity card inside row */
+.itin-activity {
+    background: #FAFAFA;
+    border: 1px solid #F0F0F0;
+    border-radius: 10px;
+    padding: 0.7rem 0.85rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    transition: border-color 0.15s, background 0.15s;
+    cursor: default;
+}
+.itin-activity:hover {
+    background: #F8FFF9;
+    border-color: rgba(0,170,108,0.2);
+}
+
+/* Emoji icon in a very subtle box */
+.itin-activity-icon {
+    font-size: 1rem;
+    width: 32px; height: 32px;
+    background: #F0F0F0;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+.itin-activity.type-hotel  .itin-activity-icon { background: #ECFDF5; }
+.itin-activity.type-food   .itin-activity-icon { background: #FFFBEB; }
+.itin-activity.type-sight  .itin-activity-icon { background: #EFF6FF; }
+.itin-activity.type-bar    .itin-activity-icon { background: #F5F3FF; }
+
+.itin-activity-body { flex: 1; min-width: 0; }
+
+.itin-activity-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #111;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.itin-activity-sub {
+    font-size: 0.73rem;
+    color: #888;
+    margin-top: 0.18rem;
+    line-height: 1.4;
+}
+
+.itin-activity-tags {
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+    margin-top: 0.4rem;
+}
+.itin-activity-tag {
+    font-size: 0.62rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 100px;
+    background: #F0F0F0;
+    color: #666;
+    letter-spacing: 0.2px;
+}
+
+/* Swap hotel button */
+.itin-swap-btn {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.28rem 0.65rem;
+    border-radius: 6px;
+    border: 1px solid #E0E0E0;
+    background: #fff;
+    color: #555;
+    cursor: pointer;
+    transition: all 0.18s;
+    white-space: nowrap;
+    flex-shrink: 0;
+    align-self: center;
+}
+.itin-swap-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: #F0FDF4;
+}
+
+/* Cab upgrade row */
+.itin-cab-upgrade {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding: 0.7rem 0.85rem;
+    background: #F8F9FF;
+    border: 1px solid #E0E7FF;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    color: #374151;
+    font-weight: 500;
+}
+.itin-cab-upgrade label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    font-weight: 600;
+    color: #4F46E5;
 }
 
 

@@ -2927,131 +2927,146 @@ function renderSelectedTripOption() {
     // Render Itinerary daycards (Center Column)
     const wrapper = document.getElementById("plan-details-wrapper");
     if (wrapper) {
+
         wrapper.innerHTML = opt.itinerary.map((day, idx) => {
-            const hasStay = day.stay_name && day.stay_name !== "None";
-            const stop = opt.stops[0];
-            
-            // Build hotel ratings circles
-            const ratingStars = getBubbleRatingHtml(day.stay_rating || 4);
-            
-            let stayHtml = "";
-            if (showStays && hasStay && day.day === 1) {
-                stayHtml = `
-                    <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
-                        <h6 style="margin: 0 0 0.5rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🏨 Stay & Accommodation</h6>
-                        <div style="background:#FFFFFF; border:1px solid var(--border); border-radius:10px; padding:0.85rem; display:flex; gap:0.75rem; align-items:center; position:relative;">
-                            <div style="font-size:1.5rem;">🏨</div>
-                            <div style="flex-grow:1; min-width:0;">
-                                <div style="font-weight:700; font-size:0.85rem; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${day.stay_name}</div>
-                                <div style="display:flex; align-items:center; gap:0.35rem; margin-top:0.15rem;">
-                                    ${ratingStars}
-                                </div>
-                            </div>
-                            <button class="btn-secondary" onclick="openSwapStayModal(${idx})" style="padding:0.35rem 0.75rem; font-size:0.75rem; font-weight:700; border-radius:6px; border:1px solid var(--border); background:#FFF;">
-                                🔄 Swap Stay
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Dining (only show recommended choice, remove all alternatives)
-            let diningHtml = "";
-            if (showDining && stop.all_restaurants && stop.all_restaurants.length > 0) {
-                const recRest = stop.all_restaurants[idx % stop.all_restaurants.length];
-                const recCard = renderMiniVenueCard(recRest, "restaurant", true);
-                
-                diningHtml = `
-                    <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
-                        <h6 style="margin: 0 0 0.5rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🍽️ Restaurants & Dining</h6>
-                        <div style="max-width:320px;">
-                            ${recCard}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Nightlife (only show recommended choice, remove all alternatives)
-            let barsHtml = "";
-            if (showBars && stop.all_bars && stop.all_bars.length > 0) {
-                const recBar = stop.all_bars[idx % stop.all_bars.length];
-                const recCard = renderMiniVenueCard(recBar, "bar", true);
-                
-                barsHtml = `
-                    <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
-                        <h6 style="margin: 0 0 0.5rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🍹 Bars & Nightlife</h6>
-                        <div style="max-width:320px;">
-                            ${recCard}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Sights (Timeline layout, read directly from day.sights list returned by backend solver)
-            let sightsHtml = "";
-            if (showSights && day.sights && day.sights.length > 0) {
-                const timelineItems = day.sights.map((s, sIdx) => `
-                    <div style="position:relative; padding-left:1.5rem; margin-bottom:0.75rem;">
-                        <span style="position:absolute; left:0; top:4px; width:8px; height:8px; border-radius:50%; background:var(--accent); border:2px solid #FFF; outline:1px solid var(--accent);"></span>
-                        <strong style="font-size:0.82rem; color:var(--text-primary); display:block;">${s.name}</strong>
-                        <span style="font-size:0.72rem; color:var(--text-muted); display:block;">Vibe: ${s.vibe || 'Scenic'} | ${s.description || 'Popular sightseeing spot.'}</span>
-                    </div>
-                `).join("");
-                
-                sightsHtml = `
-                    <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
-                        <h6 style="margin: 0 0 0.5rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🏛️ Exploration & Sights</h6>
-                        <div style="position:relative; border-left:1px dashed var(--accent); margin-left:4px; padding-bottom:0.25rem; margin-top:0.5rem;">
-                            ${timelineItems}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Transport switch panel
-            const transportIcon = day.transport_mode.toLowerCase().includes("flight") ? "✈️" : (day.transport_mode.toLowerCase().includes("train") ? "🚂" : "🚌");
-            const isPrivateCabEnabled = opt.travel_mode === "private_cab";
+            const hasStay  = day.stay_name && day.stay_name !== "None";
+            const stop     = opt.stops[0];
+            const sights   = day.sights || [];
+
+            /* Transport */
+            const tMode = (day.transport_mode || '').toLowerCase();
+            const tIcon = tMode.includes('flight') ? '✈️' : tMode.includes('train') ? '🚂' : tMode.includes('cab') ? '🚗' : '🚌';
             const isFirstOrLast = (day.day === 1 || day.day === opt.itinerary.length);
-            const transportToggleHtml = isFirstOrLast ? `
-                <div style="background:#EFF6FF; border:1px solid #BFDBFE; border-radius:10px; padding:0.85rem; display:flex; justify-content:space-between; align-items:center; margin-top:0.5rem; font-size:0.8rem; color:#1E40AF;">
-                    <div style="display:flex; align-items:center; gap:0.4rem;">
-                        <span>${transportIcon}</span>
-                        <span>Mode: <strong>${day.transport_mode}</strong> (₹${Math.round(day.transport_cost).toLocaleString('en-IN')})</span>
-                    </div>
-                    <label style="display:flex; align-items:center; gap:0.25rem; font-weight:700; cursor:pointer;">
-                        <input type="checkbox" ${isPrivateCabEnabled ? 'checked' : ''} onchange="togglePrivateCabTransport(this.checked)">
-                        🚗 Upgrade to Cab (+₹6,000)
-                    </label>
-                </div>
-            ` : '';
-            
-            return `
-                <div class="day-collapsible-card" style="background:#FFFFFF; border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.01);">
-                    <div class="day-card-header" onclick="toggleDayDetailsPane(this)" style="padding:1rem; display:flex; justify-content:space-between; align-items:center; cursor:pointer; background:#FFF; border-bottom:1px solid var(--border); user-select:none;">
-                        <div style="display:flex; align-items:center; gap:0.75rem;">
-                            <span style="background:var(--accent); color:#FFF; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.85rem;">${day.day}</span>
-                            <div style="min-width:0;">
-                                <h5 style="margin:0; font-size:0.92rem; font-weight:800; color:var(--text-primary);">${day.summary}</h5>
-                            </div>
+
+            const tPill = isFirstOrLast
+                ? `<span class="itin-transport-pill">${tIcon} ${day.transport_mode} · ₹${Math.round(day.transport_cost).toLocaleString('en-IN')}</span>`
+                : '';
+
+            /* Helper: render one activity row */
+            const actRow = (timeKey, timeLabel, typeClass, icon, name, sub, tags = []) => `
+                <div class="itin-row ${timeKey}">
+                    <div class="itin-row-dot"></div>
+                    <div class="itin-row-time">${timeLabel}</div>
+                    <div class="itin-activity type-${typeClass}">
+                        <div class="itin-activity-icon">${icon}</div>
+                        <div class="itin-activity-body">
+                            <div class="itin-activity-name">${name}</div>
+                            ${sub ? `<div class="itin-activity-sub">${sub}</div>` : ''}
+                            ${tags.length ? `<div class="itin-activity-tags">${tags.map(t => `<span class="itin-activity-tag">${t}</span>`).join('')}</div>` : ''}
                         </div>
-                        <span class="day-collapse-arrow" style="font-size:0.75rem; color:var(--text-muted); font-weight:bold; transition:transform 0.2s;">▼</span>
-                    </div>
-                    <div class="day-card-body hidden" style="padding:1.15rem; background:#FAF9F6; overflow:hidden;">
-                        <p style="margin:0; font-size:0.85rem; color:var(--text-secondary); line-height:1.5;">${day.details}</p>
-                        ${stayHtml}
-                        ${diningHtml}
-                        ${barsHtml}
-                        ${sightsHtml}
-                        ${transportToggleHtml}
                     </div>
                 </div>
             `;
-        }).join("");
+
+            /* Build timeline rows */
+            let timelineRows = '';
+
+            // Hotel check-in (morning, day 1 only)
+            if (showStays && hasStay && day.day === 1) {
+                const ratingStars = getBubbleRatingHtml(day.stay_rating || 4);
+                timelineRows += `
+                    <div class="itin-row morning">
+                        <div class="itin-row-dot"></div>
+                        <div class="itin-row-time">Morning · Check-in</div>
+                        <div class="itin-activity type-hotel">
+                            <div class="itin-activity-icon">🏨</div>
+                            <div class="itin-activity-body" style="flex:1;min-width:0;">
+                                <div class="itin-activity-name">${day.stay_name}</div>
+                                <div style="margin-top:0.25rem;">${ratingStars}</div>
+                            </div>
+                            <button class="itin-swap-btn" onclick="openSwapStayModal(${idx})">Swap</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Sights — distributed across morning/afternoon/evening
+            sights.forEach((s, sIdx) => {
+                const timeKey   = sIdx % 3 === 0 ? 'morning' : sIdx % 3 === 1 ? 'afternoon' : 'evening';
+                const timeLabel = sIdx % 3 === 0 ? 'Morning'  : sIdx % 3 === 1 ? 'Afternoon'  : 'Evening';
+                const tags = [s.vibe || 'Scenic'];
+                if (s.entry_fee) tags.push(`₹${s.entry_fee} entry`);
+                if (s.duration)  tags.push(s.duration);
+                timelineRows += actRow(timeKey, timeLabel, 'sight', '🏛️', s.name, s.description || 'Popular sightseeing spot.', tags);
+            });
+
+            // Dining (afternoon)
+            if (showDining && stop.all_restaurants && stop.all_restaurants.length > 0) {
+                const r = stop.all_restaurants[idx % stop.all_restaurants.length];
+                const sub = [r.cuisine ? r.cuisine + ' cuisine' : null, r.price_for_two ? '₹' + r.price_for_two + ' for two' : null].filter(Boolean).join(' · ');
+                const tags = [];
+                if (r.rating) tags.push(`⭐ ${r.rating}`);
+                if (r.specialty) tags.push(r.specialty);
+                timelineRows += actRow('afternoon', 'Afternoon · Lunch', 'food', '🍽️', r.name, sub, tags);
+            }
+
+            // Bars (night)
+            if (showBars && stop.all_bars && stop.all_bars.length > 0) {
+                const b = stop.all_bars[idx % stop.all_bars.length];
+                const sub = [b.vibe, b.avg_drink_cost ? '₹' + b.avg_drink_cost + ' avg drink' : null].filter(Boolean).join(' · ');
+                timelineRows += actRow('night', 'Night', 'bar', '🍹', b.name, sub);
+            }
+
+            /* Stat sub-line */
+            const statParts = [
+                sights.length ? `${sights.length} sights` : null,
+                hasStay       ? 'Stay included' : null,
+                isFirstOrLast ? tIcon + ' ' + day.transport_mode : null
+            ].filter(Boolean);
+            const statsHtml = statParts.map(s => `<span class="itin-day-stat">${s}</span>`).join('');
+
+            /* Cab upgrade */
+            const isPrivateCabEnabled = opt.travel_mode === "private_cab";
+            const cabUpgrade = isFirstOrLast ? `
+                <div class="itin-cab-upgrade">
+                    <span>${tIcon} <strong>${day.transport_mode}</strong> — ₹${Math.round(day.transport_cost).toLocaleString('en-IN')}</span>
+                    <label>
+                        <input type="checkbox" ${isPrivateCabEnabled ? 'checked' : ''} onchange="togglePrivateCabTransport(this.checked)">
+                        Upgrade to private cab (+₹6,000)
+                    </label>
+                </div>
+            ` : '';
+
+            return `
+                <div class="itin-day-card" id="itin-card-${idx}">
+                    <div class="itin-day-header" onclick="toggleItinCard(${idx})">
+                        <div class="itin-day-num">${day.day}</div>
+                        <div class="itin-day-sep"></div>
+                        <div class="itin-day-meta">
+                            <h5>${day.summary}</h5>
+                            <div class="itin-day-meta-sub">${statsHtml}</div>
+                        </div>
+                        <div class="itin-day-chevron">▾</div>
+                    </div>
+                    <div class="itin-day-body">
+                        <div class="itin-body-inner">
+                            <p class="itin-day-desc">${day.details}</p>
+                            ${tPill}
+                            <div class="itin-timeline">${timelineRows}</div>
+                            ${cabUpgrade}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Open first card by default
+        const first = document.getElementById('itin-card-0');
+        if (first) first.classList.add('open');
     }
-    
+
     // Plot route line on map (Right Column)
     plotPinsOnItineraryMap(opt);
 }
+
+function toggleItinCard(idx) {
+    const card = document.getElementById(`itin-card-${idx}`);
+    if (card) card.classList.toggle('open');
+}
+
+
+
+
 
 function renderMiniVenueCard(v, category, isRecommended = false) {
     const starsHtml = getBubbleRatingHtml(v.stars || v.utility / 30 || 4.2);
