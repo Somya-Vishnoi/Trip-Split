@@ -2935,7 +2935,7 @@ function renderSelectedTripOption() {
             const ratingStars = getBubbleRatingHtml(day.stay_rating || 4);
             
             let stayHtml = "";
-            if (showStays && hasStay) {
+            if (showStays && hasStay && day.day === 1) {
                 stayHtml = `
                     <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
                         <h6 style="margin: 0 0 0.5rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🏨 Stay & Accommodation</h6>
@@ -2955,67 +2955,42 @@ function renderSelectedTripOption() {
                 `;
             }
             
-            // Dining (wrapping grid: recommended 1, all others 3 per row)
+            // Dining (only show recommended choice, remove all alternatives)
             let diningHtml = "";
             if (showDining && stop.all_restaurants && stop.all_restaurants.length > 0) {
                 const recRest = stop.all_restaurants[idx % stop.all_restaurants.length];
-                const candRests = stop.all_restaurants.filter(r => r.name !== recRest.name).slice(0, 3);
-                
                 const recCard = renderMiniVenueCard(recRest, "restaurant", true);
-                const candCards = candRests.map(r => renderMiniVenueCard(r, "restaurant", false)).join("");
                 
                 diningHtml = `
                     <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
-                        <h6 style="margin: 0 0 0.75rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🍽️ Restaurants & Dining</h6>
-                        <div style="display:flex; gap:1.25rem; flex-wrap:wrap;">
-                            <div style="width:280px; flex:0 0 auto;">
-                                <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); margin-bottom:0.25rem; text-transform:uppercase;">Recommended Choice</div>
-                                ${recCard}
-                            </div>
-                            <div style="flex-grow:1; min-width:0;">
-                                <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); margin-bottom:0.25rem; text-transform:uppercase;">All Options (Grid View)</div>
-                                <div style="display:flex; flex-wrap:wrap; gap:0.75rem;">
-                                    ${candCards || '<div style="font-size:0.8rem; color:var(--text-muted); padding:1rem;">No other dining options nearby.</div>'}
-                                </div>
-                            </div>
+                        <h6 style="margin: 0 0 0.5rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🍽️ Restaurants & Dining</h6>
+                        <div style="max-width:320px;">
+                            ${recCard}
                         </div>
                     </div>
                 `;
             }
             
-            // Nightlife (similar wrapping grid)
+            // Nightlife (only show recommended choice, remove all alternatives)
             let barsHtml = "";
             if (showBars && stop.all_bars && stop.all_bars.length > 0) {
                 const recBar = stop.all_bars[idx % stop.all_bars.length];
-                const candBars = stop.all_bars.filter(b => b.name !== recBar.name).slice(0, 3);
-                
                 const recCard = renderMiniVenueCard(recBar, "bar", true);
-                const candCards = candBars.map(b => renderMiniVenueCard(b, "bar", false)).join("");
                 
                 barsHtml = `
                     <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
-                        <h6 style="margin: 0 0 0.75rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🍹 Bars & Nightlife</h6>
-                        <div style="display:flex; gap:1.25rem; flex-wrap:wrap;">
-                            <div style="width:280px; flex:0 0 auto;">
-                                <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); margin-bottom:0.25rem; text-transform:uppercase;">Recommended Choice</div>
-                                ${recCard}
-                            </div>
-                            <div style="flex-grow:1; min-width:0;">
-                                <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); margin-bottom:0.25rem; text-transform:uppercase;">All Nightspots & Pubs</div>
-                                <div style="display:flex; flex-wrap:wrap; gap:0.75rem;">
-                                    ${candCards || '<div style="font-size:0.8rem; color:var(--text-muted); padding:1rem;">No other pubs nearby.</div>'}
-                                </div>
-                            </div>
+                        <h6 style="margin: 0 0 0.5rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🍹 Bars & Nightlife</h6>
+                        <div style="max-width:320px;">
+                            ${recCard}
                         </div>
                     </div>
                 `;
             }
             
-            // Sights (Timeline layout)
+            // Sights (Timeline layout, remove other sights grid)
             let sightsHtml = "";
             if (showSights && stop.all_sightseeing && stop.all_sightseeing.length > 0) {
                 const sightsForDay = stop.all_sightseeing.filter(a => a.optimized).slice(idx*2, (idx+1)*2);
-                const otherSights = stop.all_sightseeing.filter(a => !a.optimized).slice(idx*2, (idx+1)*2);
                 
                 const timelineItems = sightsForDay.map((s, sIdx) => `
                     <div style="position:relative; padding-left:1.5rem; margin-bottom:0.75rem;">
@@ -3025,24 +3000,11 @@ function renderSelectedTripOption() {
                     </div>
                 `).join("");
                 
-                const otherCards = otherSights.map(s => renderMiniVenueCard(s, "sightseeing", false)).join("");
-                
                 sightsHtml = `
                     <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
-                        <h6 style="margin: 0 0 0.75rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🏛️ Exploration & Sights</h6>
-                        <div style="display:grid; grid-template-columns: 280px 1fr; gap:1.25rem;">
-                            <div>
-                                <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); margin-bottom:0.5rem; text-transform:uppercase;">Daily Sightseeing Timeline</div>
-                                <div style="position:relative; border-left:1px dashed var(--accent); margin-left:4px; padding-bottom:0.25rem;">
-                                    ${timelineItems || '<div style="font-size:0.78rem; color:var(--text-muted); padding-left:1rem;">Leisure time / local markets stroll.</div>'}
-                                </div>
-                            </div>
-                            <div>
-                                <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); margin-bottom:0.5rem; text-transform:uppercase;">All Sights & Attractions</div>
-                                <div style="display:flex; flex-wrap:wrap; gap:0.75rem;">
-                                    ${otherCards || '<div style="font-size:0.8rem; color:var(--text-muted); padding:1rem;">No other attractions nearby.</div>'}
-                                </div>
-                            </div>
+                        <h6 style="margin: 0 0 0.5rem 0; font-size: 0.8rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase;">🏛️ Exploration & Sights</h6>
+                        <div style="position:relative; border-left:1px dashed var(--accent); margin-left:4px; padding-bottom:0.25rem; margin-top:0.5rem;">
+                            ${timelineItems || '<div style="font-size:0.78rem; color:var(--text-muted); padding-left:1rem;">Leisure time / local markets stroll.</div>'}
                         </div>
                     </div>
                 `;
