@@ -2459,6 +2459,104 @@ async function runTripPlannerOptimization(params) {
     }
 }
 
+function initializeItineraryMap() {
+    if (state.itineraryMap) {
+        try {
+            state.itineraryMap.remove();
+        } catch(e) {
+            console.warn("Error removing previous itinerary map instance:", e);
+        }
+        state.itineraryMap = null;
+    }
+    
+    const mapContainer = document.getElementById('itinerary-leaflet-map');
+    if (!mapContainer) return;
+    
+    state.itineraryMap = L.map('itinerary-leaflet-map').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(state.itineraryMap);
+    
+    state.itineraryMarkers = [];
+    state.itineraryRouteLine = null;
+    
+    setTimeout(() => {
+        if (state.itineraryMap) {
+            state.itineraryMap.invalidateSize();
+        }
+    }, 200);
+}
+
+function plotPinsOnItineraryMap(opt) {
+    if (!state.itineraryMap) return;
+    
+    if (!state.itineraryMarkers) {
+        state.itineraryMarkers = [];
+    }
+    
+    // Clear previous markers
+    state.itineraryMarkers.forEach(m => state.itineraryMap.removeLayer(m));
+    state.itineraryMarkers = [];
+    
+    if (state.itineraryRouteLine) {
+        state.itineraryMap.removeLayer(state.itineraryRouteLine);
+        state.itineraryRouteLine = null;
+    }
+    
+    const stop = opt.stops[0];
+    if (!stop) return;
+    
+    const latlngs = [];
+    
+    // 1. Plot Hotel
+    const hotel = stop.hotel;
+    if (hotel && hotel.lat && hotel.lon) {
+        const hotelLatLng = [parseFloat(hotel.lat), parseFloat(hotel.lon)];
+        const markerIcon = L.divIcon({
+            className: 'custom-map-hotel-pin',
+            html: `<div style="background:#7C3AED; color:#fff; font-weight:800; font-size:0.75rem; padding:4px 8px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.25); white-space:nowrap; border:2px solid #fff;">🏨 Stay: ${hotel.name.slice(0, 15)}...</div>`,
+            iconSize: [120, 24],
+            iconAnchor: [60, 12]
+        });
+        const m = L.marker(hotelLatLng, { icon: markerIcon }).addTo(state.itineraryMap);
+        m.bindPopup(`<b>🏨 Hotel stay: ${hotel.name}</b>`);
+        state.itineraryMarkers.push(m);
+        latlngs.push(hotelLatLng);
+    }
+    
+    // 2. Plot Sightseeing Attractions
+    const sights = stop.all_sightseeing || [];
+    sights.forEach(a => {
+        if (a.optimized && a.lat && a.lon) {
+            const sightLatLng = [parseFloat(a.lat), parseFloat(a.lon)];
+            const markerIcon = L.divIcon({
+                className: 'custom-map-sight-pin',
+                html: `<div style="background:#10B981; color:#fff; font-weight:700; font-size:0.7rem; padding:3px 6px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.2); white-space:nowrap; border:1.5px solid #fff;">📍 ${a.name.slice(0, 15)}...</div>`,
+                iconSize: [100, 22],
+                iconAnchor: [50, 11]
+            });
+            const m = L.marker(sightLatLng, { icon: markerIcon }).addTo(state.itineraryMap);
+            m.bindPopup(`<b>📍 Attraction: ${a.name}</b>`);
+            state.itineraryMarkers.push(m);
+            latlngs.push(sightLatLng);
+        }
+    });
+    
+    // 3. Draw route lines connecting them
+    if (latlngs.length > 1) {
+        state.itineraryRouteLine = L.polyline(latlngs, {
+            color: '#7C3AED',
+            weight: 3,
+            dashArray: '5, 8',
+            opacity: 0.8
+        }).addTo(state.itineraryMap);
+        
+        state.itineraryMap.fitBounds(latlngs, { padding: [40, 40] });
+    } else if (latlngs.length === 1) {
+        state.itineraryMap.setView(latlngs[0], 13);
+    }
+}
+
 function renderVenueCardHtml(v, category, isRecommended = false) {
     const isHearted = isVenueFavorite(v.name);
     const heartIcon = isHearted ? "❤️" : "🤍";
