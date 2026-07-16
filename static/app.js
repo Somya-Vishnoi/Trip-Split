@@ -2503,43 +2503,44 @@ function plotPinsOnItineraryMap(opt) {
         state.itineraryRouteLine = null;
     }
     
-    const stop = opt.stops[0];
-    if (!stop) return;
+    if (!opt.stops || opt.stops.length === 0) return;
     
     const latlngs = [];
     
-    // 1. Plot Hotel
-    const hotel = stop.hotel;
-    if (hotel && hotel.lat && hotel.lon) {
-        const hotelLatLng = [parseFloat(hotel.lat), parseFloat(hotel.lon)];
-        const markerIcon = L.divIcon({
-            className: 'custom-map-hotel-pin',
-            html: `<div style="background:#7C3AED; color:#fff; font-weight:800; font-size:0.75rem; padding:4px 8px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.25); white-space:nowrap; border:2px solid #fff;">🏨 Stay: ${hotel.name.slice(0, 15)}...</div>`,
-            iconSize: [120, 24],
-            iconAnchor: [60, 12]
-        });
-        const m = L.marker(hotelLatLng, { icon: markerIcon }).addTo(state.itineraryMap);
-        m.bindPopup(`<b>🏨 Hotel stay: ${hotel.name}</b>`);
-        state.itineraryMarkers.push(m);
-        latlngs.push(hotelLatLng);
-    }
-    
-    // 2. Plot Sightseeing Attractions
-    const sights = stop.all_sightseeing || [];
-    sights.forEach(a => {
-        if (a.optimized && a.lat && a.lon) {
-            const sightLatLng = [parseFloat(a.lat), parseFloat(a.lon)];
+    opt.stops.forEach(stop => {
+        // 1. Plot Hotel
+        const hotel = stop.hotel;
+        if (hotel && hotel.lat && hotel.lon) {
+            const hotelLatLng = [parseFloat(hotel.lat), parseFloat(hotel.lon)];
             const markerIcon = L.divIcon({
-                className: 'custom-map-sight-pin',
-                html: `<div style="background:#10B981; color:#fff; font-weight:700; font-size:0.7rem; padding:3px 6px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.2); white-space:nowrap; border:1.5px solid #fff;">📍 ${a.name.slice(0, 15)}...</div>`,
-                iconSize: [100, 22],
-                iconAnchor: [50, 11]
+                className: 'custom-map-hotel-pin',
+                html: `<div style="background:#7C3AED; color:#fff; font-weight:800; font-size:0.75rem; padding:4px 8px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.25); white-space:nowrap; border:2px solid #fff;">🏨 Stay: ${hotel.name.slice(0, 15)}...</div>`,
+                iconSize: [120, 24],
+                iconAnchor: [60, 12]
             });
-            const m = L.marker(sightLatLng, { icon: markerIcon }).addTo(state.itineraryMap);
-            m.bindPopup(`<b>📍 Attraction: ${a.name}</b>`);
+            const m = L.marker(hotelLatLng, { icon: markerIcon }).addTo(state.itineraryMap);
+            m.bindPopup(`<b>🏨 Hotel stay: ${hotel.name} (${stop.city})</b>`);
             state.itineraryMarkers.push(m);
-            latlngs.push(sightLatLng);
+            latlngs.push(hotelLatLng);
         }
+        
+        // 2. Plot Sightseeing Attractions
+        const sights = stop.all_sightseeing || [];
+        sights.forEach(a => {
+            if (a.optimized && a.lat && a.lon) {
+                const sightLatLng = [parseFloat(a.lat), parseFloat(a.lon)];
+                const markerIcon = L.divIcon({
+                    className: 'custom-map-sight-pin',
+                    html: `<div style="background:#10B981; color:#fff; font-weight:700; font-size:0.7rem; padding:3px 6px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.2); white-space:nowrap; border:1.5px solid #fff;">📍 ${a.name.slice(0, 15)}...</div>`,
+                    iconSize: [100, 22],
+                    iconAnchor: [50, 11]
+                });
+                const m = L.marker(sightLatLng, { icon: markerIcon }).addTo(state.itineraryMap);
+                m.bindPopup(`<b>📍 Attraction: ${a.name} (${stop.city})</b>`);
+                state.itineraryMarkers.push(m);
+                latlngs.push(sightLatLng);
+            }
+        });
     });
     
     // 3. Draw route lines connecting them
@@ -2930,7 +2931,8 @@ function renderSelectedTripOption() {
 
         wrapper.innerHTML = opt.itinerary.map((day, idx) => {
             const hasStay  = day.stay_name && day.stay_name !== "None";
-            const stop     = opt.stops[0];
+            const dayCity  = day.city || opt.stops[0].city;
+            const stop     = opt.stops.find(s => s.city.toLowerCase() === dayCity.toLowerCase()) || opt.stops[0];
             const sights   = day.sights || [];
 
             /* Transport */
@@ -3009,6 +3011,7 @@ function renderSelectedTripOption() {
 
             /* Stat sub-line */
             const statParts = [
+                day.city ? `📍 ${day.city}` : null,
                 sights.length ? `${sights.length} sights` : null,
                 hasStay       ? 'Stay included' : null,
                 isFirstOrLast ? tIcon + ' ' + day.transport_mode : null
@@ -4711,5 +4714,100 @@ function getFallbackExperiences(city) {
         ];
     }
 }
+
+window.openSwapStayModal = function(dayIdx) {
+    const plan = state.activePlanType === "backup" ? state.lastPlanResult.backup : state.lastPlanResult;
+    if (!plan || !plan.itinerary) return;
+    
+    const day = plan.itinerary[dayIdx];
+    if (!day) return;
+    
+    const dayCity = day.city || plan.stops[0].city;
+    const stop = plan.stops.find(s => s.city.toLowerCase() === dayCity.toLowerCase()) || plan.stops[0];
+    if (!stop || !stop.all_hotels) return;
+    
+    const modal = document.getElementById("swap-stay-modal");
+    const body = document.getElementById("swap-stay-modal-body");
+    if (!modal || !body) return;
+    
+    body.innerHTML = stop.all_hotels.map(h => {
+        const ratingStars = getBubbleRatingHtml(h.stars || 4);
+        const isCurrent = h.name === day.stay_name;
+        return `
+            <div style="background:#FFFFFF; border:1px solid ${isCurrent ? 'var(--accent)' : 'var(--border)'}; border-radius:10px; padding:0.85rem; display:flex; gap:0.75rem; align-items:center;">
+                <div style="font-size:1.5rem;">🏨</div>
+                <div style="flex-grow:1; min-width:0;">
+                    <div style="font-weight:700; font-size:0.85rem; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${h.name}</div>
+                    <div style="display:flex; align-items:center; gap:0.35rem; margin-top:0.15rem;">
+                        ${ratingStars}
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--accent); font-weight:700; margin-top:0.25rem;">₹${Math.round(h.cost).toLocaleString('en-IN')} total stay</div>
+                </div>
+                ${isCurrent ? `
+                    <span style="color:var(--accent); font-weight:800; font-size:0.75rem; padding:0.25rem 0.5rem; background:#E8F5E9; border-radius:4px;">Active</span>
+                ` : `
+                    <button class="btn-primary" onclick="swapStayForDay(${dayIdx}, '${h.name.replace(/'/g, "\\'")}', ${h.cost}, ${h.stars || 4})" style="padding:0.35rem 0.75rem; font-size:0.75rem; font-weight:700; border-radius:6px;">
+                        Select
+                    </button>
+                `}
+            </div>
+        `;
+    }).join("");
+    
+    modal.classList.remove("hidden");
+};
+
+window.closeSwapStayModal = function() {
+    const modal = document.getElementById("swap-stay-modal");
+    if (modal) modal.classList.add("hidden");
+};
+
+window.swapStayForDay = function(dayIdx, hotelName, hotelCost, hotelStars) {
+    const plan = state.activePlanType === "backup" ? state.lastPlanResult.backup : state.lastPlanResult;
+    if (!plan || !plan.itinerary) return;
+    
+    const day = plan.itinerary[dayIdx];
+    if (!day) return;
+    
+    // Update the stay name and rating for that day
+    day.stay_name = hotelName;
+    day.stay_rating = hotelStars;
+    
+    const dayCity = day.city || plan.stops[0].city;
+    const stop = plan.stops.find(s => s.city.toLowerCase() === dayCity.toLowerCase()) || plan.stops[0];
+    
+    if (stop) {
+        const newHotel = stop.all_hotels.find(h => h.name === hotelName);
+        const oldHotel = stop.hotel;
+        const oldHotelCost = oldHotel ? (oldHotel.cost || 0) : 0;
+        
+        if (newHotel) {
+            stop.hotel = newHotel;
+            // Mark as optimized
+            stop.all_hotels.forEach(h => h.optimized = (h.name === hotelName));
+        }
+        
+        // Recalculate stay cost across all stops
+        let newTotalStayCost = 0;
+        plan.stops.forEach(s => {
+            if (s.hotel) {
+                const hCost = s.hotel.cost || 0;
+                newTotalStayCost += hCost;
+            }
+        });
+        
+        // Update plan.budget_split.Stay and total_cost
+        const oldStaySplit = plan.budget_split.Stay || 0;
+        const delta = newTotalStayCost - oldStaySplit;
+        plan.budget_split.Stay = newTotalStayCost;
+        plan.total_cost += delta;
+        const people = Math.round(plan.total_cost / plan.cost_per_person) || 1;
+        plan.cost_per_person = plan.total_cost / people;
+    }
+    
+    closeSwapStayModal();
+    renderSelectedTripOption();
+};
+
 
 
