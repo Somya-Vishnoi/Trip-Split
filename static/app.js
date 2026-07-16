@@ -3548,60 +3548,7 @@ function hidePageLoader() {
     if (loader) loader.classList.add('hidden');
 }
 
-// --- FLOATING AI ASSISTANT CHATBOT LOGIC ---
-function toggleFloatingChat() {
-    document.getElementById('floating-chat-container').classList.toggle('hidden');
-}
 
-async function handleSendChatMessage() {
-    const input = document.getElementById('assistant-chat-input');
-    const query = input.value.trim();
-    if (!query) return;
-    
-    input.value = '';
-    
-    // Append user message
-    appendChatMessage(query, 'user');
-    
-    // Call backend assistant endpoint
-    try {
-        const res = await fetch('/api/assistant', {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                query: query,
-                favorites: state.favorites
-            })
-        });
-        if (res.ok) {
-            const data = await res.json();
-            appendChatMessage(data.response, 'assistant');
-        } else {
-            appendChatMessage("Sorry, I'm having trouble connecting to the travel advice servers right now. Please try again in a bit!", 'assistant');
-        }
-    } catch (err) {
-        appendChatMessage("Sorry, I'm offline. Please make sure the backend Python server is running!", 'assistant');
-    }
-}
-
-function handleChatInputKeyPress(e) {
-    if (e.key === 'Enter') {
-        handleSendChatMessage();
-    }
-}
-
-function appendChatMessage(text, sender) {
-    const box = document.getElementById('assistant-chat-box');
-    if (!box) return;
-    
-    const msg = document.createElement('div');
-    msg.className = `chat-message ${sender}`;
-    msg.textContent = text;
-    box.appendChild(msg);
-    
-    // Scroll to bottom
-    box.scrollTop = box.scrollHeight;
-}
 
 // --- GROUP EXPENSE SPLITTER LEDGER LOGIC ---
 state.ledgerExpenses = JSON.parse(localStorage.getItem('ta_expenses') || '[]');

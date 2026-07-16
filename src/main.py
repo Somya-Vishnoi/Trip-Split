@@ -724,18 +724,7 @@ def plan_trip(req: PlanRequest):
         "city": ", ".join([c["name"] for c in valid_cities])
     }
 
-class AssistantRequest(BaseModel):
-    query: str
-    favorites: list
 
-@app.post("/api/assistant")
-def chat_assistant(req: AssistantRequest):
-    from src.gemini import query_gemini_assistant
-    response_text = query_gemini_assistant(req.query, req.favorites)
-    return {
-        "success": True,
-        "response": response_text
-    }
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

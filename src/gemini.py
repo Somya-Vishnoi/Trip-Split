@@ -200,65 +200,7 @@ Do not return any markdown codeblocks or text outside the JSON. Return only the 
 
     return plan
 
-def query_gemini_assistant(query: str, favorites: List[Dict[str, Any]]) -> str:
-    """
-    Queries Gemini as a travel assistant. Can answer general travel queries and utilize saved venues context.
-    """
-    if not GEMINI_API_KEY:
-        return "Assistant: Please add your Gemini API Key in the config or .env to enable the AI travel assistant."
 
-    prompt = f"""
-    You are the TripSplit Travel AI Assistant, a world-class travel guide, local experience expert, and travel planner. 
-    
-    The user can ask you any question about travel, destinations, itineraries, cultural tips, packing lists, general travel experiences, local cuisines, or anything they need.
-    
-    Additionally, for context, here is the user's Saved/Hearted Venues Board (hotels, restaurants, attractions they saved):
-    {json.dumps(favorites, indent=2)}
-    
-    User Query: "{query}"
-    
-    Instructions:
-    1. Answer the user's question comprehensively and helpfully.
-    2. Draw from your extensive global travel knowledge to give detailed tips, advice, and cultural suggestions that aren't just dry facts.
-    3. If the user's query relates to their saved venues or if you see a relevant match in their Saved Board, reference those venues naturally.
-    4. Keep your tone enthusiastic, professional, and friendly.
-    5. Use markdown formatting. Keep the answer concise (under 250 words) yet high-value and satisfying.
-    6. Never refer to yourself as TripAdvisor; you are the TripSplit Travel Assistant.
-    """
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}]
-    }
-    
-    try:
-        response = requests.post(url, json=payload, timeout=15)
-        response.raise_for_status()
-        res_json = response.json()
-        text = res_json["candidates"][0]["content"]["parts"][0]["text"]
-        return text.strip()
-    except Exception as e:
-        # Fallback Local Rule-Based Travel Assistant in case of 429 rate limits
-        q_l = query.lower()
-        
-        # Build list of saved names
-        saved_names = [f["name"] for f in favorites]
-        saved_str = ", ".join(saved_names) if saved_names else "None"
-        
-        if "hotel" in q_l or "stay" in q_l or "accommodation" in q_l:
-            response_text = "🏢 **Accommodation Advisor:** Based on your saved spots (" + saved_str + "), I recommend selecting a hotel with close proximity to your sightseeing clusters to avoid travel times. Stays with 4.0+ ratings generally offer the best value-to-budget ratio!\n\n*(Note: Gemini API is currently rate-limited; displaying local offline guidelines)*"
-        elif "food" in q_l or "eat" in q_l or "restaurant" in q_l or "cuisine" in q_l or "dish" in q_l:
-            response_text = "🍽️ **Local Culinary Tips:** If you are visiting Mumbai, do not miss **Vada Pav** near chowpatty or local butter garlic crab! For Jaipur, **Dal Baati Churma** at Chokhi Dhani is a must-try. Always ask for spice levels to be adjusted to your liking when exploring local eateries!\n\n*(Note: Gemini API is currently rate-limited; displaying local offline guidelines)*"
-        elif "sunset" in q_l or "view" in q_l or "beach" in q_l:
-            response_text = "🌅 **Scenic Views & Sunset:** Marine Drive in Mumbai and Baga/Calangute beach in Goa offer spectacular sunset views. Make sure to arrive by 5:15 PM to secure a good spot and beat the evening peak crowds!\n\n*(Note: Gemini API is currently rate-limited; displaying local offline guidelines)*"
-        elif "pack" in q_l or "dress" in q_l or "carry" in q_l:
-            response_text = "🎒 **Packing Checklist:** For warm coastal regions, carry light cotton clothing, sunscreen, and polarized sunglasses. If visiting religious temples or historical palaces, ensure dress code compliance (shoulders and knees covered).\n\n*(Note: Gemini API is currently rate-limited; displaying local offline guidelines)*"
-        elif "budget" in q_l or "cost" in q_l or "price" in q_l:
-            response_text = "💰 **Budget Planning:** Remember that all tourist sightseeing entry tickets are calculated as **budget-free** in TripSplit, so you can explore freely! Focus your main budget on quality hotel rooms and dining experiences.\n\n*(Note: Gemini API is currently rate-limited; displaying local offline guidelines)*"
-        else:
-            response_text = "🤖 **TripSplit Offline Travel Guide:** That sounds like a wonderful travel query! To make the most of your trip, I highly recommend scheduling sightseeing stops during early mornings to avoid peak crowds, and booking travel tickets in advance. \n\n*(Note: Gemini API is currently rate-limited; displaying local offline guidelines)*"
-            
-        return response_text
 
 
 def generate_venues_via_gemini(city_name: str) -> Optional[Dict[str, List[Dict[str, Any]]]]:
