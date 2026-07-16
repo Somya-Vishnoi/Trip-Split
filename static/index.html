@@ -1773,33 +1773,7 @@
         </div>
     </div>
 
-    <!-- FLOATING CHATBOT WIDGET -->
-    <button id="floating-chat-badge" class="chat-badge-btn" onclick="toggleFloatingChat()" title="Ask TripSplit AI Assistant">
-        <svg viewBox="0 0 24 24" width="28" height="28" fill="#FFFFFF" xmlns="http://www.w3.org/2000/svg">
-            <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
-        </svg>
-    </button>
 
-    <div id="floating-chat-container" class="floating-chat-widget hidden">
-        <div class="chat-widget-header">
-            <div style="display:flex; align-items:center; gap:0.5rem;">
-                <span class="assistant-avatar-dot">🟢</span>
-                <strong>Ollie - TripSplit Assistant</strong>
-            </div>
-            <button class="minimize-chat-btn" onclick="toggleFloatingChat()">&times;</button>
-        </div>
-        <div class="chat-widget-body">
-            <div id="assistant-chat-box" class="chat-messages-container">
-                <div class="chat-message assistant">
-                    Hi! I'm Ollie, your TripSplit travel assistant. 🚀 Ask me about hotels, dining, budget tips, or custom itineraries!
-                </div>
-            </div>
-            <div class="chat-input-row">
-                <input type="text" id="assistant-chat-input" placeholder="Ask Ollie something..." onkeypress="handleChatInputKeyPress(event)">
-                <button id="assistant-chat-btn" onclick="handleSendChatMessage()">Send</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Beautiful City Prompt Modal -->
     <div id="city-prompt-modal" class="modal hidden" style="z-index: 10000; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center;">
