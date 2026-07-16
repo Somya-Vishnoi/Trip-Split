@@ -291,35 +291,15 @@ def calculate_budget_split_option(
     
     selected_attrs = []
     activities_spend = 0.0
-    limit_per_city = {item["name"]: max(2, city_days[idx] * 2) for idx, item in enumerate(valid_cities)}
+    limit_per_city = {item["name"]: max(3, city_days[idx] * 3) for idx, item in enumerate(valid_cities)}
     counts_per_city = {item["name"]: 0 for item in valid_cities}
     
-    if style_name == "Cheapest Trip":
-        # Free sights
-        for a in sorted_attrs:
-            cname = a["city_name"]
-            cost_a = assign_heuristics(a, "attractions", people)[0]
-            if cost_a == 0 and counts_per_city[cname] < limit_per_city[cname]:
-                selected_attrs.append(a)
-                counts_per_city[cname] += 1
-    else:
-        for a in sorted_attrs:
-            cname = a["city_name"]
-            cost_a = assign_heuristics(a, "attractions", people)[0]
-            if counts_per_city[cname] < limit_per_city[cname]:
-                if activities_spend + cost_a <= available_activities_budget:
-                    selected_attrs.append(a)
-                    activities_spend += cost_a
-                    counts_per_city[cname] += 1
-                    
-        # Fallback if empty
-        if not selected_attrs:
-            for a in sorted_attrs:
-                cname = a["city_name"]
-                cost_a = assign_heuristics(a, "attractions", people)[0]
-                if cost_a == 0 and counts_per_city[cname] < limit_per_city[cname]:
-                    selected_attrs.append(a)
-                    counts_per_city[cname] += 1
+    # All sightseeing attractions are budget-free (cost = 0) in TripSplit, so select top sights by utility
+    for a in sorted_attrs:
+        cname = a["city_name"]
+        if counts_per_city[cname] < limit_per_city[cname]:
+            selected_attrs.append(a)
+            counts_per_city[cname] += 1
 
     estimated_total = total_transport_cost + total_stay_cost + total_food_cost + total_local_travel + activities_spend
     actual_buffer = max(0.0, total_budget - estimated_total)

@@ -19,6 +19,16 @@ GEMINI_MODEL = "gemini-2.0-flash"
 # Cache TTL (in seconds)
 CACHE_TTL_SECONDS = 6 * 60 * 60  # 6 hours
 
+# Load .env file manually if running locally and it exists
+env_path = BASE_DIR / ".env"
+if env_path.exists():
+    with open(env_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, val = line.split("=", 1)
+                os.environ[key.strip()] = val.strip()
+
 # API Keys
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
