@@ -1,7 +1,31 @@
 import requests
+import time
 from typing import Dict, List, Any, Tuple
 from src.config import OVERPASS_API_URL
 from src.cache import get_cached_response, set_cached_response
+
+def fetch_overpass(query: str, retries: int = 3, timeout: int = 10) -> dict:
+    headers = {
+        "User-Agent": "TripSplit-Budget-Optimizer/1.0"
+    }
+    for attempt in range(retries):
+        try:
+            response = requests.post(
+                OVERPASS_API_URL,
+                data={"data": query},
+                headers=headers,
+                timeout=timeout
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.Timeout:
+            if attempt < retries - 1:
+                time.sleep(2 ** attempt)  # 1s, 2s, 4s backoff
+                continue
+            return {"elements": []}
+        except requests.exceptions.RequestException:
+            return {"elements": []}
+    return {"elements": []}
 
 def fetch_venues(
     city_name: str, 
@@ -111,9 +135,7 @@ def fetch_venues(
     }
 
     try:
-        response = requests.post(OVERPASS_API_URL, data={"data": query}, headers=headers, timeout=35)
-        response.raise_for_status()
-        elements = response.json().get("elements", [])
+        elements = fetch_overpass(query).get("elements", [])
 
         for el in elements:
             tags = el.get("tags", {})

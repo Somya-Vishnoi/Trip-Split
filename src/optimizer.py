@@ -103,8 +103,9 @@ def assign_heuristics(venue: Dict[str, Any], category: str, people: int) -> Tupl
         # Boost major landmarks globally (wikipedia/website presence or explicitly tagged historic/attraction landmarks)
         is_landmark = tags.get("tourism") == "attraction" or tags.get("historic") is not None
         if has_web_presence or is_landmark:
-            utility += 120.0
+            utility += 20.0
             
+        utility = min(utility, 100.0)
         return cost_per_visit, utility
 
 
@@ -128,7 +129,7 @@ def run_budget_knapsack(
     # 1. Transport cost deduction
     transport_cost = 0.0
     if include_transport:
-        transport_cost = 500.0 * days  # ASSUME fixed ₹500/day for the group's local transit
+        transport_cost = 150.0 * people * days  # Heuristic for group-size-aware local transit
         total_budget -= transport_cost
         if total_budget < 0:
             return {"status": "exceeded", "message": "Budget is too low to afford local transport."}
@@ -165,7 +166,7 @@ def run_budget_knapsack(
 
     for a in attractions:
         c_visit, u = assign_heuristics(a, "attractions", people)
-        a["cost"] = 0.0  # Attractions are budget-free per user request
+        a["cost"] = c_visit
         a["original_cost"] = c_visit
         a["utility"] = u
 
@@ -188,8 +189,8 @@ def run_budget_knapsack(
     hotels_filtered = get_balanced_subset(hotels, lambda x: x["utility"], lambda x: x["cost"], 25)
     restaurants_filtered = get_balanced_subset(restaurants, lambda x: x["utility"] / max(x["cost"], 1.0), lambda x: x["cost"], 35)
     
-    # Show ALL popular attractions (up to 100) sorted by utility descending
-    attractions_filtered = sorted(attractions, key=lambda x: x["utility"], reverse=True)[:100] if include_attractions else []
+    # Show popular attractions (up to 40) sorted by utility descending
+    attractions_filtered = sorted(attractions, key=lambda x: x["utility"], reverse=True)[:40] if include_attractions else []
 
     # 3. Handle NO STAY
     if not include_stay:
@@ -228,10 +229,20 @@ def run_budget_knapsack(
             restaurants_filtered = [dummy_rest]
 
         original_rests = list(restaurants_filtered)
+        for idx, r in enumerate(original_rests):
+            r["base_id"] = r.get("base_id", r["id"])
+            r["meal_slot"] = idx
+            r["is_duplicate"] = False
+            
         while len(restaurants_filtered) < N_r:
             for r in original_rests:
+                if len(restaurants_filtered) >= N_r:
+                    break
                 clone = r.copy()
                 clone["id"] = f"{r['id']}_dup_{len(restaurants_filtered)}"
+                clone["base_id"] = r["base_id"]
+                clone["meal_slot"] = len(restaurants_filtered)
+                clone["is_duplicate"] = True
                 restaurants_filtered.append(clone)
 
     budget_int = int(total_budget)
@@ -263,7 +274,21 @@ def run_budget_knapsack(
             for b_prev, (util_prev, items_prev) in dp_rest[k].items():
                 b_next = b_prev + c_int
                 if b_next <= budget_int:
-                    if r["id"] in [item["id"] for item in items_prev]:
+                    # Check if this restaurant or any duplicate of the same base restaurant is already in items_prev
+                    # Allow duplicates only if they have different meal slots
+                    is_dup_same_slot = False
+                    r_base_id = r.get("base_id", r["id"])
+                    r_meal_slot = r.get("meal_slot")
+                    
+                    for item in items_prev[1:]: # Skip hotel
+                        item_base_id = item.get("base_id", item["id"])
+                        item_meal_slot = item.get("meal_slot")
+                        if item_base_id == r_base_id:
+                            if item_meal_slot == r_meal_slot or item_meal_slot is None or r_meal_slot is None:
+                                is_dup_same_slot = True
+                                break
+                                
+                    if is_dup_same_slot:
                         continue
                     new_util = util_prev + r["utility"]
                     if b_next not in dp_rest[next_k] or new_util > dp_rest[next_k][b_next][0]:
@@ -272,24 +297,45 @@ def run_budget_knapsack(
     if not dp_rest[N_r]:
         return {"status": "exceeded", "message": "Budget is too low to afford meals."}
 
-    # Find best plan (attractions are added directly from attractions_filtered sorted by utility)
+    # -----------------------------
+    # Stage 3: Attraction Selection (at most N_a)
+    # -----------------------------
+    dp_attr: List[Dict[int, Tuple[float, List[Dict[str, Any]]]]] = [{} for _ in range(N_a + 1)]
+    for b_r, (util_r, items_r) in dp_rest[N_r].items():
+        dp_attr[0][b_r] = (util_r, items_r)
+
+    if N_a > 0:
+        for a in attractions_filtered:
+            c_int = int(a["cost"])
+            for k in range(N_a - 1, -1, -1):
+                next_k = k + 1
+                for b_prev, (util_prev, items_prev) in dp_attr[k].items():
+                    b_next = b_prev + c_int
+                    if b_next <= budget_int:
+                        if a["id"] in [item["id"] for item in items_prev]:
+                            continue
+                        new_util = util_prev + a["utility"]
+                        if b_next not in dp_attr[next_k] or new_util > dp_attr[next_k][b_next][0]:
+                            dp_attr[next_k][b_next] = (new_util, items_prev + [a])
+
+    # Find best plan
     best_utility = -1.0
     best_budget_cost = 0
-    best_items = None
+    best_items_list = None
     
-    for b_curr, (util_curr, hotel_and_rests) in dp_rest[N_r].items():
-        if util_curr > best_utility:
-            best_utility = util_curr
-            best_budget_cost = b_curr
-            best_items = (hotel_and_rests[0], hotel_and_rests[1:], attractions_filtered)
+    for k in range(N_a + 1):
+        for b_curr, (util_curr, items_curr) in dp_attr[k].items():
+            if util_curr > best_utility:
+                best_utility = util_curr
+                best_budget_cost = b_curr
+                best_items_list = items_curr
 
-    if not best_items:
+    if not best_items_list:
         return {"status": "exceeded", "message": "Could not find a feasible budget allocation."}
 
-    hotel_sel, rests_sel, attrs_sel = best_items
-    
-    # Calculate utility including attractions
-    total_attr_utility = sum(a["utility"] for a in attrs_sel)
+    hotel_sel = best_items_list[0]
+    rests_sel = best_items_list[1 : 1 + N_r]
+    attrs_sel = best_items_list[1 + N_r :]
     
     return {
         "status": "success",
@@ -297,7 +343,7 @@ def run_budget_knapsack(
         "restaurants": rests_sel,
         "attractions": attrs_sel,
         "total_cost": float(best_budget_cost) + transport_cost,
-        "utility": best_utility + total_attr_utility
+        "utility": best_utility
     }
 
 

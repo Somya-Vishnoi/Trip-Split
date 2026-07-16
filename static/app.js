@@ -96,9 +96,8 @@ const state = {
 const MOCK_REVIEWS_POOL = [
     { title: "Absolutely stunning property!", text: "Our stay here was absolutely top-notch. The service was impeccable, rooms clean, and location couldn't be better. Highly recommend!", rating: 5, author: "ashok_trip", city: "Delhi" },
     { title: "Vibrant and wonderful experience", text: "Lovely ambiance, extremely polite staff. The heritage rooms felt royal. Will definitely visit again.", rating: 5, author: "riya_sen", city: "Kolkata" },
-    { title: "Decent stay but expensive", text: "Nice rooms but the rates are quite high for the amenities provided. Breakfast menu could have more options.", rating: 3, author: "mark_travels", city: "London" },
-    { title: "Average hospitality", text: "The service was a bit slow. Had to call room service thrice for extra towels. Otherwise location is good.", rating: 3, author: "neha_g", city: "Mumbai" },
-    { title: "Terrible customer service", text: "Disappointed with the front desk behavior. Long check-in lines and unfriendly staff. Room was dusty.", rating: 1, author: "angry_traveller", city: "New York" }
+    { title: "Decent stay but expensive", text: "Nice rooms but the rates are quite high for the amenities provided. Breakfast menu could have more options.", rating: 3, author: "mark_travels", city: "Shimla" },
+    { title: "Average hospitality", text: "The service was a bit slow. Had to call room service thrice for extra towels. Otherwise location is good.", rating: 3, author: "neha_g", city: "Mumbai" }
 ];
 
 // --- APP INITIALIZATION ---
@@ -113,6 +112,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Setup event listeners for forms, review modals, search inputs
     setupGlobalSearchAutocomplete();
     setupHomeOptimizerAutocomplete();
+    
+    // Setup budget preview listeners
+    const budgetInput = document.getElementById('opt-home-budget');
+    const budgetTypeSelect = document.getElementById('opt-home-budget-type');
+    const peopleInput = document.getElementById('opt-home-people');
+    if (budgetInput) budgetInput.addEventListener('input', updateBudgetLivePreview);
+    if (budgetTypeSelect) budgetTypeSelect.addEventListener('change', updateBudgetLivePreview);
+    if (peopleInput) peopleInput.addEventListener('input', updateBudgetLivePreview);
+    updateBudgetLivePreview();
     
     // Initialize date pickers
     const todayStr = new Date().toISOString().split('T')[0];
@@ -743,9 +751,6 @@ function setupGlobalSearchAutocomplete() {
             { type: 'dest', label: 'Goa', sub: 'India' },
             { type: 'dest', label: 'Delhi', sub: 'National Capital Territory, India' },
             { type: 'dest', label: 'Mumbai', sub: 'Maharashtra, India' },
-            { type: 'dest', label: 'London', sub: 'United Kingdom' },
-            { type: 'dest', label: 'Paris', sub: 'France' },
-            { type: 'dest', label: 'New York', sub: 'United States' },
             { type: 'dest', label: 'Shimla', sub: 'Himachal Pradesh, India' },
             { type: 'dest', label: 'Manali', sub: 'Himachal Pradesh, India' }
         ].filter(item => item.label.toLowerCase().includes(query.toLowerCase()));
@@ -828,11 +833,7 @@ async function navigateToDestinationOverview(city, country = "India", skipPushSt
         'jaipur': 'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=1200&q=80',
         'goa': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80',
         'mumbai': 'https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=1200&q=80',
-        'delhi': 'https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&w=1200&q=80',
-        'london': 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=1200&q=80',
-        'paris': 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=80',
-        'tokyo': 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=1200&q=80',
-        'new york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=1200&q=80'
+        'delhi': 'https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&w=1200&q=80'
     };
     let heroImg = cityImgs[city.toLowerCase()] || "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80";
     
@@ -842,6 +843,11 @@ async function navigateToDestinationOverview(city, country = "India", skipPushSt
     
     // Switch to specified subtab
     switchDestSubtab(subtab);
+    
+    // Seasonal Warning Check
+    if (typeof checkSeasonalWarning === "function") {
+        checkSeasonalWarning(city);
+    }
     
     const cityKey = city.toLowerCase().trim();
     if (state.cityDataCache && state.cityDataCache[cityKey]) {
@@ -998,6 +1004,15 @@ function populateFallbackVenues(city) {
 }
 
 function renderSampleLists() {
+    if (state.venues.experience) {
+        state.venues.experience.sort((a, b) => {
+            const costA = a.original_cost === undefined ? (a.cost || 0) : a.original_cost;
+            const costB = b.original_cost === undefined ? (b.cost || 0) : b.original_cost;
+            if (costA === 0 && costB !== 0) return -1;
+            if (costA !== 0 && costB === 0) return 1;
+            return 0;
+        });
+    }
     renderSubDeck('dest-sample-hotels', state.venues.hotel.slice(0, 3), 'hotel');
     renderSubDeck('dest-sample-restaurants', state.venues.restaurant.slice(0, 3), 'restaurant');
     renderSubDeck('dest-sample-attractions', state.venues.experience.slice(0, 3), 'experience');
@@ -1018,8 +1033,12 @@ function renderSubDeck(containerId, list, type) {
         const escName = escapeForOnclick(item.name);
         
         let costLabel = `₹${item.cost ? item.cost.toLocaleString('en-IN') : '0'}`;
+        let nameWithBadge = item.name;
         if (type === 'experience') {
             costLabel = item.original_cost === 0 ? "Free Entry" : `₹${item.original_cost}`;
+            if (item.original_cost === 0 || item.cost === 0) {
+                nameWithBadge += `<span style="background:#10B981; color:#fff; font-size:0.65rem; font-weight:800; padding:0.15rem 0.35rem; border-radius:4px; margin-left:0.4rem; display:inline-block; vertical-align:middle;">FREE</span>`;
+            }
         }
         
         return `
@@ -1030,7 +1049,7 @@ function renderSubDeck(containerId, list, type) {
                 </div>
                 <div class="card-details">
                     <span class="card-category-label">${item.sub_type || type}</span>
-                    <strong class="card-item-title">${item.name}</strong>
+                    <strong class="card-item-title">${nameWithBadge}</strong>
                     <div class="card-rating-row">
                         ${getBubbleRatingHtml(item.stars || 4.5)}
                     </div>
@@ -1121,8 +1140,14 @@ function applySearchFilters(type) {
     } else if (sortVal === 'rating') {
         source.sort((a, b) => (b.stars || b.rating || 4.5) - (a.stars || a.rating || 4.5));
     } else {
-        // Recommend by rating (high to low) and budget (low to high)
+        // Recommend by rating (high to low) and budget (low to high), placing FREE items first for experiences
         source.sort((a, b) => {
+            if (type === 'experience') {
+                const costA = a.original_cost === undefined ? (a.cost || 0) : a.original_cost;
+                const costB = b.original_cost === undefined ? (b.cost || 0) : b.original_cost;
+                if (costA === 0 && costB !== 0) return -1;
+                if (costA !== 0 && costB === 0) return 1;
+            }
             const ratingA = a.stars || a.rating || 4.0;
             const ratingB = b.stars || b.rating || 4.0;
             if (ratingB !== ratingA) {
@@ -1258,7 +1283,21 @@ function renderHotelResultsList() {
     const list = document.getElementById('results-cards-list-container');
     if (!list) return;
     
-    const hotels = state.filteredVenues.hotel;
+    // Sort hotels so that hostels are at the top
+    const hotels = [...state.filteredVenues.hotel];
+    const isHostel = (name) => {
+        const n = name.toLowerCase();
+        return n.includes("hostel") || n.includes("zostel") || n.includes("backpack") || n.includes("dorm") || n.includes("bunk");
+    };
+    
+    hotels.sort((a, b) => {
+        const isAHostel = isHostel(a.name);
+        const isBHostel = isHostel(b.name);
+        if (isAHostel && !isBHostel) return -1;
+        if (!isAHostel && isBHostel) return 1;
+        return 0;
+    });
+
     document.getElementById('results-count-label').textContent = `Showing ${hotels.length} stays`;
     
     if (hotels.length === 0) {
@@ -1271,6 +1310,9 @@ function renderHotelResultsList() {
         const heartIcon = isHearted ? "❤️" : "🤍";
         const escName = escapeForOnclick(h.name);
         
+        const isBackpacker = isHostel(h.name);
+        const backpackerTag = isBackpacker ? `<span style="background:#8B5CF6; color:#FFF; font-size:0.68rem; font-weight:800; padding:0.15rem 0.4rem; border-radius:4px; margin-left:0.5rem; display:inline-block; vertical-align:middle;">🎒 Backpacker Friendly</span>` : '';
+        
         return `
             <div class="row-card-item" onclick="navigateToDetail('${escName}', 'hotel')">
                 <div class="row-card-img">
@@ -1279,7 +1321,10 @@ function renderHotelResultsList() {
                 </div>
                 <div class="row-card-content">
                     <div>
-                        <h4 style="font-size:1.1rem; margin-bottom:0.25rem;">${h.name}</h4>
+                        <h4 style="font-size:1.1rem; margin-bottom:0.25rem; display:flex; align-items:center; flex-wrap:wrap;">
+                            <span>${h.name}</span>
+                            ${backpackerTag}
+                        </h4>
                         <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:var(--text-muted);">
                             <span>${h.sub_type || 'Hotel'}</span>
                             ${getBubbleRatingHtml(h.stars || 4.5)}
@@ -1546,11 +1591,7 @@ function navigateToDetail(name, category, addressFallback = "", skipPushState = 
                 'jaipur': { lat: 26.9124, lon: 75.7873 },
                 'goa': { lat: 15.3005, lon: 74.0855 },
                 'delhi': { lat: 28.6139, lon: 77.2090 },
-                'mumbai': { lat: 18.9750, lon: 72.8258 },
-                'london': { lat: 51.5074, lon: -0.1278 },
-                'paris': { lat: 48.8566, lon: 2.3522 },
-                'new york': { lat: 40.7128, lon: -74.0060 },
-                'tokyo': { lat: 35.6762, lon: 139.6503 }
+                'mumbai': { lat: 18.9750, lon: 72.8258 }
             };
             const cKey = state.currentCity.toLowerCase().trim();
             if (cityLookup[cKey]) {
@@ -2387,22 +2428,58 @@ function handleSaveProfileUpdate() {
     toggleEditProfileForm();
 }
 
+function showLoader(msg) {
+  const loader = document.getElementById("loader");
+  const loaderText = document.getElementById("loader-text");
+  if (loader && loaderText) {
+    loader.style.display = "block";
+    loaderText.textContent = msg;
+  }
+}
+
+function hideLoader() {
+  const loader = document.getElementById("loader");
+  if (loader) {
+    loader.style.display = "none";
+  }
+}
+
+function renderPlan(data) {
+  if (!data || data.status === "failed" || data.status === "exceeded" || !data.success || !data.options || data.options.length === 0) {
+    const dataDiv = document.getElementById("plan-data");
+    const placeholder = document.getElementById("plan-placeholder");
+    if (placeholder) placeholder.classList.add("hidden");
+    if (dataDiv) {
+        dataDiv.classList.remove("hidden");
+        dataDiv.innerHTML = `
+          <div style="text-align:center; padding:2rem; color:#888;">
+            <h3>😕 Couldn't build a plan</h3>
+            <p>${data?.message || "No venues found for this city. Try a different destination or increase your budget."}</p>
+          </div>
+        `;
+    }
+    return false;
+  }
+  return true;
+}
+
 // --- TRIP PLANS & TRIP SPLIT BUDGET OPTIMIZER WIDGETS ---
 async function runTripPlannerOptimization(params) {
-    showPageLoader();
+    showLoader("Finding best hotels, meals & attractions...");
     try {
+        const reqBudget = params.budgetType === "per_person" ? (params.budget * params.people) : params.budget;
         const res = await fetch(`/api/plan`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 city: params.destination,
-                budget: params.budget,
+                budget: reqBudget,
                 days: params.days,
                 people: params.people,
                 origin_city: params.origin || "Delhi",
                 add_travel: true,
                 travel_mode: params.transport === "flexible" ? "train_3ac" : (params.transport || "train_3ac"),
-                budget_type: params.budgetType || "total",
+                budget_type: "total",
                 travel_month: params.month || "August",
                 pace: params.pace || "balanced",
                 transport_pref: params.transport || "flexible",
@@ -2413,9 +2490,11 @@ async function runTripPlannerOptimization(params) {
         
         if (res.ok) {
             const data = await res.json();
-            if (data.success && data.options && data.options.length > 0) {
-                // Store options
-                state.tripOptions = data.options;
+            if (!renderPlan(data)) {
+                return;
+            }
+            // Store options
+            state.tripOptions = data.options;
                 state.selectedOptionIndex = 0; // Default to Best Overall
                 state.originalBudgetLimit = params.budget;
                 state.originalBudgetType = params.budgetType || "total";
@@ -2444,18 +2523,15 @@ async function runTripPlannerOptimization(params) {
                 
                 // Switch to plan tab
                 switchDestSubtab('dest-plan');
-            } else {
-                alert(`⚠️ Optimization Error: ${data.message || "Failed to generate optimized options. Try increasing budget."}`);
-            }
         } else {
             const errText = await res.text();
-            alert(`⚠️ Optimization Error: ${errText || "Backend optimizer failed."}`);
+            renderPlan({ success: false, status: "failed", message: errText || "Backend optimizer failed." });
         }
     } catch(e) {
         console.error(e);
-        alert("Failed to connect to TripSplit optimizer backend solver.");
+        renderPlan({ success: false, status: "failed", message: "Failed to connect to TripSplit optimizer backend solver." });
     } finally {
-        hidePageLoader();
+        hideLoader();
     }
 }
 
@@ -2774,6 +2850,9 @@ function renderVenueCardHtml(v, category, isRecommended = false) {
         costText = `Est. Meal: ₹${(v.cost || 1200).toLocaleString('en-IN')}`;
     } else {
         costText = v.original_cost === 0 ? "Free Entry" : `Est. Fee: ₹${(v.original_cost || 500).toLocaleString('en-IN')}`;
+        if (v.original_cost === 0 || v.cost === 0) {
+            nameWithBadge += `<span style="background:#10B981; color:#fff; font-size:0.65rem; font-weight:800; padding:0.15rem 0.35rem; border-radius:4px; margin-left:0.4rem; display:inline-block; vertical-align:middle;">FREE</span>`;
+        }
     }
     
     const imgUrl = getVenuePhoto(v.name, category, v.city || state.currentCity);
@@ -2788,7 +2867,7 @@ function renderVenueCardHtml(v, category, isRecommended = false) {
             </div>
             <div class="card-details" style="padding: 0.75rem;">
                 <span class="card-category-label" style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted);">${subTypeLabel}</span>
-                <strong class="card-item-title" style="display: block; font-size: 0.88rem; margin: 0.2rem 0; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 100%;">${v.name}</strong>
+                <strong class="card-item-title" style="display: block; font-size: 0.88rem; margin: 0.2rem 0; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 100%;">${nameWithBadge}</strong>
                 <div class="card-rating-row" style="margin-top: 0.2rem;">
                     ${starsHtml}
                 </div>
@@ -2928,6 +3007,7 @@ function renderSelectedTripOption() {
     // Render Itinerary daycards (Center Column)
     const wrapper = document.getElementById("plan-details-wrapper");
     if (wrapper) {
+        let globalAttrIdx = 0; // Sequential slot assignment across days
 
         wrapper.innerHTML = opt.itinerary.map((day, idx) => {
             const hasStay  = day.stay_name && day.stay_name !== "None";
@@ -2969,7 +3049,7 @@ function renderSelectedTripOption() {
                 timelineRows += `
                     <div class="itin-row morning">
                         <div class="itin-row-dot"></div>
-                        <div class="itin-row-time">Morning · Check-in</div>
+                        <div class="itin-row-time">☀️ Morning · Check-in</div>
                         <div class="itin-activity type-hotel">
                             <div class="itin-activity-icon">🏨</div>
                             <div class="itin-activity-body" style="flex:1;min-width:0;">
@@ -2982,27 +3062,67 @@ function renderSelectedTripOption() {
                 `;
             }
 
-            // Sights — distributed across morning/afternoon/evening
-            sights.forEach((s, sIdx) => {
-                const timeKey   = sIdx % 3 === 0 ? 'morning' : sIdx % 3 === 1 ? 'afternoon' : 'evening';
-                const timeLabel = sIdx % 3 === 0 ? 'Morning'  : sIdx % 3 === 1 ? 'Afternoon'  : 'Evening';
-                const tags = [s.vibe || 'Scenic'];
-                if (s.entry_fee) tags.push(`₹${s.entry_fee} entry`);
-                if (s.duration)  tags.push(s.duration);
-                timelineRows += actRow(timeKey, timeLabel, 'sight', '🏛️', s.name, s.description || 'Popular sightseeing spot.', tags);
+            // Distribute sights sequentially into Morning, Afternoon, Evening
+            const daySightsBySlot = { morning: [], afternoon: [], evening: [] };
+            sights.forEach((s) => {
+                const slot = globalAttrIdx % 3;
+                const slotKey = slot === 0 ? 'morning' : slot === 1 ? 'afternoon' : 'evening';
+                daySightsBySlot[slotKey].push(s);
+                globalAttrIdx++;
             });
 
-            // Dining (afternoon)
+            // 1. Morning Attractions
+            daySightsBySlot.morning.forEach(s => {
+                const isFree = (s.original_cost === 0 || s.cost === 0);
+                const nameWithBadge = s.name + (isFree ? `<span style="background:#10B981; color:#fff; font-size:0.65rem; font-weight:800; padding:0.15rem 0.35rem; border-radius:4px; margin-left:0.4rem; display:inline-block; vertical-align:middle;">FREE</span>` : '');
+                const tags = [s.vibe || 'Scenic'];
+                if (s.entry_fee) tags.push(`₹${s.entry_fee} entry`);
+                if (s.duration) tags.push(s.duration);
+                timelineRows += actRow('morning', '☀️ Morning', 'sight', '🏛️', nameWithBadge, s.description || 'Popular sightseeing spot.', tags);
+            });
+
+            // 2. Afternoon Attractions
+            daySightsBySlot.afternoon.forEach(s => {
+                const isFree = (s.original_cost === 0 || s.cost === 0);
+                const nameWithBadge = s.name + (isFree ? `<span style="background:#10B981; color:#fff; font-size:0.65rem; font-weight:800; padding:0.15rem 0.35rem; border-radius:4px; margin-left:0.4rem; display:inline-block; vertical-align:middle;">FREE</span>` : '');
+                const tags = [s.vibe || 'Scenic'];
+                if (s.entry_fee) tags.push(`₹${s.entry_fee} entry`);
+                if (s.duration) tags.push(s.duration);
+                timelineRows += actRow('afternoon', '🌤 Afternoon', 'sight', '🏛️', nameWithBadge, s.description || 'Popular sightseeing spot.', tags);
+            });
+
+            // 3. Lunch (Afternoon Meal)
             if (showDining && stop.all_restaurants && stop.all_restaurants.length > 0) {
                 const r = stop.all_restaurants[idx % stop.all_restaurants.length];
                 const sub = [r.cuisine ? r.cuisine + ' cuisine' : null, r.price_for_two ? '₹' + r.price_for_two + ' for two' : null].filter(Boolean).join(' · ');
                 const tags = [];
                 if (r.rating) tags.push(`⭐ ${r.rating}`);
                 if (r.specialty) tags.push(r.specialty);
-                timelineRows += actRow('afternoon', 'Afternoon · Lunch', 'food', '🍽️', r.name, sub, tags);
+                timelineRows += actRow('afternoon', '🌤 Afternoon · Lunch', 'food', '🍽️', r.name, sub, tags);
             }
 
-            // Bars (night)
+            // 4. Evening Attractions
+            daySightsBySlot.evening.forEach(s => {
+                const isFree = (s.original_cost === 0 || s.cost === 0);
+                const nameWithBadge = s.name + (isFree ? `<span style="background:#10B981; color:#fff; font-size:0.65rem; font-weight:800; padding:0.15rem 0.35rem; border-radius:4px; margin-left:0.4rem; display:inline-block; vertical-align:middle;">FREE</span>` : '');
+                const tags = [s.vibe || 'Scenic'];
+                if (s.entry_fee) tags.push(`₹${s.entry_fee} entry`);
+                if (s.duration) tags.push(s.duration);
+                timelineRows += actRow('evening', '🌙 Evening', 'sight', '🏛️', nameWithBadge, s.description || 'Popular sightseeing spot.', tags);
+            });
+
+            // 5. Dinner (Evening Meal)
+            if (showDining && stop.all_restaurants && stop.all_restaurants.length > 0) {
+                const rIdx = (idx + 1) % stop.all_restaurants.length;
+                const r = stop.all_restaurants[rIdx];
+                const sub = [r.cuisine ? r.cuisine + ' cuisine' : null, r.price_for_two ? '₹' + r.price_for_two + ' for two' : null].filter(Boolean).join(' · ');
+                const tags = [];
+                if (r.rating) tags.push(`⭐ ${r.rating}`);
+                if (r.specialty) tags.push(r.specialty);
+                timelineRows += actRow('evening', '🌙 Evening · Dinner', 'food', '🍽️', r.name, sub, tags);
+            }
+
+            // 6. Bars (Evening Nightlife)
             if (showBars && stop.all_bars && stop.all_bars.length > 0) {
                 const b = stop.all_bars[idx % stop.all_bars.length];
                 const sub = [b.vibe, b.avg_drink_cost ? '₹' + b.avg_drink_cost + ' avg drink' : null].filter(Boolean).join(' · ');
@@ -3139,23 +3259,6 @@ function getVenuePhoto(name, type, city = '') {
     
     // City-specific high-vibe Unsplash photo pools
     const cityPools = {
-        'london': {
-            hotel: [
-                "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80",
-                "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=400&q=80",
-                "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80"
-            ],
-            restaurant: [
-                "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80",
-                "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=400&q=80",
-                "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80"
-            ],
-            experience: [
-                "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=400&q=80", // Tower Bridge
-                "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=400&q=80", // skyline
-                "https://images.unsplash.com/photo-1529655683826-09571830febe?auto=format&fit=crop&w=400&q=80" // big ben
-            ]
-        },
         'goa': {
             hotel: [
                 "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=400&q=80",
@@ -3171,23 +3274,6 @@ function getVenuePhoto(name, type, city = '') {
                 "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80", // beach
                 "https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=400&q=80", // aguada
                 "https://images.unsplash.com/photo-1432405972618-c6b0cfba8793?auto=format&fit=crop&w=400&q=80" // falls
-            ]
-        },
-        'paris': {
-            hotel: [
-                "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80",
-                "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80",
-                "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=400&q=80"
-            ],
-            restaurant: [
-                "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=400&q=80",
-                "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=400&q=80",
-                "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=400&q=80"
-            ],
-            experience: [
-                "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80", // eiffel
-                "https://images.unsplash.com/photo-1499856871958-5b9647a61585?auto=format&fit=crop&w=400&q=80",
-                "https://images.unsplash.com/photo-1503152394-c571994fd383?auto=format&fit=crop&w=400&q=80"
             ]
         }
     };
@@ -3355,8 +3441,6 @@ function getVenuePhoto(name, type, city = '') {
     
     // --- GENERIC KEYWORD MATCHING ---
     // Cities
-    if (n.includes("london")) return "https://images.unsplash.com/photo-1529655683826-09571830febe?auto=format&fit=crop&w=400&q=80";
-    if (n.includes("paris")) return "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80";
     if (n.includes("delhi")) return "https://images.unsplash.com/photo-1587474260584-136574528ed5?auto=format&fit=crop&w=400&q=80";
     if (n.includes("mumbai")) return "https://images.unsplash.com/photo-1566552881560-0be862a7c445?auto=format&fit=crop&w=400&q=80";
     if (n.includes("goa")) return "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80";
@@ -4174,9 +4258,6 @@ function setupHomeOptimizerAutocomplete() {
             { label: 'Goa', sub: 'India' },
             { label: 'Delhi', sub: 'National Capital Territory, India' },
             { label: 'Mumbai', sub: 'Maharashtra, India' },
-            { label: 'London', sub: 'United Kingdom' },
-            { label: 'Paris', sub: 'France' },
-            { label: 'New York', sub: 'United States' },
             { label: 'Shimla', sub: 'Himachal Pradesh, India' },
             { label: 'Manali', sub: 'Himachal Pradesh, India' }
         ].filter(item => item.label.toLowerCase().includes(query.toLowerCase()));
@@ -4275,29 +4356,6 @@ function isIndianCity(city) {
 }
 
 function getCountryForCity(city) {
-    if (!city) return "India";
-    const c = city.toLowerCase().trim();
-    if (c === "new york") return "United States";
-    if (c === "london") return "United Kingdom";
-    if (c === "paris") return "France";
-    if (c === "tokyo") return "Japan";
-    
-    if (c.includes("united states") || c.includes("usa") || c.includes("ny")) return "United States";
-    if (c.includes("united kingdom") || c.includes("uk")) return "United Kingdom";
-    if (c.includes("france")) return "France";
-    if (c.includes("japan")) return "Japan";
-    
-    const list = [
-        { label: 'London', sub: 'United Kingdom' },
-        { label: 'Paris', sub: 'France' },
-        { label: 'Tokyo', sub: 'Japan' },
-        { label: 'New York', sub: 'United States' }
-    ];
-    for (let item of list) {
-        if (c.includes(item.label.toLowerCase())) {
-            return item.sub;
-        }
-    }
     return "India";
 }
 
@@ -4807,6 +4865,117 @@ window.swapStayForDay = function(dayIdx, hotelName, hotelCost, hotelStars) {
     
     closeSwapStayModal();
     renderSelectedTripOption();
+};
+
+window.updateBudgetLivePreview = function() {
+    const budgetInput = document.getElementById('opt-home-budget');
+    const budgetTypeSelect = document.getElementById('opt-home-budget-type');
+    const peopleInput = document.getElementById('opt-home-people');
+    const previewEl = document.getElementById('home-budget-preview');
+    
+    if (!budgetInput || !budgetTypeSelect || !peopleInput || !previewEl) return;
+    
+    const budget = parseFloat(budgetInput.value) || 0;
+    const type = budgetTypeSelect.value;
+    const people = parseInt(peopleInput.value) || 1;
+    
+    if (type === "total") {
+        const perPerson = Math.round(budget / people);
+        previewEl.textContent = `₹${budget.toLocaleString('en-IN')} total ÷ ${people} people = ₹${perPerson.toLocaleString('en-IN')} per person`;
+    } else {
+        const total = budget * people;
+        previewEl.textContent = `₹${budget.toLocaleString('en-IN')} per person × ${people} people = ₹${total.toLocaleString('en-IN')} total`;
+    }
+};
+
+window.checkSeasonalWarning = function(city) {
+    const seasonal_warnings = {
+        "leh": { avoid: [11,12,1,2], reason: "Roads closed due to snow" },
+        "manali": { avoid: [12,1,2], reason: "Heavy snowfall, limited access" },
+        "cherrapunji": { avoid: [6,7,8], reason: "Extreme rainfall, flooding risk" },
+        "goa": { avoid: [6,7,8,9], reason: "Monsoon season, most beaches closed" },
+        "spiti": { avoid: [11,12,1,2,3], reason: "Valley cut off in winter" },
+        "andaman": { avoid: [5,6,7,8,9], reason: "Cyclone season" },
+        "rajasthan": { avoid: [5,6,7], reason: "Extreme heat 45°C+" },
+        "kerala": { avoid: [6,7,8], reason: "Heavy monsoon flooding" }
+    };
+    
+    const banner = document.getElementById('seasonal-warning-banner');
+    const warningText = document.getElementById('seasonal-warning-text');
+    if (banner && warningText) {
+        banner.classList.add('hidden');
+        const cityLower = city.toLowerCase().trim();
+        let matchedKey = Object.keys(seasonal_warnings).find(k => cityLower.includes(k));
+        
+        if (matchedKey) {
+            const warningInfo = seasonal_warnings[matchedKey];
+            const currentMonthNum = new Date().getMonth() + 1;
+            if (warningInfo.avoid.includes(currentMonthNum)) {
+                const monthNames = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                const currentMonthName = monthNames[currentMonthNum];
+                warningText.innerHTML = `Heads up — <strong>${capitalizeFirstLetter(city)}</strong> in <strong>${currentMonthName}</strong> has <strong>${warningInfo.reason}</strong>. Consider planning for a different time.`;
+                banner.classList.remove('hidden');
+            }
+        }
+    }
+};
+
+window.copyPlanToClipboard = function() {
+    if (!state.tripOptions || state.tripOptions.length === 0) return;
+    const opt = state.tripOptions[state.selectedOptionIndex];
+    if (!opt) return;
+    
+    let text = `✈️ TRIP SPLIT PLAN: ${opt.style_name.toUpperCase()} ✈️\n`;
+    text += `Route: ${opt.route_label}\n`;
+    text += `Duration: ${opt.itinerary.length} Days\n`;
+    text += `Total Cost: ₹${Math.round(opt.total_cost).toLocaleString('en-IN')}\n`;
+    text += `Per Person Share: ₹${Math.round(opt.cost_per_person).toLocaleString('en-IN')}\n\n`;
+    
+    text += `🏨 ACCOMMODATION:\n`;
+    opt.stops.forEach(stop => {
+        if (stop.hotel) {
+            text += `- ${stop.city}: ${stop.hotel.name} (₹${Math.round(stop.hotel.cost).toLocaleString('en-IN')} total stay, ${stop.hotel.stars || 4}★)\n`;
+        } else {
+            text += `- ${stop.city}: No stay hotel selected\n`;
+        }
+    });
+    text += `\n`;
+    
+    text += `🍽️ RESTAURANTS:\n`;
+    opt.stops.forEach(stop => {
+        text += `- ${stop.city}:\n`;
+        const uniqueRests = new Set();
+        (stop.all_restaurants || []).slice(0, 3).forEach(r => {
+            if (!uniqueRests.has(r.name)) {
+                uniqueRests.add(r.name);
+                text += `  * ${r.name} (${r.cuisine || 'Local'} cuisine)\n`;
+            }
+        });
+    });
+    text += `\n`;
+    
+    text += `🏛️ KEY ATTRACTIONS:\n`;
+    opt.stops.forEach(stop => {
+        text += `- ${stop.city}:\n`;
+        (stop.all_sightseeing || []).filter(a => a.optimized).forEach(a => {
+            const costStr = a.original_cost === 0 ? "FREE" : `₹${a.original_cost}`;
+            text += `  * ${a.name} (${costStr})\n`;
+        });
+    });
+    text += `\n`;
+    text += `Generated with TripSplit Budget Optimizer 🚀`;
+    
+    navigator.clipboard.writeText(text).then(() => {
+        const tooltip = document.getElementById("share-copied-tooltip");
+        if (tooltip) {
+            tooltip.classList.remove("hidden");
+            setTimeout(() => {
+                tooltip.classList.add("hidden");
+            }, 2000);
+        }
+    }).catch(err => {
+        console.error("Could not copy text: ", err);
+    });
 };
 
 

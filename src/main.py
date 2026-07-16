@@ -88,37 +88,9 @@ def search_city(req: SearchRequest):
                     if gv.get("name") and gv["name"].lower().strip() not in existing_names:
                         venues[cat].append(gv)
                         
-    # Assign heuristics
-    from src.optimizer import assign_heuristics
-    
-    processed_hotels = []
-    for h in venues.get("hotels", []):
-        cost, utility = assign_heuristics(h, "hotels", people=4)
-        h_copy = dict(h)
-        h_copy["cost"] = cost
-        h_copy["utility"] = utility
-        processed_hotels.append(h_copy)
-        
-    processed_restaurants = []
-    for r in venues.get("restaurants", []):
-        cost, utility = assign_heuristics(r, "restaurants", people=4)
-        r_copy = dict(r)
-        r_copy["cost"] = cost
-        r_copy["utility"] = utility
-        processed_restaurants.append(r_copy)
-        
-    processed_attractions = []
-    for a in venues.get("attractions", []):
-        cost, utility = assign_heuristics(a, "attractions", people=4)
-        a_copy = dict(a)
-        a_copy["cost"] = 0.0
-        a_copy["original_cost"] = cost
-        a_copy["utility"] = utility
-        processed_attractions.append(a_copy)
-        
-    processed_hotels.sort(key=lambda x: x.get("utility", 0.0), reverse=True)
-    processed_restaurants.sort(key=lambda x: x.get("utility", 0.0), reverse=True)
-    processed_attractions.sort(key=lambda x: x.get("utility", 0.0), reverse=True)
+    hotels = venues.get("hotels", [])
+    restaurants = venues.get("restaurants", [])
+    attractions = venues.get("attractions", [])
     
     return {
         "geocoding": {
@@ -128,21 +100,22 @@ def search_city(req: SearchRequest):
             "bbox": geo_data["bbox"]
         },
         "venue_counts": {
-            "hotels": len(venues["hotels"]),
-            "restaurants": len(venues["restaurants"]),
-            "attractions": len(venues["attractions"])
+            "hotels": len(hotels),
+            "restaurants": len(restaurants),
+            "attractions": len(attractions)
         },
         "sample_venues": {
-            "hotels": [h["name"] for h in processed_hotels[:8]],
-            "restaurants": [r["name"] for r in processed_restaurants[:8]],
-            "attractions": [a["name"] for a in processed_attractions[:15]]
+            "hotels": [h["name"] for h in hotels[:8]],
+            "restaurants": [r["name"] for r in restaurants[:8]],
+            "attractions": [a["name"] for a in attractions[:15]]
         },
         "all_venues": {
-            "hotels": processed_hotels,
-            "restaurants": processed_restaurants,
-            "attractions": processed_attractions
+            "hotels": hotels,
+            "restaurants": restaurants,
+            "attractions": attractions
         }
     }
+
 
 def calculate_budget_split_option(
     style_name: str,
@@ -560,8 +533,17 @@ def get_fallback_venues(city: str) -> dict:
 
 @app.post("/api/plan")
 def plan_trip(req: PlanRequest):
+    # Validate inputs
     if not req.city.strip():
-        raise HTTPException(status_code=400, detail="City name cannot be empty")
+        raise HTTPException(status_code=400, detail="City cannot be empty")
+    if req.people < 1 or req.people > 50:
+        raise HTTPException(status_code=400, detail="People must be between 1 and 50")
+    if req.days < 1 or req.days > 30:
+        raise HTTPException(status_code=400, detail="Days must be between 1 and 30")
+    if req.budget <= 0:
+        raise HTTPException(status_code=400, detail="Budget must be greater than 0")
+    if req.budget / req.people < 500:
+        raise HTTPException(status_code=400, detail="Budget too low — minimum ₹500 per person")
         
     cities = [c.strip() for c in req.city.split(",") if c.strip()]
     
