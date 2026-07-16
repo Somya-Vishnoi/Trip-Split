@@ -1967,17 +1967,19 @@ button {
 
 /* Outer card */
 .itin-day-card {
-    background: #fff;
-    border: 1px solid #E8E8E8;
-    border-radius: 14px;
+    background: #ffffff;
+    border: 1px solid #E5E7EB;
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
-    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
+    margin-bottom: 1.25rem;
 }
 .itin-day-card:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 8px 28px rgba(0,0,0,0.07);
-    transform: translateY(-1px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+    transform: translateY(-2px);
+    border-color: #D1D5DB;
 }
 
 /* Left accent stripe — one accent color, brand green only */
@@ -1985,120 +1987,148 @@ button {
     content: '';
     position: absolute;
     left: 0; top: 0; bottom: 0;
-    width: 3px;
-    background: var(--accent);
-    border-radius: 14px 0 0 14px;
+    width: 4px;
+    background: linear-gradient(180deg, var(--accent) 0%, #a78bfa 100%);
+    border-radius: 16px 0 0 16px;
     opacity: 0;
-    transition: opacity 0.2s;
+    transition: opacity 0.3s ease;
 }
 .itin-day-card.open::before { opacity: 1; }
 
 /* Header row */
 .itin-day-header {
-    padding: 1rem 1.25rem 1rem 1.4rem;
+    padding: 1.2rem 1.5rem;
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 1.25rem;
     cursor: pointer;
     user-select: none;
-    background: #fff;
+    background: #ffffff;
     position: relative;
+    transition: background-color 0.2s ease;
 }
-.itin-day-header:hover { background: #FAFAFA; }
+.itin-day-header:hover { background: #F9FAFB; }
+.itin-day-card.open .itin-day-header { background: #F9FAFB; }
 
 /* Large muted day number — watermark style */
 .itin-day-num {
     font-family: var(--font-heading);
-    font-size: 2rem;
-    font-weight: 900;
-    color: #E8E8E8;
+    font-size: 2.2rem;
+    font-weight: 800;
     line-height: 1;
-    min-width: 2.2rem;
+    min-width: 2.5rem;
     text-align: center;
     flex-shrink: 0;
-    transition: color 0.2s;
+    background: linear-gradient(135deg, #1F2937 0%, #6B7280 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    transition: all 0.3s ease;
     letter-spacing: -1px;
 }
-.itin-day-card.open .itin-day-num { color: var(--accent); }
+.itin-day-card.open .itin-day-num {
+    background: linear-gradient(135deg, var(--accent) 0%, #8B5CF6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    transform: scale(1.05);
+}
 
 /* Thin separator between num and text */
 .itin-day-sep {
     width: 1px;
-    height: 32px;
-    background: #EBEBEB;
+    height: 36px;
+    background: #E5E7EB;
     flex-shrink: 0;
 }
 
 .itin-day-meta { flex: 1; min-width: 0; }
 .itin-day-meta h5 {
     margin: 0;
-    font-size: 0.9rem;
+    font-size: 1.05rem;
     font-weight: 700;
-    color: #111;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    line-height: 1.3;
+    color: #111827;
+    line-height: 1.4;
+    white-space: normal;
+    word-break: break-word;
 }
 .itin-day-meta-sub {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-top: 0.25rem;
+    margin-top: 0.4rem;
     flex-wrap: wrap;
 }
 .itin-day-stat {
-    font-size: 0.7rem;
-    color: #888;
-    font-weight: 500;
+    font-size: 0.72rem;
+    color: #4B5563;
+    font-weight: 600;
+    background: #F3F4F6;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
     display: flex;
     align-items: center;
-    gap: 0.2rem;
+    gap: 0.25rem;
+    border: 1px solid #E5E7EB;
+    transition: all 0.2s ease;
+}
+.itin-day-stat:hover {
+    background: #E5E7EB;
 }
 .itin-day-stat + .itin-day-stat::before {
-    content: '·';
-    color: #CCC;
-    font-size: 0.9rem;
+    display: none;
 }
 
 /* Chevron */
 .itin-day-chevron {
-    width: 24px; height: 24px;
-    border: 1px solid #E4E4E4;
+    width: 28px; height: 28px;
+    border: 1px solid #E5E7EB;
     border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-size: 0.6rem;
-    color: #AAA;
-    transition: transform 0.3s cubic-bezier(0.16,1,0.3,1), border-color 0.2s, color 0.2s;
+    font-size: 0.65rem;
+    color: #9CA3AF;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     flex-shrink: 0;
+    background: #FFFFFF;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.itin-day-chevron:hover {
+    border-color: #D1D5DB;
+    color: #4B5563;
 }
 .itin-day-card.open .itin-day-chevron {
     transform: rotate(180deg);
     border-color: var(--accent);
-    color: var(--accent);
+    color: #ffffff;
+    background: var(--accent);
+    box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.2);
 }
 
 /* Body */
 .itin-day-body {
     max-height: 0;
     overflow: hidden;
-    transition: max-height 0.42s cubic-bezier(0.16,1,0.3,1);
-    background: #fff;
+    transition: max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    background: #ffffff;
 }
-.itin-day-card.open .itin-day-body { max-height: 3000px; }
+.itin-day-card.open .itin-day-body { max-height: 3500px; }
 
 .itin-body-inner {
-    padding: 0 1.4rem 1.4rem;
-    border-top: 1px solid #F0F0F0;
-    padding-top: 1rem;
+    padding: 0 1.5rem 1.5rem;
+    border-top: 1px solid #E5E7EB;
+    padding-top: 1.25rem;
+    background: #FAFAFA;
 }
 
 /* Brief summary text */
 .itin-day-desc {
-    font-size: 0.8rem;
-    color: #777;
+    font-size: 0.85rem;
+    color: #4B5563;
     line-height: 1.6;
-    margin: 0 0 1.1rem;
+    margin: 0 0 1.25rem;
+    background: #ffffff;
+    padding: 0.85rem 1.1rem;
+    border-radius: 10px;
+    border: 1px solid #E5E7EB;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
 }
 
 /* Transport pill — neutral, not rainbow */
@@ -2174,28 +2204,30 @@ button {
 .itin-row.evening   .itin-row-time { color: #7C3AED; }
 .itin-row.night     .itin-row-time { color: #374151; }
 
-/* Activity card inside row */
 .itin-activity {
-    background: #FAFAFA;
-    border: 1px solid #F0F0F0;
-    border-radius: 10px;
-    padding: 0.7rem 0.85rem;
+    background: #ffffff;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
     display: flex;
     align-items: flex-start;
-    gap: 0.75rem;
-    transition: border-color 0.15s, background 0.15s;
+    gap: 0.85rem;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: default;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
 }
 .itin-activity:hover {
-    background: #F8FFF9;
-    border-color: rgba(0,170,108,0.2);
+    background: #ffffff;
+    border-color: var(--accent);
+    box-shadow: 0 10px 15px -3px rgba(124, 58, 237, 0.05), 0 4px 6px -2px rgba(124, 58, 237, 0.02);
+    transform: translateX(3px);
 }
 
 /* Emoji icon in a very subtle box */
 .itin-activity-icon {
     font-size: 1rem;
-    width: 32px; height: 32px;
-    background: #F0F0F0;
+    width: 34px; height: 34px;
+    background: #F3F4F6;
     border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
@@ -2209,13 +2241,12 @@ button {
 .itin-activity-body { flex: 1; min-width: 0; }
 
 .itin-activity-name {
-    font-size: 0.85rem;
+    font-size: 0.88rem;
     font-weight: 700;
-    color: #111;
-    line-height: 1.3;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    color: #111827;
+    line-height: 1.4;
+    white-space: normal;
+    word-break: break-word;
 }
 
 .itin-activity-sub {
