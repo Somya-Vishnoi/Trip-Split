@@ -59,7 +59,12 @@ def fetch_venues(
     if city_name.lower().strip() in region_names:
         is_large_region = True
 
-    radius = 0.35 if is_large_region else 0.16
+    # Metro cities are dense; never treat them as large regional areas
+    metro_cities = ["delhi", "new delhi", "mumbai", "bangalore", "bengaluru", "kolkata", "chennai", "hyderabad", "pune", "ahmedabad", "jaipur"]
+    if city_name.lower().strip() in metro_cities:
+        is_large_region = False
+
+    radius = 0.35 if is_large_region else 0.05
 
     if lat is not None and lon is not None:
         # Center around the actual geocoded city point
@@ -73,14 +78,14 @@ def fetch_venues(
         lat_center = (min_lat + max_lat) / 2
         lon_center = (min_lon + max_lon) / 2
         
-        radius_fallback = 0.30 if is_large_region else 0.12
+        radius_fallback = 0.30 if is_large_region else 0.04
         min_lat = lat_center - radius_fallback
         max_lat = lat_center + radius_fallback
         min_lon = lon_center - radius_fallback
         max_lon = lon_center + radius_fallback
 
     # Define a wider bounding box for beaches to ensure they are captured along coastlines (Goa/Mumbai)
-    w_radius = 0.50 if is_large_region else 0.32
+    w_radius = 0.50 if is_large_region else 0.12
     if lat is not None and lon is not None:
         w_min_lat = lat - w_radius
         w_max_lat = lat + w_radius

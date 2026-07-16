@@ -576,14 +576,10 @@ async function handleHomeReccosCityChange(city) {
         const inputEl = document.getElementById('home-reccos-city-input');
         city = inputEl ? inputEl.value.trim() : '';
     }
+    city = city || 'Jaipur';
     
     const list = document.getElementById('experiences-deck');
     if (!list) return;
-
-    if (!city) {
-        list.innerHTML = `<div style="padding:2rem; text-align:center; width:100%; color:var(--text-secondary); font-weight:600;">Type a city above and click "Go" to discover experiences!</div>`;
-        return;
-    }
     
     list.innerHTML = `<div style="padding:2rem; text-align:center; width:100%; color:var(--text-muted);"><span class="spinner" style="display:inline-block; width:20px; height:20px; border-radius:50%; border:2px solid var(--border); border-top-color:var(--accent); animation:spin 1s linear infinite;"></span> Loading top experiences for ${city}...</div>`;
     
@@ -653,14 +649,10 @@ async function handleHomeHotelsCityChange(city) {
         const inputEl = document.getElementById('home-hotels-city-input');
         city = inputEl ? inputEl.value.trim() : '';
     }
+    city = city || 'Goa';
     
     const list = document.getElementById('personalized-hotels-grid');
     if (!list) return;
-
-    if (!city) {
-        list.innerHTML = `<div style="padding:2rem; text-align:center; width:100%; color:var(--text-secondary); font-weight:600;">Type a city above and click "Go" to find hotels!</div>`;
-        return;
-    }
     
     list.innerHTML = `<div style="padding:2rem; text-align:center; width:100%; color:var(--text-muted);"><span class="spinner" style="display:inline-block; width:20px; height:20px; border-radius:50%; border:2px solid var(--border); border-top-color:var(--accent); animation:spin 1s linear/infinite;"></span> Loading popular stays for ${city}...</div>`;
     

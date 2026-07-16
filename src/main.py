@@ -492,7 +492,116 @@ def calculate_budget_split_option(
     }
 
 def get_fallback_venues(city: str) -> dict:
+    c_lower = city.lower().strip()
     c = city.title()
+    
+    # High-fidelity real-world offline database for popular Indian cities
+    database = {
+        "delhi": {
+            "hotels": [
+                {"id": "delhi_h1", "name": "Taj Palace New Delhi", "lat": 28.599, "lon": 77.169, "sub_type": "hotel", "stars": 5.0, "cost": 12000.0, "tags": {"tourism": "hotel"}},
+                {"id": "delhi_h2", "name": "The Lodhi", "lat": 28.592, "lon": 77.234, "sub_type": "hotel", "stars": 5.0, "cost": 18000.0, "tags": {"tourism": "hotel"}},
+                {"id": "delhi_h3", "name": "Bloomrooms @ Janpath", "lat": 28.621, "lon": 77.221, "sub_type": "hotel", "stars": 4.0, "cost": 4500.0, "tags": {"tourism": "hotel"}},
+                {"id": "delhi_h4", "name": "Zostel Delhi", "lat": 28.642, "lon": 77.220, "sub_type": "hostel", "stars": 3.5, "cost": 650.0, "tags": {"tourism": "hotel"}},
+                {"id": "delhi_h5", "name": "The Manor New Delhi", "lat": 28.564, "lon": 77.262, "sub_type": "hotel", "stars": 4.0, "cost": 7000.0, "tags": {"tourism": "hotel"}},
+                {"id": "delhi_h6", "name": "Maidens Hotel Delhi", "lat": 28.676, "lon": 77.224, "sub_type": "hotel", "stars": 4.5, "cost": 8500.0, "tags": {"tourism": "hotel"}},
+            ],
+            "restaurants": [
+                {"id": "delhi_r1", "name": "Bukhara Restaurant", "lat": 28.598, "lon": 77.169, "sub_type": "restaurant", "cuisine": "indian", "cost": 3000.0, "tags": {"amenity": "restaurant"}},
+                {"id": "delhi_r2", "name": "Karim's Old Delhi", "lat": 28.649, "lon": 77.233, "sub_type": "restaurant", "cuisine": "mughlai", "cost": 600.0, "tags": {"amenity": "restaurant"}},
+                {"id": "delhi_r3", "name": "Saravana Bhavan Janpath", "lat": 28.628, "lon": 77.219, "sub_type": "restaurant", "cuisine": "south_indian", "cost": 400.0, "tags": {"amenity": "restaurant"}},
+                {"id": "delhi_r4", "name": "Indian Accent Restaurant", "lat": 28.591, "lon": 77.234, "sub_type": "restaurant", "cuisine": "fusion", "cost": 4500.0, "tags": {"amenity": "restaurant"}},
+                {"id": "delhi_r5", "name": "Wenger's Pastry Connaught Place", "lat": 28.630, "lon": 77.218, "sub_type": "cafe", "cuisine": "bakery", "cost": 350.0, "tags": {"amenity": "cafe"}},
+            ],
+            "attractions": [
+                {"id": "delhi_a1", "name": "Red Fort", "lat": 28.656, "lon": 77.241, "sub_type": "historic", "cost": 80.0, "tags": {"tourism": "attraction"}},
+                {"id": "delhi_a2", "name": "Qutub Minar", "lat": 28.524, "lon": 77.185, "sub_type": "historic", "cost": 40.0, "tags": {"tourism": "attraction"}},
+                {"id": "delhi_a3", "name": "India Gate", "lat": 28.612, "lon": 77.229, "sub_type": "viewpoint", "cost": 0.0, "tags": {"tourism": "attraction"}},
+                {"id": "delhi_a4", "name": "Lotus Temple", "lat": 28.553, "lon": 77.258, "sub_type": "historic", "cost": 0.0, "tags": {"tourism": "attraction"}},
+                {"id": "delhi_a5", "name": "Humayun's Tomb", "lat": 28.593, "lon": 77.250, "sub_type": "historic", "cost": 40.0, "tags": {"tourism": "attraction"}},
+                {"id": "delhi_a6", "name": "Chandni Chowk Market", "lat": 28.650, "lon": 77.230, "sub_type": "other", "cost": 0.0, "tags": {"tourism": "attraction"}},
+                {"id": "delhi_a7", "name": "Lodhi Gardens Park", "lat": 28.590, "lon": 77.219, "sub_type": "park", "cost": 0.0, "tags": {"leisure": "park"}},
+                {"id": "delhi_a8", "name": "Akshardham Temple", "lat": 28.612, "lon": 77.277, "sub_type": "historic", "cost": 250.0, "tags": {"tourism": "attraction"}},
+                {"id": "delhi_a9", "name": "National Museum New Delhi", "lat": 28.611, "lon": 77.219, "sub_type": "museum", "cost": 20.0, "tags": {"tourism": "museum"}},
+                {"id": "delhi_a10", "name": "Hauz Khas Social Club", "lat": 28.552, "lon": 77.194, "sub_type": "bar", "cost": 1200.0, "tags": {"amenity": "bar"}},
+                {"id": "delhi_a11", "name": "Kitty Su Lounge Bar", "lat": 28.632, "lon": 77.223, "sub_type": "bar", "cost": 2000.0, "tags": {"amenity": "bar"}},
+                {"id": "delhi_a12", "name": "PCO Cocktail Bar Delhi", "lat": 28.544, "lon": 77.241, "sub_type": "bar", "cost": 1500.0, "tags": {"amenity": "bar"}},
+            ]
+        },
+        "mumbai": {
+            "hotels": [
+                {"id": "mumbai_h1", "name": "The Taj Mahal Palace Mumbai", "lat": 18.921, "lon": 72.833, "sub_type": "hotel", "stars": 5.0, "cost": 18000.0, "tags": {"tourism": "hotel"}},
+                {"id": "mumbai_h2", "name": "Trident Nariman Point", "lat": 18.927, "lon": 72.820, "sub_type": "hotel", "stars": 5.0, "cost": 11000.0, "tags": {"tourism": "hotel"}},
+                {"id": "mumbai_h3", "name": "Zostel Mumbai", "lat": 19.123, "lon": 72.880, "sub_type": "hostel", "stars": 3.5, "cost": 750.0, "tags": {"tourism": "hotel"}},
+                {"id": "mumbai_h4", "name": "Le Sutra Hotel Bandra", "lat": 19.064, "lon": 72.825, "sub_type": "hotel", "stars": 4.0, "cost": 6500.0, "tags": {"tourism": "hotel"}},
+            ],
+            "restaurants": [
+                {"id": "mumbai_r1", "name": "Leopold Cafe Colaba", "lat": 18.922, "lon": 72.832, "sub_type": "cafe", "cuisine": "multi", "cost": 800.0, "tags": {"amenity": "cafe"}},
+                {"id": "mumbai_r2", "name": "Britannia & Co. Restaurant", "lat": 18.937, "lon": 72.839, "sub_type": "restaurant", "cuisine": "parsi", "cost": 1000.0, "tags": {"amenity": "restaurant"}},
+                {"id": "mumbai_r3", "name": "Bademiya Colaba", "lat": 18.922, "lon": 72.833, "sub_type": "restaurant", "cuisine": "mughlai", "cost": 600.0, "tags": {"amenity": "restaurant"}},
+            ],
+            "attractions": [
+                {"id": "mumbai_a1", "name": "Gateway of India", "lat": 18.921, "lon": 72.834, "sub_type": "historic", "cost": 0.0, "tags": {"tourism": "attraction"}},
+                {"id": "mumbai_a2", "name": "Marine Drive Promenade", "lat": 18.943, "lon": 72.823, "sub_type": "viewpoint", "cost": 0.0, "tags": {"tourism": "attraction"}},
+                {"id": "mumbai_a3", "name": "Chhatrapati Shivaji Terminus (CST)", "lat": 18.939, "lon": 72.835, "sub_type": "historic", "cost": 0.0, "tags": {"tourism": "attraction"}},
+                {"id": "mumbai_a4", "name": "Elephanta Caves", "lat": 18.963, "lon": 72.931, "sub_type": "historic", "cost": 250.0, "tags": {"tourism": "attraction"}},
+                {"id": "mumbai_a5", "name": "Colaba Causeway Market", "lat": 18.913, "lon": 72.828, "sub_type": "other", "cost": 0.0, "tags": {"tourism": "attraction"}},
+                {"id": "mumbai_a6", "name": "Juhu Beach", "lat": 19.098, "lon": 72.826, "sub_type": "beach", "cost": 0.0, "tags": {"tourism": "attraction"}},
+                {"id": "mumbai_a7", "name": "Tryst Nightclub Mumbai", "lat": 18.995, "lon": 72.824, "sub_type": "bar", "cost": 2000.0, "tags": {"amenity": "bar"}},
+                {"id": "mumbai_a8", "name": "Aer Lounge Rooftop Bar", "lat": 18.989, "lon": 72.820, "sub_type": "bar", "cost": 2500.0, "tags": {"amenity": "bar"}},
+            ]
+        },
+        "goa": {
+            "hotels": [
+                {"id": "goa_h1", "name": "Taj Exotica Resort Goa", "lat": 15.267, "lon": 73.926, "sub_type": "resort", "stars": 5.0, "cost": 15000.0, "tags": {"tourism": "hotel"}},
+                {"id": "goa_h2", "name": "Zostel Morjim Beach", "lat": 15.643, "lon": 73.738, "sub_type": "hostel", "stars": 3.5, "cost": 650.0, "tags": {"tourism": "hotel"}},
+                {"id": "goa_h3", "name": "W Goa Vagator Resort", "lat": 15.602, "lon": 73.734, "sub_type": "resort", "stars": 5.0, "cost": 19000.0, "tags": {"tourism": "hotel"}},
+                {"id": "goa_h4", "name": "Calangute Beach Association Hotel", "lat": 15.541, "lon": 73.759, "sub_type": "hotel", "stars": 3.5, "cost": 3200.0, "tags": {"tourism": "hotel"}},
+            ],
+            "restaurants": [
+                {"id": "goa_r1", "name": "Gunpowder Restaurant Assagao", "lat": 15.597, "lon": 73.774, "sub_type": "restaurant", "cuisine": "south_indian", "cost": 900.0, "tags": {"amenity": "restaurant"}},
+                {"id": "goa_r2", "name": "Curlies Beach Shack Anjuna", "lat": 15.572, "lon": 73.743, "sub_type": "restaurant", "cuisine": "seafood", "cost": 750.0, "tags": {"amenity": "restaurant"}},
+                {"id": "goa_r3", "name": "Thalassa Greek Restaurant Vagator", "lat": 15.598, "lon": 73.737, "sub_type": "restaurant", "cuisine": "greek", "cost": 1600.0, "tags": {"amenity": "restaurant"}},
+            ],
+            "attractions": [
+                {"id": "goa_a1", "name": "Baga Beach", "lat": 15.556, "lon": 73.751, "sub_type": "beach", "cost": 0.0, "tags": {"tourism": "attraction"}},
+                {"id": "goa_a2", "name": "Fort Aguada Landmark", "lat": 15.492, "lon": 73.773, "sub_type": "historic", "cost": 25.0, "tags": {"tourism": "attraction"}},
+                {"id": "goa_a3", "name": "Basilica of Bom Jesus", "lat": 15.500, "lon": 73.911, "sub_type": "historic", "cost": 0.0, "tags": {"tourism": "attraction"}},
+                {"id": "goa_a4", "name": "Dudhsagar Waterfalls View", "lat": 15.318, "lon": 74.314, "sub_type": "viewpoint", "cost": 400.0, "tags": {"tourism": "attraction"}},
+                {"id": "goa_a5", "name": "Anjuna Flea Market Walk", "lat": 15.576, "lon": 73.744, "sub_type": "other", "cost": 0.0, "tags": {"tourism": "attraction"}},
+                {"id": "goa_a6", "name": "Club Cubana Arpora Goa", "lat": 15.579, "lon": 73.774, "sub_type": "bar", "cost": 2000.0, "tags": {"amenity": "bar"}},
+                {"id": "goa_a7", "name": "Tito's Night Club Baga", "lat": 15.556, "lon": 73.752, "sub_type": "bar", "cost": 1800.0, "tags": {"amenity": "bar"}},
+                {"id": "goa_a8", "name": "LPK Waterfront Club Nerul", "lat": 15.504, "lon": 73.785, "sub_type": "bar", "cost": 1500.0, "tags": {"amenity": "bar"}},
+            ]
+        },
+        "jaipur": {
+            "hotels": [
+                {"id": "jaipur_h1", "name": "Rambagh Palace Jaipur", "lat": 26.898, "lon": 75.808, "sub_type": "resort", "stars": 5.0, "cost": 22000.0, "tags": {"tourism": "hotel"}},
+                {"id": "jaipur_h2", "name": "Umaid Bhawan Hotel Jaipur", "lat": 26.932, "lon": 75.795, "sub_type": "hotel", "stars": 4.0, "cost": 4000.0, "tags": {"tourism": "hotel"}},
+                {"id": "jaipur_h3", "name": "Zostel Jaipur Hostel", "lat": 26.920, "lon": 75.827, "sub_type": "hostel", "stars": 3.5, "cost": 550.0, "tags": {"tourism": "hotel"}},
+                {"id": "jaipur_h4", "name": "Pearl Palace Heritage Boutique Hotel", "lat": 26.918, "lon": 75.789, "sub_type": "hotel", "stars": 4.0, "cost": 3200.0, "tags": {"tourism": "hotel"}},
+            ],
+            "restaurants": [
+                {"id": "jaipur_r1", "name": "Chokhi Dhani Rajasthani Village", "lat": 26.766, "lon": 75.837, "sub_type": "restaurant", "cuisine": "rajasthani", "cost": 950.0, "tags": {"amenity": "restaurant"}},
+                {"id": "jaipur_r2", "name": "LMB Restaurant Johri Bazar", "lat": 26.920, "lon": 75.825, "sub_type": "restaurant", "cuisine": "rajasthani", "cost": 500.0, "tags": {"amenity": "restaurant"}},
+                {"id": "jaipur_r3", "name": "Tapri The Tea House Cafe", "lat": 26.907, "lon": 75.806, "sub_type": "cafe", "cuisine": "multi", "cost": 350.0, "tags": {"amenity": "cafe"}},
+            ],
+            "attractions": [
+                {"id": "jaipur_a1", "name": "Hawa Mahal", "lat": 26.924, "lon": 75.827, "sub_type": "historic", "cost": 50.0, "tags": {"tourism": "attraction"}},
+                {"id": "jaipur_a2", "name": "Amber Palace Fort", "lat": 26.985, "lon": 75.851, "sub_type": "historic", "cost": 100.0, "tags": {"tourism": "attraction"}},
+                {"id": "jaipur_a3", "name": "City Palace Jaipur", "lat": 26.926, "lon": 75.824, "sub_type": "historic", "cost": 200.0, "tags": {"tourism": "attraction"}},
+                {"id": "jaipur_a4", "name": "Jantar Mantar Observatory", "lat": 26.926, "lon": 75.825, "sub_type": "historic", "cost": 50.0, "tags": {"tourism": "attraction"}},
+                {"id": "jaipur_a5", "name": "Nahargarh Fort Viewpoint", "lat": 26.937, "lon": 75.815, "sub_type": "viewpoint", "cost": 50.0, "tags": {"tourism": "attraction"}},
+                {"id": "jaipur_a6", "name": "Bar Palladio Lounge Jaipur", "lat": 26.899, "lon": 75.812, "sub_type": "bar", "cost": 1500.0, "tags": {"amenity": "bar"}},
+                {"id": "jaipur_a7", "name": "House of People Club Lounge", "lat": 26.908, "lon": 75.790, "sub_type": "bar", "cost": 1800.0, "tags": {"amenity": "bar"}},
+            ]
+        }
+    }
+    
+    if c_lower in database:
+        return database[c_lower]
+
+    # Dynamic fallback generation for any other city
     hotels = [
         {"id": "fh1", "name": f"Taj {c} Palace", "lat": 0, "lon": 0, "sub_type": "hotel", "stars": 5.0, "cost": 12000.0, "tags": {"tourism": "hotel"}},
         {"id": "fh2", "name": f"The Oberoi {c}", "lat": 0, "lon": 0, "sub_type": "resort", "stars": 5.0, "cost": 15000.0, "tags": {"tourism": "hotel"}},
