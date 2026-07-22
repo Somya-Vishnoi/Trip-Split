@@ -44,7 +44,6 @@
             <!-- Right: Currency/Language, Sign In, Profile -->
             <div class="nav-actions">
                 <button class="nav-btn-icon" onclick="toggleDarkMode()" title="Toggle Dark Mode">🌙</button>
-                <button class="nav-btn-icon" onclick="openLanguageModal()" title="Select Language/Currency" style="font-weight: 700;">💱 INR</button>
                 
                 <!-- Non-logged in state -->
                 <button id="nav-signin-btn" class="nav-btn-primary" onclick="openSigninModal()">Sign In</button>
@@ -1645,36 +1644,7 @@
         </div>
     </div>
 
-    <!-- Languages / Currency Selector Modal -->
-    <div id="language-selector-modal" class="modal-overlay hidden" onclick="closeLanguageModal()">
-        <div class="modal-card" style="max-width:500px;" onclick="event.stopPropagation()">
-            <button class="close-modal-x" onclick="closeLanguageModal()">&times;</button>
-            <h3 style="border-bottom:1.5px solid var(--border); padding-bottom:0.5rem; margin-bottom:1.5rem;">Select Language & Currency</h3>
-            
-            <div style="display:flex; flex-direction:column; gap:1.25rem;">
-                <div>
-                    <label style="font-size:0.8rem; font-weight:700; display:block; margin-bottom:0.4rem;">Language</label>
-                    <select style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
-                        <option>English (India)</option>
-                        <option>English (United States)</option>
-                        <option>English (United Kingdom)</option>
-                        <option>Español (España)</option>
-                        <option>Français (France)</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="font-size:0.8rem; font-weight:700; display:block; margin-bottom:0.4rem;">Currency</label>
-                    <select id="language-currency-select-el" onchange="handleCurrencyChange(this.value)" style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; font-size:0.85rem;">
-                        <option value="INR">₹ INR - Indian Rupee</option>
-                        <option value="USD">$ USD - US Dollar</option>
-                        <option value="EUR">€ EUR - Euro</option>
-                        <option value="GBP">£ GBP - British Pound</option>
-                    </select>
-                </div>
-                <button class="btn-primary" style="width:100%; padding:0.65rem;" onclick="closeLanguageModal()">Save Preferences</button>
-            </div>
-        </div>
-    </div>
+
 
     <!-- Booking Checkout Wizard Flow Modal -->
     <div id="checkout-modal" class="modal-overlay hidden" onclick="closeCheckoutModal()">
