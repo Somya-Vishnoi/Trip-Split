@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TripSplit — College Project Presentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0F172A;
+            --card-dark: #1E293B;
+            --accent: #7C3AED;
+            --accent-light: #EDE9FE;
+            --accent-green: #10B981;
+            --text-dark: #0F172A;
+            --text-muted: #64748B;
+            --bg-light: #F8FAFC;
+            --card-light: #FFFFFF;
+            --border: #E2E8F0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: var(--bg-dark);
+            color: #FFFFFF;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Top Progress Bar */
+        .progress-bar-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            z-index: 100;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--accent-green) 100%);
+            width: 10%;
+            transition: width 0.4s ease;
+        }
+
+        /* Slide Container & Deck */
+        .deck-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 3rem 5rem;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateX(40px);
+            transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            background: var(--bg-light);
+            color: var(--text-dark);
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(0);
+        }
+
+        .slide.theme-dark {
+            background: var(--bg-dark);
+            color: #FFFFFF;
+        }
+
+        /* Header Elements */
+        .slide-badge {
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            color: var(--accent);
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+        .theme-dark .slide-badge {
+            color: var(--accent-green);
+        }
+
+        .slide-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 2rem;
+            line-height: 1.2;
+        }
+        .theme-dark .slide-title {
+            color: #FFFFFF;
+        }
+
+        /* Card Grids */
+        .grid-2x2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            flex: 1;
+        }
+
+        .grid-3col {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1.5rem;
+            flex: 1;
+        }
+
+        .grid-4col {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 1.25rem;
+            flex: 1;
+        }
+
+        .list-vertical {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            flex: 1;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--card-light);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+        }
+
+        .theme-dark .card {
+            background: var(--card-dark);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .card-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .theme-dark .card-title {
+            color: #FFFFFF;
+        }
+
+        .card-desc {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+        .theme-dark .card-desc {
+            color: #94A3B8;
+        }
+
+        /* List Cards */
+        .list-item-card {
+            background: var(--card-light);
+            border: 1px solid var(--border);
+            border-left: 5px solid var(--accent);
+            border-radius: 12px;
+            padding: 1.1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        .list-item-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent);
+            min-width: 260px;
+        }
+        .list-item-desc {
+            font-size: 0.92rem;
+            color: var(--text-dark);
+            line-height: 1.5;
+            flex: 1;
+        }
+
+        /* Hero Slide Content */
+        .hero-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100%;
+            max-width: 900px;
+        }
+        .hero-tag {
+            display: inline-block;
+            background: rgba(124, 58, 237, 0.15);
+            color: #A78BFA;
+            padding: 0.4rem 1rem;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            width: fit-content;
+            border: 1px solid rgba(124, 58, 237, 0.3);
+        }
+        .hero-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 4.2rem;
+            font-weight: 900;
+            color: #FFFFFF;
+            line-height: 1.1;
+            margin-bottom: 1.25rem;
+            letter-spacing: -1px;
+        }
+        .hero-title span {
+            color: var(--accent);
+            background: linear-gradient(135deg, #A78BFA 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero-subtitle {
+            font-size: 1.35rem;
+            color: #94A3B8;
+            line-height: 1.6;
+            margin-bottom: 2.5rem;
+        }
+        .hero-meta {
+            display: flex;
+            gap: 2rem;
+            font-size: 0.9rem;
+            color: var(--accent-green);
+            font-weight: 700;
+        }
+
+        /* Controls Footer */
+        .controls-footer {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            z-index: 100;
+        }
+        .slide-counter {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.7);
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(8px);
+            padding: 0.5rem 1rem;
+            border-radius: 100px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .nav-btn {
+            background: var(--accent);
+            color: #FFFFFF;
+            border: none;
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+        .nav-btn:hover {
+            transform: scale(1.08);
+            background: #6D28D9;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="progress-bar-container">
+        <div id="progress-bar" class="progress-bar-fill"></div>
+    </div>
+
+    <div class="deck-container">
+
+        <!-- SLIDE 1: HERO TITLE -->
+        <div class="slide theme-dark active" id="slide-1">
+            <div class="hero-content">
+                <div class="hero-tag">COLLEGE FINAL PROJECT PRESENTATION</div>
+                <h1 class="hero-title">TRIPSPLIT <span>OPTIMIZER</span></h1>
+                <p class="hero-subtitle">Student Travel Budget & Route Optimization Engine tailored for Indian multi-city travel with automated group expense tracking.</p>
+                <div class="hero-meta">
+                    <div>DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 2: PROBLEM STATEMENT -->
+        <div class="slide" id="slide-2">
+            <div class="slide-badge">PROBLEM STATEMENT</div>
+            <h2 class="slide-title">Travel Planning & Financial Challenges</h2>
+            <div class="grid-2x2">
+                <div class="card">
+                    <h3 class="card-title" style="color:#EF4444;">Budget Allocation Confusion</h3>
+                    <p class="card-desc">Students struggle to distinguish between total group budgets vs per-person shares, leading to critical miscalculations during initial planning.</p>
+                </div>
+                <div class="card">
+                    <h3 class="card-title" style="color:#EF4444;">High Manual Research Effort</h3>
+                    <p class="card-desc">Designing multi-day travel itineraries across Indian cities manually takes hours of research with unpredictable venue and hotel costs.</p>
+                </div>
+                <div class="card">
+                    <h3 class="card-title" style="color:#EF4444;">Generic Non-Tailored Planners</h3>
+                    <p class="card-desc">Existing booking engines recommend high-end commercial spots without catering to student pricing constraints or regional transport choices.</p>
+                </div>
+                <div class="card">
+                    <h3 class="card-title" style="color:#EF4444;">Post-Trip Financial Friction</h3>
+                    <p class="card-desc">Shared group trips often suffer from unorganized bill tracking, resulting in complex and awkward debt settlements after returning.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 3: PROPOSED SOLUTION -->
+        <div class="slide" id="slide-3">
+            <div class="slide-badge">THE TRIPSPLIT SOLUTION</div>
+            <h2 class="slide-title">System Features & Intelligent Core</h2>
+            <div class="grid-2x2">
+                <div class="card" style="border-top: 4px solid var(--accent);">
+                    <h3 class="card-title">Dynamic Budget Partitioning</h3>
+                    <p class="card-desc">Automatically divides input budget across Transport, Stay, Food, Local Travel, and Buffer with real-time per-person breakdowns.</p>
+                </div>
+                <div class="card" style="border-top: 4px solid var(--accent);">
+                    <h3 class="card-title">Budget-Free Sightseeing Logic</h3>
+                    <p class="card-desc">Sightseeing entry tickets are calculated as budget-free, ensuring rich attraction recommendations regardless of accommodation tier.</p>
+                </div>
+                <div class="card" style="border-top: 4px solid var(--accent);">
+                    <h3 class="card-title">5 Comparative Itinerary Styles</h3>
+                    <p class="card-desc">Generates five distinct trip plans in parallel: Best Overall, Cheapest Trip, Slow & Relaxed, More Places, and Better Stay.</p>
+                </div>
+                <div class="card" style="border-top: 4px solid var(--accent);">
+                    <h3 class="card-title">Group Expense Splitter</h3>
+                    <p class="card-desc">Features a built-in group bill manager with equal/custom splits, net settlement reduction algorithms, and visual charts.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 4: SYSTEM ARCHITECTURE -->
+        <div class="slide theme-dark" id="slide-4">
+            <div class="slide-badge">SYSTEM ARCHITECTURE</div>
+            <h2 class="slide-title">Technology Stack & Platform Design</h2>
+            <div class="grid-3col">
+                <div class="card">
+                    <h3 class="card-title" style="color:var(--accent-green);">FRONTEND LAYER</h3>
+                    <p class="card-desc" style="color:#CBD5E1; line-height:1.7;">
+                        Vanilla HTML5, CSS3 & ES6+ JavaScript<br><br>
+                        • Single Page App (SPA) Navigation<br>
+                        • Leaflet.js Interactive Mapping<br>
+                        • TripAdvisor-Grade UI Design<br>
+                        • Fully Responsive Grid Layouts
+                    </p>
+                </div>
+                <div class="card">
+                    <h3 class="card-title" style="color:var(--accent-green);">BACKEND ENGINE</h3>
+                    <p class="card-desc" style="color:#CBD5E1; line-height:1.7;">
+                        Python 3 & FastAPI Framework<br><br>
+                        • Knapsack Allocation Heuristics<br>
+                        • Asynchronous REST API Endpoints<br>
+                        • Uvicorn Serverless Execution<br>
+                        • Modular Router & Optimizer
+                    </p>
+                </div>
+                <div class="card">
+                    <h3 class="card-title" style="color:var(--accent-green);">DATA & GEOSPATIAL</h3>
+                    <p class="card-desc" style="color:#CBD5E1; line-height:1.7;">
+                        OpenStreetMap Ecosystem<br><br>
+                        • Nominatim Instant Geocoding<br>
+                        • Overpass POI API (Venues & Sights)<br>
+                        • Pre-cached City Databases<br>
+                        • Fallback Real-World Catalogs
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 5: OPTIMIZATION ALGORITHM -->
+        <div class="slide" id="slide-5">
+            <div class="slide-badge">ALGORITHM PIPELINE</div>
+            <h2 class="slide-title">Optimization Heuristics & Knapsack Execution</h2>
+            <div class="list-vertical">
+                <div class="list-item-card">
+                    <div class="list-item-title">Phase 1: Bounding Box & Geocoding</div>
+                    <div class="list-item-desc">Converts target city inputs into lat/lon coordinates. Applies a dense 5km radius bounding box cap for metro cities (Delhi, Mumbai) to optimize search latency.</div>
+                </div>
+                <div class="list-item-card">
+                    <div class="list-item-title">Phase 2: Venue Utility Scoring</div>
+                    <div class="list-item-desc">Classifies query results into Stays, Dining, and Attractions with utility scores (0-100) and cost estimates tailored for student travel.</div>
+                </div>
+                <div class="list-item-card">
+                    <div class="list-item-title">Phase 3: Constrained Partitioning</div>
+                    <div class="list-item-desc">Allocates funds across fixed categories (Transport, Accommodation, Food, Local Travel) with a minimum 10% safety buffer.</div>
+                </div>
+                <div class="list-item-card">
+                    <div class="list-item-title">Phase 4: Sequential Day Slotting</div>
+                    <div class="list-item-desc">Slots attractions sequentially into Morning, Afternoon, Evening, and Night timeline buckets, producing structured day-by-day plans.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 6: INDIA CENTRIC FEATURES -->
+        <div class="slide" id="slide-6">
+            <div class="slide-badge">PLATFORM HIGHLIGHTS</div>
+            <h2 class="slide-title">India-Centric Features & Capabilities</h2>
+            <div class="grid-2x2">
+                <div class="card">
+                    <h3 class="card-title">India-Specific Transport Modes</h3>
+                    <p class="card-desc">Supports regional travel options including 3AC Train, Sleeper Class, Flights, and Private Cabs with real fare estimates.</p>
+                </div>
+                <div class="card">
+                    <h3 class="card-title">High-Availability Offline Catalog</h3>
+                    <p class="card-desc">Pre-populated real-world venue databases for major Indian travel hubs (Delhi, Mumbai, Goa, Jaipur) for zero downtime.</p>
+                </div>
+                <div class="card">
+                    <h3 class="card-title">Side-by-Side Comparison Matrix</h3>
+                    <p class="card-desc">Interactive modal enabling simultaneous comparison of cost splits, stay ratings, and highlights across all 5 trip options.</p>
+                </div>
+                <div class="card">
+                    <h3 class="card-title">Seasonal Destination Guidance</h3>
+                    <p class="card-desc">Displays climate and seasonal tags next to travel months (e.g., August - Monsoon, January - Winter Freeze warnings).</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 7: EXPENSE SPLITTER -->
+        <div class="slide" id="slide-7">
+            <div class="slide-badge">FINANCIAL MANAGEMENT</div>
+            <h2 class="slide-title">Group Expense Splitter (Ledger Engine)</h2>
+            <div class="grid-4col">
+                <div class="card" style="border-top: 4px solid var(--accent-green);">
+                    <h3 class="card-title" style="font-size:1.05rem;">Dynamic Group Roster</h3>
+                    <p class="card-desc" style="font-size:0.88rem;">Configurable group member lists with dynamic payer dropdowns and customizable individual shares.</p>
+                </div>
+                <div class="card" style="border-top: 4px solid var(--accent-green);">
+                    <h3 class="card-title" style="font-size:1.05rem;">Equal & Custom Splits</h3>
+                    <p class="card-desc" style="font-size:0.88rem;">Supports equal division across group members or specific itemized custom amounts.</p>
+                </div>
+                <div class="card" style="border-top: 4px solid var(--accent-green);">
+                    <h3 class="card-title" style="font-size:1.05rem;">Net Debt Reduction</h3>
+                    <p class="card-desc" style="font-size:0.88rem;">Calculates net balance matrices to reduce the total number of transactions needed to settle group debts.</p>
+                </div>
+                <div class="card" style="border-top: 4px solid var(--accent-green);">
+                    <h3 class="card-title" style="font-size:1.05rem;">Category Analytics</h3>
+                    <p class="card-desc" style="font-size:0.88rem;">Generates category-wise expense pie and bar charts for transparent trip financial audits.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 8: VERCEL DEPLOYMENT -->
+        <div class="slide" id="slide-8">
+            <div class="slide-badge">PERFORMANCE OPTIMIZATIONS</div>
+            <h2 class="slide-title">Vercel Serverless & Deployment Stability</h2>
+            <div class="list-vertical">
+                <div class="list-item-card" style="border-left-color: var(--accent-green);">
+                    <div class="list-item-title" style="color: var(--accent-green);">Vercel Serverless Architecture</div>
+                    <div class="list-item-desc">Configured using @vercel/python with API route handlers (/api/*) and static asset delivery.</div>
+                </div>
+                <div class="list-item-card" style="border-left-color: var(--accent-green);">
+                    <div class="list-item-title" style="color: var(--accent-green);">Strict 3-Second Timeout Capping</div>
+                    <div class="list-item-desc">Capped HTTP timeouts across external API calls to guarantee complete response execution within Vercel serverless limits.</div>
+                </div>
+                <div class="list-item-card" style="border-left-color: var(--accent-green);">
+                    <div class="list-item-title" style="color: var(--accent-green);">Read-Only Filesystem Handling</div>
+                    <div class="list-item-desc">Safely catches file creation errors and redirects transient database operations to /tmp/tripsplit_cache.db.</div>
+                </div>
+                <div class="list-item-card" style="border-left-color: var(--accent-green);">
+                    <div class="list-item-title" style="color: var(--accent-green);">Client Storage Persistence</div>
+                    <div class="list-item-desc">Leverages browser LocalStorage to store active user preferences, group rosters, and saved venue bookmarks.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 9: FUTURE ENHANCEMENTS -->
+        <div class="slide" id="slide-9">
+            <div class="slide-badge">PROJECT ROADMAP</div>
+            <h2 class="slide-title">Future Enhancements & Scope</h2>
+            <div class="grid-2x2">
+                <div class="card">
+                    <h3 class="card-title">Live IRCTC & Airline API Integration</h3>
+                    <p class="card-desc">Direct real-time train seat availability and live flight ticket price integration.</p>
+                </div>
+                <div class="card">
+                    <h3 class="card-title">Collaborative Real-Time Editing</h3>
+                    <p class="card-desc">WebSocket-enabled collaborative trip planning allowing group members to edit itineraries simultaneously.</p>
+                </div>
+                <div class="card">
+                    <h3 class="card-title">AI-Driven Personalization</h3>
+                    <p class="card-desc">Machine learning recommendations based on past user travel preferences and dietary needs.</p>
+                </div>
+                <div class="card">
+                    <h3 class="card-title">Native Mobile Application</h3>
+                    <p class="card-desc">Cross-platform mobile application built with React Native / Flutter for offline field access.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 10: CONCLUSION -->
+        <div class="slide theme-dark" id="slide-10">
+            <div class="hero-content">
+                <div class="hero-tag" style="background:rgba(16,185,129,0.15); color:var(--accent-green); border-color:rgba(16,185,129,0.3);">PROJECT DELIVERABLE COMPLETE</div>
+                <h1 class="hero-title">Thank You!</h1>
+                <p class="hero-subtitle">TripSplit — Student Travel Budget & Route Optimizer</p>
+                <div class="hero-meta">
+                    <div>QUESTIONS & PROJECT DISCUSSION WELCOME</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Navigation Controls -->
+    <div class="controls-footer">
+        <div id="slide-counter" class="slide-counter">Slide 1 of 10</div>
+        <button class="nav-btn" onclick="prevSlide()">&larr;</button>
+        <button class="nav-btn" onclick="nextSlide()">&rarr;</button>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 10;
+
+        function updateSlide() {
+            document.querySelectorAll('.slide').forEach((slide, index) => {
+                slide.classList.remove('active');
+                if (index === currentSlide - 1) {
+                    slide.classList.add('active');
+                }
+            });
+            document.getElementById('slide-counter').textContent = `Slide ${currentSlide} of ${totalSlides}`;
+            document.getElementById('progress-bar').style.width = `${(currentSlide / totalSlides) * 100}%`;
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides) {
+                currentSlide++;
+                updateSlide();
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 1) {
+                currentSlide--;
+                updateSlide();
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'Space') {
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                prevSlide();
+            }
+        });
+    </script>
+</body>
+</html>
