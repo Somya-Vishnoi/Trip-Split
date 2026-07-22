@@ -107,20 +107,16 @@ Do not return any markdown codeblocks or text outside the JSON. Return only the 
         }
         
         import time
-        max_retries = 3
-        backoff = 2.0
+        max_retries = 1
         parsed = {}
         
         try:
             for attempt in range(max_retries):
                 try:
-                    res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=25)
+                    res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=3)
                     if res.status_code == 429:
-                        if attempt < max_retries - 1:
-                            print(f"[Gemini 429] Rate limit hit. Retrying in {backoff}s...")
-                            time.sleep(backoff)
-                            backoff *= 2.0
-                            continue
+                        print("[Gemini 429] Rate limit hit. Skipping enrichment.")
+                        break
                     res.raise_for_status()
                     res_json = res.json()
                     text = res_json["candidates"][0]["content"]["parts"][0]["text"]
@@ -129,9 +125,6 @@ Do not return any markdown codeblocks or text outside the JSON. Return only the 
                 except Exception as e:
                     if attempt == max_retries - 1:
                         raise e
-                    print(f"[Gemini Retry] Attempt {attempt + 1} failed: {e}. Retrying in {backoff}s...")
-                    time.sleep(backoff)
-                    backoff *= 2.0
                 
             # Cache the newly fetched enrichments
             for item in parsed.get("venues", []):
@@ -277,7 +270,7 @@ Do not return any markdown codeblocks or text outside the JSON. Return only the 
     }
 
     try:
-        res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=25)
+        res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=3)
         res.raise_for_status()
         res_json = res.json()
         text = res_json["candidates"][0]["content"]["parts"][0]["text"]

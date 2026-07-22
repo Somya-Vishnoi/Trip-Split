@@ -4,7 +4,7 @@ from typing import Dict, List, Any, Tuple
 from src.config import OVERPASS_API_URL
 from src.cache import get_cached_response, set_cached_response
 
-def fetch_overpass(query: str, retries: int = 3, timeout: int = 10) -> dict:
+def fetch_overpass(query: str, retries: int = 1, timeout: int = 3) -> dict:
     headers = {
         "User-Agent": "TripSplit-Budget-Optimizer/1.0"
     }
@@ -20,7 +20,7 @@ def fetch_overpass(query: str, retries: int = 3, timeout: int = 10) -> dict:
             return response.json()
         except requests.exceptions.Timeout:
             if attempt < retries - 1:
-                time.sleep(2 ** attempt)  # 1s, 2s, 4s backoff
+                time.sleep(1)
                 continue
             return {"elements": []}
         except requests.exceptions.RequestException:

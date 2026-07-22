@@ -30,7 +30,10 @@ async def disable_caching_middleware(request, call_next):
 
 # Serve static files
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
-STATIC_DIR.mkdir(exist_ok=True)
+try:
+    STATIC_DIR.mkdir(exist_ok=True)
+except Exception:
+    pass
 
 from typing import Optional
 

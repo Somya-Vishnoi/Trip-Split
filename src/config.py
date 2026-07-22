@@ -3,12 +3,17 @@ from pathlib import Path
 
 # Paths
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
 
-if os.getenv("VERCEL"):
+IS_VERCEL = bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
+if IS_VERCEL:
     DB_PATH = Path("/tmp/tripsplit_cache.db")
 else:
+    DATA_DIR = BASE_DIR / "data"
+    try:
+        DATA_DIR.mkdir(exist_ok=True)
+    except Exception:
+        pass
     DB_PATH = DATA_DIR / "tripsplit_cache.db"
 
 # API Settings
